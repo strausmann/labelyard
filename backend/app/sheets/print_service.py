@@ -76,7 +76,12 @@ from app.schemas.sheet_print import (
 )
 from app.schemas.spool_swatch import SpoolSwatch
 from app.services import render_slots
-from app.services.errors import AppLookupNotFoundError, IntegrationNotConfiguredError
+from app.services.errors import (
+    AppLookupNotFoundError,
+    IntegrationNotConfiguredError,
+    LookupDeadlineError,
+)
+from app.services.lookup_gate import BatchDeadline
 from app.services.lookup_service import AppLookupService, LookupFailedError, UnknownAppError
 from app.services.page_jobs import PagePayload, snapshot_to_deviation
 from app.services.ql_layout import INK_THRESHOLD
@@ -247,6 +252,12 @@ _LOOKUP_ERRORS: Final[tuple[tuple[type[Exception], int, str, str], ...]] = (
         "integration_not_configured",
         "The integration is not configured.",
     ),
+    (
+        LookupDeadlineError,
+        504,
+        "lookup-timeout",
+        "The integration lookups did not finish in time.",
+    ),
 )
 
 
@@ -385,15 +396,21 @@ async def resolve_items(
     label, R-281-15); a lookup's label keeps the integration's own.
 
     Identical lookups (same app and identifier) run once. Lookups run with at most
-    ``LOOKUP_CONCURRENCY`` in flight. All of them finish before the
+    ``LOOKUP_CONCURRENCY`` in flight, all of them within one deadline
+    (``integrations.lookup_batch_deadline_s``, #405): one not done by then fails with
+    ``lookup-timeout``. All of them finish before the
     answer: when several fail, the lowest index is reported, not the first to come back
-    (pre-flight C11). An error that is none of the four lookup classes is a bug and propagates.
+    (pre-flight C11). An error that is none of the lookup classes is a bug and propagates.
     """
     gate = asyncio.Semaphore(LOOKUP_CONCURRENCY)
+    deadline = BatchDeadline()
 
-    async def fetch(request: PrintLookupRequest) -> LabelData:
+    async def gated(request: PrintLookupRequest) -> LabelData:
         async with gate:
             return await lookup.lookup(request.app, request.identifier)
+
+    async def fetch(request: PrintLookupRequest) -> LabelData:
+        return await deadline.run(gated(request))
 
     # One lookup per distinct (app, identifier); the answer fans out to every item that asked.
     wanted: dict[tuple[str, str], PrintLookupRequest] = {}
@@ -1329,6 +1346,7 @@ async def _recheck_id_cells(
     scan: Callable[[str], str],
     render_dpi: int,
     bus: Any,
+    stored: bool = False,
 ) -> None:
     """Check the ID cell of every reserved page once the reservation has decided it (#215).
 
@@ -1336,8 +1354,13 @@ async def _recheck_id_cells(
     holding the sheet's ID cell may be released during the item lookups, and the reservation
     then puts the hub's own label into a cell the plan never checked. When that label does not
     fit, every reservation of the run is released and the 422 is raised.
+
+    ``stored`` (#405): the run prints as stored rows (a Grocy label, R-281-16). Their state
+    decides, as in ``_undo_partial_print``: a row that already is a queued page keeps its cells
+    (the next recovery prints it onto them, T7-1); every other page is released.
     """
     try:
+        # strict: one sheet view per reserved page; a missing one is a bug, never a skipped check.
         for page, sheet in zip(reserved, sheets, strict=True):
             if page.id_cell is None:
                 continue
@@ -1352,8 +1375,22 @@ async def _recheck_id_cells(
     except BaseException:
         # The threaded check is a suspension point after the reservation committed: a cancel or
         # any other error there must not leave the run's cells reserved without a job row.
-        await asyncio.shield(_release_all(session_factory, [p.job_id for p in reserved], bus))
+        await asyncio.shield(_release_unqueued(session_factory, reserved, bus, stored=stored))
         raise
+
+
+async def _release_unqueued(
+    session_factory: async_sessionmaker[AsyncSession],
+    reserved: Sequence[ReservedPage],
+    bus: Any,
+    *,
+    stored: bool,
+) -> None:
+    """Release the pages of ``reserved`` that are not queued; a stored run's row decides."""
+    pending = [p.job_id for p in reserved]
+    if stored:
+        pending = [j for j in pending if not await _stored_row_keeps_cells(session_factory, j)]
+    await _release_all(session_factory, pending, bus)
 
 
 def _check_plan_items(
@@ -1828,6 +1865,7 @@ async def print_sheets(
             scan=scan,
             render_dpi=facts.render_dpi,
             bus=bus,
+            stored=job_id is not None,
         )
 
         batch_id, printed = await _queue_pages(

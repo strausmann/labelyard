@@ -45,7 +45,7 @@ from app.schemas.label_layout import LabelOrientation, LayoutDefault, QlLayoutPr
 from app.schemas.print_request import PrintOptions, PrintRequest, RawLabelData
 from app.schemas.tape_geometry import TAPE_GEOMETRY
 from app.services.layout_engine import LayoutEngine
-from app.services.lookup_gate import lookup_gate
+from app.services.lookup_gate import BatchDeadline, lookup_gate
 from app.services.print_error_codes import print_error_code
 from app.services.print_queue import DEFERRED_INTERRUPTED, MAX_LABELS_PER_TAPE_JOB
 from app.services.producers.print_queue_producer import publish_job_state_changed
@@ -726,12 +726,19 @@ class PrintService:
 
         # 2. Resolve LabelData ONCE per item, then render via LayoutEngine
         lookups = lookup_gate()  # shared with every other batch and render check
+        deadline = BatchDeadline()  # one deadline over every lookup of the batch (#405)
+
+        async def _gated(req: PrintRequest) -> LabelData:
+            async with lookups:
+                return await self._resolve_label_data(req)
 
         async def _prepare_one(
             req: PrintRequest, opts: PrintOptions
         ) -> tuple[Image.Image, dict[str, Any]]:
-            async with lookups:
-                label_data = await self._resolve_label_data(req)
+            if req.lookup is None:
+                label_data = await _gated(req)
+            else:
+                label_data = await deadline.run(_gated(req))
             image = await asyncio.to_thread(
                 functools.partial(
                     self._engine.render,

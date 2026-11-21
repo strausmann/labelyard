@@ -136,6 +136,10 @@ class Settings(BaseSettings):
     """What the swatch label's black bar shows (#346): the filament's ``material`` (default)
     or its ``name``; the colour line under it shows the other one."""
 
+    lookup_batch_deadline_s: float = 30.0
+    """Seconds the integration lookups of one batch print, sheet print or render check may take
+    together (#405); an item not looked up by then fails with ``lookup-timeout``."""
+
     # Server
     server_port: int = 8000
     log_level: LogLevel = "INFO"

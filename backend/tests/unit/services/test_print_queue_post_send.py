@@ -13,16 +13,35 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from app.models.job import Job as DbJob
 from app.printer_backends.exceptions import (
     PrinterOfflineError,
     PrinterReportedError,
     TapeMismatchError,
 )
 from app.services.job_lifecycle import JobState
+from app.services.job_store import MemoryJobStore
+from app.services.layout_engine import LayoutEngine
 from app.services.print_queue import PrintQueue
 from PIL import Image
 
 _PRINTER = UUID("aaaaaaaa-0000-0000-0000-000000000389")
+
+_RETRY_PAYLOAD: dict[str, Any] = {
+    "label_data": {
+        "title": "Test",
+        "primary_id": "T-001",
+        "qr_payload": "https://example.invalid/t",
+        "source_app": "manual",
+        "secondary": [],
+        "items": [],
+    },
+    "content_type": "qr_two_lines",
+    "rendered_tape_mm": 24,
+    "tape_mm": 24,
+    "options": {"auto_cut": True},
+}
+"""A stored tape payload the queue can render again, as the retry route writes it."""
 
 
 class _Printer:
@@ -49,7 +68,7 @@ class _Printer:
 
 
 async def _run(printer: _Printer) -> tuple[PrintQueue, Any]:
-    queue = PrintQueue([printer])
+    queue = PrintQueue([printer], store=MemoryJobStore(), engine=LayoutEngine())
     await queue.start()
     job_id = await queue.submit(_PRINTER, Image.new("1", (306, 120)), tape_mm=29)
     await queue.wait_for_job(job_id, timeout_s=5)
@@ -68,7 +87,11 @@ async def test_an_error_the_printer_reports_after_sending_fails_the_job() -> Non
         assert job.error_detail == {"flags": ["jammed"]}
         # Recoverable: the printer waits until someone fixed it, the job can be retried.
         assert queue.is_paused(_PRINTER)
-        assert await queue.retry_job(job.id) is not None
+        # The retry routes write the new row and hand it to the queue (#405).
+        row = DbJob(printer_id=_PRINTER, payload=dict(_RETRY_PAYLOAD))
+        await queue._store.save_queued(row)
+        await queue.enqueue_persisted(row)
+        assert queue.has_job(row.id)
     finally:
         await queue.stop()
 

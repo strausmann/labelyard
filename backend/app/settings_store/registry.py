@@ -122,6 +122,8 @@ _DEFS: list[SettingDef] = [
     *_integration("spoolman", secret=None, secret_env=None),
     *_spoolman_label(),
     *_integration("paperless", secret="token", secret_env="paperless_token"),
+    # #405: one deadline over the lookups of a batch, sheet print or render check.
+    SettingDef("integrations.lookup_batch_deadline_s", "float", 30.0, "lookup_batch_deadline_s"),
     SettingDef("access.webhook_api_key", "secret", "", "webhook_api_key"),
     SettingDef("jobs.retention_days", "int", 30, "job_retention_days"),
 ]

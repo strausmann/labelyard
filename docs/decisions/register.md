@@ -40,6 +40,7 @@ A guard test (`backend/tests/unit/test_decision_register.py`) fails if a `D<n>` 
 | D25 | A printer's SNMP community is write-only and bound to its SNMP target; it falls under D5 and is stored encrypted from 1.8.0 (#412) | 2026-11-21 | Accepted | [0017](0017-settings-in-database-env-locks-encrypted-secrets.md) |
 | D26 | The access log is one line per request in nginx combined format with its own redaction; its format is an external interface for log tools | 2026-11-15 | Accepted | [0027](0027-url-token-for-the-grocy-label-webhook.md) |
 | D27 | A tape print counts only when the printer confirms it (IPP job state or SNMP label counter); an unknown outcome pauses the printer | 2026-11-18 | Accepted | [0030](0030-confirmed-tape-prints.md) |
+| D28 | Every migration has a downgrade; the way back from a release is its downgrade or the backup; new job payload fields go only into containers that ignore unknown keys | 2026-11-21 | Proposed | [0034](0034-database-migrations-and-the-way-back.md) |
 | V1 | Media type `labels` is settable on the test printer via `media-col` | 2026-11-06 | To verify | — |
 | V2 | L4731REV has no vertical gap (pitch 10 mm) | 2026-11-05 | To verify | — |
 | V3 | A QR does not scan reliably on 25.4 × 10 mm cells | 2026-11-05 | To verify | — |

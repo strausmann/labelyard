@@ -167,6 +167,14 @@ Was der schwarze Balken des Spulen-Etiketts zeigt: `material` (Standard) oder de
 
 Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
 
+### `LABELYARD_LOOKUP_BATCH_DEADLINE_S`
+
+Standard: `30.0`
+
+Sekunden, die die Abfragen bei den Integrationen für einen Stapeldruck, einen Bogendruck oder eine Darstellungsprüfung zusammen brauchen dürfen, höchstens `300` (Standard `30`). Das Warten auf die gemeinsame Abfragegrenze zählt mit. Ein Eintrag, der bis dahin nicht abgefragt ist, scheitert mit `lookup-timeout` (`504` beim Drucken, ein Ergebnis je Eintrag bei der Darstellungsprüfung); ein Fehler der Integration davor behält seinen eigenen Code.
+
+Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
+
 ### `LABELYARD_SERVER_PORT`
 
 Standard: `8000`

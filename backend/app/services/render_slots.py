@@ -14,14 +14,15 @@ the thread ends. It is marked stuck by a timer started with the thread, not by t
 a render whose caller went away (a cancelled request) counts too. The count is logged and
 shown by the readiness check ``render_slots``.
 
-Every owner (``owner_of``: each API key, and one group ``NO_KEY`` for all callers without a
-key: browser sessions, SSO, the hub itself) holds at most ``OWNER_LIMIT`` (all slots but
-one) slots at once, counted from taking the slot to the end of the thread, running or stuck.
-A semaphore of that size per owner (created when first needed, dropped when unused) is taken
-before the slot, always in that order, and held until the thread ends. So no single owner can
-hang every slot, not even with renders started at the same time. On top of that, a key with a
-stuck render is refused at once (``OwnerRenderStuckError``), and the group without a key is
-refused at once while ``OWNER_LIMIT`` of its renders are stuck (``RenderUnavailableError``).
+Every owner (``owner_of``: each API key, each browser session without a key, and one group
+``NO_KEY`` for all callers with neither: SSO without a session, the hub itself) holds at most
+``OWNER_LIMIT`` (all slots but one) slots at once, counted from taking the slot to the end of
+the thread, running or stuck. A semaphore of that size per owner (created when first needed,
+dropped when unused) is taken before the slot, always in that order, and held until the thread
+ends. So no single owner can hang every slot, not even with renders started at the same time. On
+top of that, a key or session with a stuck render is refused at once (``OwnerRenderStuckError``),
+and the group ``NO_KEY`` is refused at once while ``OWNER_LIMIT`` of its renders are stuck
+(``RenderUnavailableError``).
 
 Waiting is bounded: with every slot stuck a caller is refused at once, otherwise it waits at
 most the time limit for its owner's turn and its slot together (``RenderUnavailableError``).
@@ -30,10 +31,12 @@ Accepted residual risk: with 2 slots, two *different* owners (two keys, or one k
 user) can together hang every slot; a single party cannot. Keys are issued by an admin; such
 a key is revoked and the hub restarted.
 
-Known limitation (accepted): the callers without a key share one owner and so block each other.
-While one of them renders, the next waits; while one render of theirs is stuck, every caller
-without a key gets ``RenderUnavailableError`` until it ends or the hub restarts. Signed-in UI
-users are trusted, and the keys keep their slot.
+Known limitation (accepted): the callers with neither a key nor a session share one owner and
+so block each other. While one of them renders, the next waits; while one render of theirs is
+stuck, every such caller gets ``RenderUnavailableError`` until it ends or the hub restarts.
+Signed-in UI users have their own session owner (#405); all sessions together are one group
+(``SESSIONS``) with the bound of ``NO_KEY``, so opening many sessions never hangs every slot,
+and the keys keep their slot.
 """
 
 from __future__ import annotations
@@ -67,9 +70,15 @@ MAX_CONCURRENT_RENDERS: Final = 2  # renders at once, process-wide (spec 18, CPU
 OWNER_LIMIT: Final = MAX_CONCURRENT_RENDERS - 1
 """Slots one owner may hold at once, running or stuck: never the last one."""
 NO_KEY: Final = "no-key"
-"""The owner of every render without an API key (browser sessions, SSO, the hub itself)."""
+"""The owner of every render with neither an API key nor a browser session (SSO, the hub)."""
 NO_KEY_STUCK_LIMIT: Final = OWNER_LIMIT
 """Stuck renders of the group without a key at which its callers are refused at once."""
+SESSIONS: Final = "sessions"
+"""The group of every browser-session owner (#405): one person can open many sessions, so all
+of them together hold at most ``OWNER_LIMIT`` slots and are refused at once while
+``NO_KEY_STUCK_LIMIT`` of their renders are stuck, the bound ``NO_KEY`` has. Within the group
+each session is its own owner: a session with a stuck render is refused (429), not the others'
+waiting turn."""
 
 
 class RenderTimeoutError(Exception):
@@ -117,9 +126,18 @@ def gate() -> asyncio.Semaphore:
     return _current().gate
 
 
-def owner_of(api_key_id: UUID | None) -> Hashable:
-    """The render owner of a caller: its API key, or ``NO_KEY`` for every caller without one."""
-    return NO_KEY if api_key_id is None else api_key_id
+def owner_of(api_key_id: UUID | None, session_id: UUID | None = None) -> Hashable:
+    """The render owner of a caller: its API key; without one its browser session
+    (``("session", session_id)``, #405); ``NO_KEY`` only for callers with neither.
+
+    Callers with neither a key nor a session (Pangolin SSO without a hub session, the hub's own
+    page jobs) keep sharing the one group ``NO_KEY``.
+    """
+    if api_key_id is not None:
+        return api_key_id
+    if session_id is not None:
+        return ("session", session_id)
+    return NO_KEY
 
 
 def stuck_renders() -> int:
@@ -140,15 +158,31 @@ def owner_gates() -> int:
     return 0 if slots is None else len(slots.owner_gates)
 
 
+def _is_session(owner: Hashable | None) -> bool:
+    return isinstance(owner, tuple) and len(owner) == 2 and owner[0] == "session"
+
+
+def _gate_keys(owner: Hashable | None) -> list[Hashable]:
+    """The per-owner semaphores a call takes, in this order: its owner's, then its group's."""
+    if owner is None:
+        return []
+    return [owner, SESSIONS] if _is_session(owner) else [owner]
+
+
 def _refusal(slots: _Slots, owner: Hashable | None) -> Exception | None:
-    """Why ``owner`` gets no slot now: a key with a stuck render, or the group without a key
-    with ``NO_KEY_STUCK_LIMIT`` stuck renders. ``None``: it may try."""
+    """Why ``owner`` gets no slot now: a key or session with a stuck render, or the group
+    without a key (or the sessions together) with ``NO_KEY_STUCK_LIMIT`` stuck renders.
+    ``None``: it may try."""
     if owner is None:
         return None
     stuck = slots.stuck_by_owner.get(owner, 0)
     if owner == NO_KEY:
         return RenderUnavailableError() if stuck >= NO_KEY_STUCK_LIMIT else None
-    return OwnerRenderStuckError() if stuck else None
+    if stuck:
+        return OwnerRenderStuckError()
+    if _is_session(owner) and slots.stuck_by_owner.get(SESSIONS, 0) >= NO_KEY_STUCK_LIMIT:
+        return RenderUnavailableError()
+    return None
 
 
 async def _acquire_until(sem: asyncio.Semaphore, deadline: float) -> None:
@@ -196,32 +230,34 @@ async def render_bounded[T](
         raise RenderUnavailableError()
     deadline = loop.time() + limit
 
-    owner_gate: _OwnerGate | None = None
-    if owner is not None:
-        owner_gate = slots.owner_gates.get(owner)
-        if owner_gate is None:
-            owner_gate = slots.owner_gates[owner] = _OwnerGate(asyncio.Semaphore(OWNER_LIMIT))
-        owner_gate.users += 1
+    keys = _gate_keys(owner)
+    gates: list[_OwnerGate] = []
+    for key in keys:
+        found = slots.owner_gates.get(key)
+        if found is None:
+            found = slots.owner_gates[key] = _OwnerGate(asyncio.Semaphore(OWNER_LIMIT))
+        found.users += 1
+        gates.append(found)
+    held = 0  # semaphores of ``gates`` this call holds, taken in order
 
     def _leave_owner() -> None:
-        """This call no longer waits for or holds its owner's semaphore."""
-        if owner_gate is None:
-            return
-        owner_gate.users -= 1
-        if owner_gate.users == 0 and slots.owner_gates.get(owner) is owner_gate:
-            del slots.owner_gates[owner]
+        """This call no longer waits for or holds its owner's (and group's) semaphores."""
+        for key, g in zip(keys, gates, strict=True):
+            g.users -= 1
+            if g.users == 0 and slots.owner_gates.get(key) is g:
+                del slots.owner_gates[key]
+
+    def _release_gates() -> None:
+        for g in gates[:held]:
+            g.sem.release()
 
     try:
-        if owner_gate is not None:
-            await _acquire_until(owner_gate.sem, deadline)
-    except BaseException:
-        _leave_owner()
-        raise
-    try:
+        for g in gates:
+            await _acquire_until(g.sem, deadline)
+            held += 1
         await _acquire_until(slots.gate, deadline)
     except BaseException:
-        if owner_gate is not None:
-            owner_gate.sem.release()
+        _release_gates()
         _leave_owner()
         raise
     # No await from here to the callback: the slots are always given back by the task.
@@ -230,8 +266,7 @@ async def render_bounded[T](
     def _give_back() -> None:
         slots.in_use -= 1
         slots.gate.release()
-        if owner_gate is not None:
-            owner_gate.sem.release()
+        _release_gates()
         _leave_owner()
 
     refused = _refusal(slots, owner)
@@ -252,8 +287,8 @@ async def render_bounded[T](
             return
         state["stuck"] = True
         slots.stuck += 1
-        if owner is not None:
-            slots.stuck_by_owner[owner] = slots.stuck_by_owner.get(owner, 0) + 1
+        for key in keys:
+            slots.stuck_by_owner[key] = slots.stuck_by_owner.get(key, 0) + 1
         logger.warning(
             "Render %s exceeded %ss; its thread keeps a render slot until it ends "
             "(%d of %d slots stuck)",
@@ -272,12 +307,12 @@ async def render_bounded[T](
         _give_back()
         if state["stuck"]:
             slots.stuck -= 1
-            if owner is not None:
-                left = slots.stuck_by_owner.get(owner, 0) - 1
+            for key in keys:
+                left = slots.stuck_by_owner.get(key, 0) - 1
                 if left > 0:
-                    slots.stuck_by_owner[owner] = left
+                    slots.stuck_by_owner[key] = left
                 else:
-                    slots.stuck_by_owner.pop(owner, None)
+                    slots.stuck_by_owner.pop(key, None)
             logger.info(
                 "Stuck render %s ended; its slot is free (%d still stuck)", label, slots.stuck
             )

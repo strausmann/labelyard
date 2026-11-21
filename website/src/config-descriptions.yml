@@ -61,6 +61,9 @@ spoolman_timeout:
 spoolman_label_title_source:
   en: 'What the black bar of the spool label shows: `material` (default) or the filament `name`. The line under the bar shows the other one.'
   de: 'Was der schwarze Balken des Spulen-Etiketts zeigt: `material` (Standard) oder den Filamentnamen `name`. Die Zeile darunter zeigt jeweils das andere.'
+lookup_batch_deadline_s:
+  en: 'Seconds the integration lookups of one batch print, sheet print or render check may take together, at most `300` (default `30`). Waiting for the shared lookup bound counts. An item not looked up by then fails with `lookup-timeout` (`504` for a print, a per-item verdict for a render check); an integration error before it keeps its own code.'
+  de: 'Sekunden, die die Abfragen bei den Integrationen für einen Stapeldruck, einen Bogendruck oder eine Darstellungsprüfung zusammen brauchen dürfen, höchstens `300` (Standard `30`). Das Warten auf die gemeinsame Abfragegrenze zählt mit. Ein Eintrag, der bis dahin nicht abgefragt ist, scheitert mit `lookup-timeout` (`504` beim Drucken, ein Ergebnis je Eintrag bei der Darstellungsprüfung); ein Fehler der Integration davor behält seinen eigenen Code.'
 server_port:
   en: 'The port the container listens on. The start command and the container healthcheck read it, not the application itself; they take `LABELYARD_SERVER_PORT` (or its name from earlier releases, see [upgrades](/admin/upgrades/)), then `PORT`, and use `8000` when none is set. Change the published port in your compose file to match.'
   de: 'Der Port, auf dem der Container lauscht. Den liest der Startbefehl des Containers samt Healthcheck, nicht die Anwendung selbst; er nimmt `LABELYARD_SERVER_PORT` (oder den Namen aus früheren Versionen, siehe [Aktualisieren](/de/admin/upgrades/)), dann `PORT` und fällt auf `8000` zurück. Passe den veröffentlichten Port in deiner Compose-Datei entsprechend an.'

@@ -31,7 +31,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from io import BytesIO
-from typing import Any, Literal, Protocol, runtime_checkable
+from types import MappingProxyType
+from typing import Any, Final, Literal, Protocol, runtime_checkable
 from uuid import UUID, uuid4
 
 from PIL import Image
@@ -202,9 +203,34 @@ _UNREACHABLE_TEXT: dict[str, str] = {
     "printer_status_unavailable": "The printer's status could not be read.",
 }
 
+_PRINTER_ERROR_TEXTS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "tape_mismatch": "The loaded tape does not match the tape the label needs.",
+        "tape_empty": "The printer has no tape left.",
+        "printer_cover_open": "The printer's cover is open.",
+        "printer_offline": _UNREACHABLE_TEXT["printer_offline"],
+        "printer_status_unavailable": _UNREACHABLE_TEXT["printer_status_unavailable"],
+        "print_failed": "The label could not be printed.",
+        "media_type_mismatch": "The loaded roll is die-cut labels; the hub prints on continuous "
+        "tape only.",
+        "printer_error": "The printer reports an error state.",
+        "labels_not_confirmed": "The printer did not confirm every label that was sent.",
+        "outcome_unknown": "The printer did not confirm the labels in time and may still print "
+        "them; check the printer before you reprint.",
+        "tape_label_too_long": "The label is longer than this tape allows.",
+    }
+)
+"""The text a failed job stores for each error code (#405); the structured values go to the
+detail, the exception's own message (which can name the printer's address) to the log only."""
+
+
+def fixed_error_text(code: str) -> str:
+    """The fixed text of ``code``; a code without one gets the text of ``print_failed``."""
+    return _PRINTER_ERROR_TEXTS.get(code, _PRINTER_ERROR_TEXTS["print_failed"])
+
 
 def _printer_error_to_record(exc: PrinterError) -> tuple[str, str, dict[str, Any] | None]:
-    """Map a PrinterError subclass to (error_code, error_message, error_detail)."""
+    """Map a PrinterError subclass to (error_code, fixed error text, error_detail)."""
     code = _ERROR_CODE_MAP.get(type(exc), "print_failed")
     detail: dict[str, Any] | None = None
     if isinstance(exc, TapeMismatchError):
@@ -217,17 +243,11 @@ def _printer_error_to_record(exc: PrinterError) -> tuple[str, str, dict[str, Any
         detail = {"printed": exc.printed, "expected": exc.expected}
     elif isinstance(exc, TapeLabelTooLongError):
         detail = {"length_mm": exc.length_mm, "max_mm": exc.max_mm}
-    if isinstance(exc, (PrinterOfflineError, StatusQueryFailedError)):
-        # The cause names the printer's address (a ptouch connection error) and the record is
-        # readable with a read key (#234): a fixed text is stored, the cause goes to the log.
-        logger.warning("Printer unreachable (%s): %s", code, exc)
-        text = _UNREACHABLE_TEXT[
-            "printer_offline"
-            if isinstance(exc, PrinterOfflineError)
-            else "printer_status_unavailable"
-        ]
-        return code, text, detail
-    return code, str(exc) or code, detail
+    # The cause can name the printer's address (a ptouch connection error, a socket error in
+    # ``PrintFailedError``) and the record is readable with a read key (#234, #405): a fixed
+    # text per code is stored, the cause goes to the log.
+    logger.warning("Printer error (%s): %s", code, exc)
+    return code, fixed_error_text(code), detail
 
 
 def _serialize_image_to_png(image: Image.Image) -> bytes:
@@ -2329,31 +2349,6 @@ class PrintQueue:
             )
         return True
 
-    async def retry_job(self, job_id: str) -> str | None:
-        """Submit a fresh copy of a FAILED job. Returns new job id or None.
-
-        Not used by the API: its retry routes write the new row first and hand it to
-        :meth:`enqueue_persisted`. The copy here is queue-only, so a store that keeps rows
-        vetoes it at ``mark_printing`` (a missing row never prints); it serves a queue without
-        a store.
-        """
-        original = self._jobs[job_id]
-        if original.state != JobState.FAILED:
-            return None
-        new_job = Job(
-            id=str(uuid.uuid4()),
-            printer_id=original.printer_id,
-            image_payload=original.image_payload,
-            rerender=original.rerender,  # #168: a recovered job that failed undrawn draws now
-            tape_mm=original.tape_mm,
-            options=dict(original.options),
-            retry_count=original.retry_count + 1,
-        )
-        new_job.options["parent_job_id"] = original.id
-        self._jobs[new_job.id] = new_job
-        await self._queues[new_job.printer_id].put(new_job)
-        return new_job.id
-
     # --- per-printer control -----------------------------------------------
 
     async def pause_printer(
@@ -2708,7 +2703,8 @@ class PrintQueue:
                 )
                 if job.tape_mm is None:
                     raise RuntimeError(
-                        f"Job {job.id} has no tape_mm — submit() and retry_job() must populate it"
+                        f"Job {job.id} has no tape_mm — submit() and enqueue_persisted() must "
+                        "populate it"
                     )
                 if job.image_payload is None:
                     raise RuntimeError(f"Job {job.id} has no image payload")

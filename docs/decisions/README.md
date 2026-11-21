@@ -60,8 +60,9 @@ Each ADR follows the [Nygard format](https://cognitect.com/blog/2011/11/15/docum
 | [0030](0030-confirmed-tape-prints.md) | A tape print counts only when the printer confirms it | Accepted |
 | [0031](0031-licence-and-supply-chain.md) | The hub is AGPL-3.0-or-later and every image says what it contains and who built it | Accepted |
 | [0032](0032-integration-plugins-and-layout-engine.md) | Integrations are entry-point plugins; a label is a content type drawn by the layout engine | Accepted |
+| [0034](0034-database-migrations-and-the-way-back.md) | Database migrations and the way back | Proposed |
 
-Numbers 0028, 0029, 0033 and 0034 are reserved for ADRs planned in the approved design of milestone 1.8.0; do not use them for other ADRs.
+Numbers 0028, 0029 and 0033 are reserved for ADRs planned in the approved design of milestone 1.8.0 (0034 is written, `Proposed`); do not use them for other ADRs.
 
 The [decision register](register.md) lists the short `D<n>` labels cited in code.
 
