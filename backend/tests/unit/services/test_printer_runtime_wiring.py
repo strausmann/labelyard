@@ -9,6 +9,7 @@ memory. The exception text (which names the device address) is never kept.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -23,7 +24,7 @@ from pyasn1.error import PyAsn1Error
 from pysnmp.error import PySnmpError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from tests.unit.services.test_printer_runtime import Env, _make_env, _tape
+from tests.unit.services.test_printer_runtime import Env, _ipp, _make_env, _store_row, _tape
 
 _RESOLVE = "app.services.printer_runtime._resolve_model_id_from_config"
 
@@ -114,3 +115,83 @@ async def test_a_deleted_printer_leaves_no_failure_behind(env: Env) -> None:
     await env.runtime.detach(printer.id)
 
     assert env.runtime.wiring_failed_at(printer.id) is None
+
+
+async def test_a_failed_reconcile_records_the_reason(env: Env) -> None:
+    printer = _tape()
+    await _store_row(env.factory, printer)
+    with patch.object(env.runtime, "_attach_locked", AsyncMock(side_effect=ValueError("bad row"))):
+        await env.runtime.reconcile(printer.id)  # does not raise
+
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("not_wired", "invalid_config")
+    assert env.runtime.wiring_failed_at(printer.id) is not None
+
+
+async def test_an_ipp_printer_with_a_bad_client_records_the_reason(env: Env) -> None:
+    printer = _ipp()
+    with patch("app.services.printer_runtime.IppClient", side_effect=ValueError("bad uri")):
+        await env.runtime.attach(printer)
+
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("not_wired", "invalid_config")
+
+
+async def test_an_ipp_printer_the_queue_refuses_records_the_reason(
+    env: Env, caplog: pytest.LogCaptureFixture
+) -> None:
+    printer = _ipp()
+    with (
+        patch.object(env.queue, "add_page_printer", AsyncMock(side_effect=RuntimeError("queue"))),
+        caplog.at_level(logging.DEBUG, logger="app.services.printer_runtime"),
+    ):
+        await env.runtime.attach(printer)
+
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("not_wired", "unexpected")
+    assert any(r.levelno == logging.ERROR for r in caplog.records)  # a bug stays loud
+
+
+async def _hold_attach(env: Env, printer: Any) -> tuple[asyncio.Task[None], asyncio.Event]:
+    """Start ``attach`` and park it inside the model resolution (the printer is detached then)."""
+    inside = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _slow(_cfg: Any) -> str:
+        inside.set()
+        await release.wait()
+        return printer.model
+
+    patcher = patch(_RESOLVE, _slow)
+    patcher.start()
+    task = asyncio.create_task(env.runtime.attach(printer))
+    await asyncio.wait_for(inside.wait(), timeout=5)
+    task.add_done_callback(lambda _t: patcher.stop())
+    return task, release
+
+
+async def test_a_save_does_not_flash_not_wired_on_a_wired_printer(env: Env) -> None:
+    printer = _tape()
+    await env.runtime.attach(printer)
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("wired", None)
+
+    task, release = await _hold_attach(env, printer)  # re-wiring: detached, not yet attached
+    try:
+        assert printer.id not in env.runtime._wired
+        assert env.runtime.wiring_of(printer.id, enabled=True) == ("wired", None)
+        assert env.runtime.wiring_failed_at(printer.id) is None
+    finally:
+        release.set()
+        await task
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("wired", None)
+
+
+async def test_a_save_keeps_the_old_reason_until_the_attempt_ends(env: Env) -> None:
+    printer = _tape()
+    with patch(_RESOLVE, AsyncMock(side_effect=ModelNotFoundError("no driver"))):
+        await env.runtime.attach(printer)
+
+    task, release = await _hold_attach(env, printer)
+    try:
+        assert env.runtime.wiring_of(printer.id, enabled=True) == ("not_wired", "model_unknown")
+    finally:
+        release.set()
+        await task
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("wired", None)

@@ -41,7 +41,7 @@ import functools
 import hashlib
 import json
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -306,6 +306,9 @@ class PrinterRuntime:
         self._wired: dict[UUID, _Wiring] = {}
         # #401: the last wiring failure per printer, in memory only (a restart retries anyway).
         self._failures: dict[UUID, WiringFailure] = {}
+        # #401: while a printer is re-wired (detached, then attached again) a read reports the state
+        # it had when the re-wire began, so a save does not flash "not wired" for a healthy printer.
+        self._holding: dict[UUID, tuple[WiringState, WiringReason | None, datetime | None]] = {}
         self._ipp_limiter = asyncio.Semaphore(_IPP_PROBE_CONCURRENCY)
         self._tape_registry = TapeRegistry()
         self._started = False
@@ -335,7 +338,8 @@ class PrinterRuntime:
         async with self._serialized(printer.id):
             if self._is_closed():  # stop() may have run while this waited for the lock
                 return
-            await self._attach_locked(printer)
+            with self._rewiring(printer.id):
+                await self._attach_locked(printer)
 
     async def detach(self, printer_id: UUID) -> None:
         """Unwire a printer: stop its producer, take it out of the queue, close its clients.
@@ -371,7 +375,8 @@ class PrinterRuntime:
             if self._is_closed():  # stop() may have run while this waited for the lock
                 return
             try:
-                await self._reconcile_locked(printer_id)
+                with self._rewiring(printer_id):
+                    await self._reconcile_locked(printer_id)
             except Exception as exc:
                 self._remember_failure(printer_id, exc)  # #401: shown as "not wired"
                 _log.warning(
@@ -530,6 +535,34 @@ class PrinterRuntime:
         self._failures[printer_id] = WiringFailure(reason=reason, at=datetime.now(UTC))
         return reason
 
+    def _state_now(
+        self, printer_id: UUID
+    ) -> tuple[WiringState, WiringReason | None, datetime | None]:
+        if printer_id in self._wired:
+            return "wired", None, None
+        failure = self._failures.get(printer_id)
+        if failure is None:
+            return "not_wired", None, None
+        return "not_wired", failure.reason, failure.at
+
+    @contextlib.contextmanager
+    def _rewiring(self, printer_id: UUID) -> Iterator[None]:
+        """Hold the reported state of *printer_id* for the length of an attach or a reconcile.
+
+        A printer with no state yet (its first attach) reads as wired meanwhile: nothing has failed.
+        """
+        if printer_id in self._holding:
+            yield
+            return
+        state = self._state_now(printer_id)
+        self._holding[printer_id] = (
+            ("wired", None, None) if state[1] is None and state[0] == "not_wired" else state
+        )
+        try:
+            yield
+        finally:
+            self._holding.pop(printer_id, None)
+
     def wiring_of(
         self, printer_id: UUID, *, enabled: bool
     ) -> tuple[WiringState, WiringReason | None]:
@@ -541,17 +574,12 @@ class PrinterRuntime:
         """
         if not enabled:
             return "disabled", None
-        if printer_id in self._wired:
-            return "wired", None
-        failure = self._failures.get(printer_id)
-        return "not_wired", failure.reason if failure is not None else None
+        state, reason, _at = self._holding.get(printer_id) or self._state_now(printer_id)
+        return state, reason
 
     def wiring_failed_at(self, printer_id: UUID) -> datetime | None:
         """When the last wiring attempt of *printer_id* failed; ``None`` once it is wired."""
-        if printer_id in self._wired:
-            return None
-        failure = self._failures.get(printer_id)
-        return failure.at if failure is not None else None
+        return (self._holding.get(printer_id) or self._state_now(printer_id))[2]
 
     # ------------------------------------------------------------------ attach
 
