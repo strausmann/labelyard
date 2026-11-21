@@ -25,6 +25,38 @@ function routes(printer: Record<string, unknown> & { id: string } = PRINTER_A, e
 }
 
 describe("PrinterDetail", () => {
+  it("not-wired printer shows its reason in words", async () => {
+    const stuck = { ...PRINTER_A, wiring: "not_wired", wiring_reason: "discovery_failed", wiring_at: "2026-11-21T08:12:00Z" };
+    mockApi(routes(stuck));
+    await renderApp({ path: `/printers/${PRINTER_A.id}` });
+    expect(await screen.findByText("Not wired: the printer did not answer when the hub looked for it")).toBeVisible();
+    const panel = screen.getByRole("region", { name: "What the hub saw" });
+    expect(within(panel).getByText("The printer did not answer when the hub looked for it")).toBeVisible();
+    // The code is shown beside the words, for support.
+    expect(within(panel).getByText("discovery_failed")).toBeVisible();
+    expect(within(panel).getByText("The hub tries again by itself.")).toBeVisible();
+    expect(screen.getByText(/Saving tries the connection again/)).toBeVisible();
+    // An admin (the signed-in test user) gets the way to the settings.
+    expect(screen.getByRole("link", { name: "Open the printer settings" })).toHaveAttribute("href", "/settings/printers");
+  });
+
+  it("a key below admin gets the reason without the settings link", async () => {
+    const stuck = { ...PRINTER_A, wiring: "not_wired", wiring_reason: "model_unknown", wiring_at: null };
+    mockApi(routes(stuck));
+    await renderApp({ path: `/printers/${PRINTER_A.id}`, session: { ...SIGNED_IN, scope: "read" } });
+    expect(await screen.findByText("Not wired: the hub does not know this printer model")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Open the printer settings" })).toBeNull();
+    expect(screen.queryByText("Last attempt")).toBeNull(); // no time sent, none invented
+  });
+
+  it("wired printer shows no badge", async () => {
+    mockApi(routes());
+    await renderApp({ path: `/printers/${PRINTER_A.id}` });
+    expect(await screen.findByRole("heading", { level: 1, name: PRINTER_A.name })).toBeVisible();
+    expect(screen.queryByText(/not wired/i)).toBeNull();
+    expect(screen.queryByRole("region", { name: "What the hub saw" })).toBeNull();
+  });
+
   it("offers Cancel only on queued jobs", async () => {
     mockApi(routes());
     await renderApp({ path: `/printers/${PRINTER_A.id}` });

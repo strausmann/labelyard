@@ -13,6 +13,7 @@ import { describePrinter, isPagePrinter, staleAgeSeconds, statusIsUnknown, tapeW
 import { MarkerList, noAnswerYet, NotMonitoredHint, ReasonLine, ReportedEmptyLine } from "./PageStatus";
 import { unsupportedRoll, useRollWords, type UnsupportedRoll } from "./roll";
 import { TapeSwatch } from "./TapeSwatch";
+import { WiringLines } from "./wiring";
 
 /** One printer: name, state (shape + word), loaded tape, or supplies for a page printer. The whole card opens the detail page. */
 export function PrinterCard({
@@ -44,6 +45,7 @@ export function PrinterCard({
       </span>
       <StatusBadge state={view.badge} label={kinds[view.kind]} />
       {view.detail && <span className="text-small text-ink-2">{view.detail}</span>}
+      <WiringLines printer={printer} />
       <FlagLine flags={view.flags} />
       <RollLine roll={view.roll} />
       {view.kind === "paused" && <PauseReason pause={printer.pause} />}
@@ -54,7 +56,7 @@ export function PrinterCard({
       <ReasonLine reasons={view.reasons} />
       <ReportedEmptyLine names={view.reportedEmpty} />
       <span className="mt-auto min-w-0 text-small">
-        {unknown ? (
+        {view.kind === "not_wired" || view.kind === "disabled" ? null : unknown ? (
           <span className="text-ink-2">{page ? t`Supplies not known` : t`Tape not known`}</span>
         ) : !page ? (
           <TapeSwatch widthMm={tapeWidthOf(status)} colour={status?.tape_colour} probed={status?.captured_at != null} offline={status?.online === false} roll={unsupportedRoll(status)} />

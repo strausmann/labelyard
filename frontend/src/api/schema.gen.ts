@@ -5011,6 +5011,23 @@ export interface components {
             trays?: components["schemas"]["TrayRead"][] | null;
             /** Updated At */
             updated_at: string;
+            /**
+             * Wiring
+             * @description Whether the hub is connected to this printer: wired, not_wired (it could not be wired when it was last attached) or disabled (switched off on purpose). Kept in memory: a restart retries
+             * @default wired
+             * @enum {string}
+             */
+            wiring: "wired" | "not_wired" | "disabled";
+            /**
+             * Wiring At
+             * @description When the last wiring attempt failed; null unless the printer is not wired
+             */
+            wiring_at?: string | null;
+            /**
+             * Wiring Reason
+             * @description Why the printer is not wired, as a fixed code: model_unknown, discovery_failed, invalid_config or unexpected. Never the error text; null when wired, disabled or unknown
+             */
+            wiring_reason?: ("model_unknown" | "discovery_failed" | "invalid_config" | "unexpected") | null;
         };
         /**
          * PrinterRead
@@ -5088,6 +5105,23 @@ export interface components {
             slug: string;
             /** Updated At */
             updated_at: string;
+            /**
+             * Wiring
+             * @description Whether the hub is connected to this printer: wired, not_wired (it could not be wired when it was last attached) or disabled (switched off on purpose). Kept in memory: a restart retries
+             * @default wired
+             * @enum {string}
+             */
+            wiring: "wired" | "not_wired" | "disabled";
+            /**
+             * Wiring At
+             * @description When the last wiring attempt failed; null unless the printer is not wired
+             */
+            wiring_at?: string | null;
+            /**
+             * Wiring Reason
+             * @description Why the printer is not wired, as a fixed code: model_unknown, discovery_failed, invalid_config or unexpected. Never the error text; null when wired, disabled or unknown
+             */
+            wiring_reason?: ("model_unknown" | "discovery_failed" | "invalid_config" | "unexpected") | null;
         };
     };
     responses: never;

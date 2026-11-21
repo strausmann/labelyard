@@ -7,7 +7,7 @@ import type { Job, Printer, PrinterStatus } from "./api";
 import { flagSeverity, NOT_WAITING, type Waiting } from "./flags";
 import { unsupportedRoll, type UnsupportedRoll } from "./roll";
 
-export type PrinterKind = "paused" | "stale" | "not_polled" | "different_device" | "offline" | "error" | "attention" | "stopped" | "printing" | "ready" | "unknown";
+export type PrinterKind = "not_wired" | "disabled" | "paused" | "stale" | "not_polled" | "different_device" | "offline" | "error" | "attention" | "stopped" | "printing" | "ready" | "unknown";
 
 export interface PrinterView {
   kind: PrinterKind;
@@ -79,6 +79,10 @@ export function describePrinter(printer: Printer, status: PrinterStatus | undefi
 }
 
 function describe(printer: Printer, status: PrinterStatus | undefined, printing: boolean, waiting: Waiting): Omit<PrinterView, "flags" | "reportedEmpty"> & Partial<Pick<PrinterView, "flags" | "reportedEmpty">> {
+  // Before the pause and any probe: a printer the hub could not wire has no status to read (#401), and one that is
+  // switched off on purpose is not a fault.
+  if (printer.wiring === "not_wired") return { kind: "not_wired", badge: "bad", detail: null, reasons: [] };
+  if (printer.wiring === "disabled") return { kind: "disabled", badge: "idle", detail: null, reasons: [] };
   if (printer.paused) return { kind: "paused", badge: "warn", detail: null, reasons: [] };
   // Before any `online` branch: a status nobody refreshes says nothing about the printer (#227).
   const unknown = unknownKind(status);
@@ -135,6 +139,8 @@ function describe(printer: Printer, status: PrinterStatus | undefined, printing:
 export function useKindLabel(): Record<PrinterKind, string> {
   const { t } = useLingui();
   return {
+    not_wired: t`Not wired`,
+    disabled: t`Disabled`,
     paused: t`Paused`,
     stale: t`Status unknown`,
     not_polled: t`Not monitored`,

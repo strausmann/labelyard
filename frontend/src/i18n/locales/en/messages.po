@@ -50,6 +50,11 @@ msgstr "{0, plural, one {# label} other {# labels}}"
 msgid "{0, plural, one {# package} other {# packages}}"
 msgstr "{0, plural, one {# package} other {# packages}}"
 
+#. placeholder {0}: names.length
+#: src/features/printers/PrintersPage.tsx
+msgid "{0, plural, one {# printer is not wired} other {# printers are not wired}}"
+msgstr "{0, plural, one {# printer is not wired} other {# printers are not wired}}"
+
 #. placeholder {0}: codes.length
 #: src/features/archive/TypeDetail.tsx
 msgid "{0, plural, one {# product code} other {# product codes}}"
@@ -286,6 +291,10 @@ msgstr "{level} %, low"
 #: src/features/printers/PageStatus.tsx
 msgid "{list} reported empty"
 msgstr "{list} reported empty"
+
+#: src/features/printers/PrintersPage.tsx
+msgid "{list}: open a printer to see why and try again."
+msgstr "{list}: open a printer to see why and try again."
 
 #: src/features/overview/OverviewPage.tsx
 msgid "{lowCount, plural, one {# printer is running low} other {# printers are running low}}"
@@ -735,6 +744,10 @@ msgstr "Added version {0} to {1}."
 msgid "Address"
 msgstr "Address"
 
+#: src/features/printers/wiring.tsx
+msgid "After a restart"
+msgstr "After a restart"
+
 #: src/features/jobs/JobsPage.tsx
 msgid "All"
 msgstr "All"
@@ -1155,6 +1168,10 @@ msgstr "Change colour"
 msgid "Charge cycles"
 msgstr "Charge cycles"
 
+#: src/features/printers/wiring.tsx
+msgid "Check Jobs and the hub log, then save the printer again."
+msgstr "Check Jobs and the hub log, then save the printer again."
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Check page"
 msgstr "Check page"
@@ -1166,6 +1183,10 @@ msgstr "Check page status"
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Check that the toner is dry and the QR code is not smeared. If it is, print again on the same sheet."
 msgstr "Check that the toner is dry and the QR code is not smeared. If it is, print again on the same sheet."
+
+#: src/features/printers/wiring.tsx
+msgid "Check the address, then save the printer again."
+msgstr "Check the address, then save the printer again."
 
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Check the tray:"
@@ -1650,6 +1671,7 @@ msgstr "Disable"
 msgid "Disable {0}"
 msgstr "Disable {0}"
 
+#: src/features/printers/model.ts
 #: src/features/settings/Printers.tsx
 msgid "Disabled"
 msgstr "Disabled"
@@ -2367,6 +2389,10 @@ msgstr "Labelyard"
 msgid "Language"
 msgstr "Language"
 
+#: src/features/printers/wiring.tsx
+msgid "Last attempt"
+msgstr "Last attempt"
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Last changed"
 msgstr "Last changed"
@@ -3062,6 +3088,19 @@ msgstr "Not tested yet — a test print finds out"
 msgid "Not used yet"
 msgstr "Not used yet"
 
+#: src/features/printers/model.ts
+#: src/features/printers/wiring.tsx
+msgid "Not wired"
+msgstr "Not wired"
+
+#: src/features/printers/wiring.tsx
+msgid "Not wired: {reason}"
+msgstr "Not wired: {reason}"
+
+#: src/features/printers/wiring.tsx
+msgid "Not wired: {reason}."
+msgstr "Not wired: {reason}."
+
 #: src/features/sheets/SheetDetail.tsx
 msgid "Note"
 msgstr "Note"
@@ -3330,8 +3369,13 @@ msgid "Open the job"
 msgstr "Open the job"
 
 #: src/features/printers/PageStatus.tsx
+#: src/features/printers/wiring.tsx
 msgid "Open the printer settings"
 msgstr "Open the printer settings"
+
+#: src/features/printers/wiring.tsx
+msgid "Open the printer settings, correct the address, then save the printer again."
+msgstr "Open the printer settings, correct the address, then save the printer again."
 
 #: src/features/jobs/PageJobInfo.tsx
 msgid "Open the sheet"
@@ -3893,6 +3937,10 @@ msgstr "Ready"
 msgid "Ready to load"
 msgstr "Ready to load"
 
+#: src/features/printers/wiring.tsx
+msgid "Reason"
+msgstr "Reason"
+
 #: src/features/overview/OverviewPage.tsx
 msgid "Recent jobs"
 msgstr "Recent jobs"
@@ -4211,6 +4259,10 @@ msgstr "Saving failed."
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Saving needs an admin key, because it changes every print on this tray."
 msgstr "Saving needs an admin key, because it changes every print on this tray."
+
+#: src/features/printers/wiring.tsx
+msgid "Saving tries the connection again, you do not need to restart the hub."
+msgstr "Saving tries the connection again, you do not need to restart the hub."
 
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/errors.ts
@@ -4587,6 +4639,10 @@ msgstr "Someone already set this tray; the stored answer is used."
 msgid "Someone has settled this already. The page shows the current state."
 msgstr "Someone has settled this already. The page shows the current state."
 
+#: src/features/printers/wiring.tsx
+msgid "something unexpected stopped the connection"
+msgstr "something unexpected stopped the connection"
+
 #: src/i18n/messages.ts
 #: src/shell/SignIn.tsx
 msgid "Something went wrong."
@@ -4642,6 +4698,7 @@ msgstr "Starting the camera…"
 msgid "Starts every sheet code, for example L4736."
 msgstr "Starts every sheet code, for example L4736."
 
+#: src/features/printers/wiring.tsx
 #: src/features/settings/IppPrinterFields.tsx
 msgid "State"
 msgstr "State"
@@ -5158,9 +5215,25 @@ msgstr "The hub does not know a sheet {code}."
 msgid "The hub does not know a sheet {preselectedSheet}."
 msgstr "The hub does not know a sheet {preselectedSheet}."
 
+#: src/features/printers/wiring.tsx
+msgid "the hub does not know this printer model"
+msgstr "the hub does not know this printer model"
+
+#: src/features/printers/wiring.tsx
+msgid "the hub is not connected to this printer"
+msgstr "the hub is not connected to this printer"
+
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub restarted while this label waited for the next part. Print it again."
 msgstr "The hub restarted while this label waited for the next part. Print it again."
+
+#: src/features/printers/wiring.tsx
+msgid "The hub started and carried on without it, so nothing else is held up. Jobs for this printer are refused until it is wired."
+msgstr "The hub started and carried on without it, so nothing else is held up. Jobs for this printer are refused until it is wired."
+
+#: src/features/printers/wiring.tsx
+msgid "The hub tries again by itself."
+msgstr "The hub tries again by itself."
 
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub was stopped before the job was printed."
@@ -5545,6 +5618,10 @@ msgstr "The printer did not accept the ID label."
 msgid "The printer did not answer its status request."
 msgstr "The printer did not answer its status request."
 
+#: src/features/printers/wiring.tsx
+msgid "the printer did not answer when the hub looked for it"
+msgstr "the printer did not answer when the hub looked for it"
+
 #: src/features/printers/printErrorText.ts
 msgid "The printer did not confirm every label. Reprint the rest."
 msgstr "The printer did not confirm every label. Reprint the rest."
@@ -5683,6 +5760,10 @@ msgstr "The roll could not be read."
 #: src/features/printers/RollColourPrompt.tsx
 msgid "The roll was changed"
 msgstr "The roll was changed"
+
+#: src/features/printers/wiring.tsx
+msgid "the saved settings are not valid"
+msgstr "the saved settings are not valid"
 
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The scale lies on both lines: 0 on the printed line, a long tick every 1 mm, a short tick every {step} mm, up to ±{half} mm."
@@ -6477,6 +6558,10 @@ msgstr "What changed"
 #: src/features/calibration/guide/StillOff.tsx
 msgid "What the deviation tells you"
 msgstr "What the deviation tells you"
+
+#: src/features/printers/wiring.tsx
+msgid "What the hub saw"
+msgstr "What the hub saw"
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "What the markings mean"
