@@ -27,7 +27,7 @@ jobs:
 
       - name: Review the licences of changed dependencies
         id: review
-        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5
+        uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
         with:
           config-file: ./licence-policy.yml
 

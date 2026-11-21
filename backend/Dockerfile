@@ -263,11 +263,15 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # tini reaps zombies and propagates SIGTERM to uvicorn cleanly. --no-access-log: the hub writes
 # its own access line in nginx combined format (LABELYARD_ACCESS_LOG, #366). Shell-form
 # CMD expands the port (same order as the healthcheck) and $FORWARDED_ALLOW_IPS at start so
-# deployments can change them without rebuilding the image.
+# deployments can change them without rebuilding the image. --http h11 picks the pure-Python
+# parser because only it bounds the bytes of one incomplete request line or header block
+# (--h11-max-incomplete-event-size, 16 KiB); a reverse proxy in front stays recommended (#405).
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "exec uvicorn app.main:app \
     --host 0.0.0.0 \
     --port \"${LABELYARD_SERVER_PORT:-${PRINTER_HUB_SERVER_PORT:-${PORT:-8000}}}\" \
+    --http h11 \
+    --h11-max-incomplete-event-size 16384 \
     --proxy-headers \
     --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS}\" \
     --no-access-log \
