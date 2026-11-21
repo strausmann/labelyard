@@ -28,7 +28,7 @@ function NotWiredSummary() {
   return (
     <div role="note" className="flex min-w-0 flex-col gap-1 rounded-r2 border border-bad bg-sunken p-3 text-small">
       <strong>{plural(names.length, { one: "# printer is not wired", other: "# printers are not wired" })}</strong>
-      <span className="[overflow-wrap:anywhere]">{t`${list}: open a printer to see why and try again.`}</span>
+      <span className="[overflow-wrap:anywhere]">{t`${list}: open a printer to see why.`}</span>
     </div>
   );
 }

@@ -293,8 +293,8 @@ msgid "{list} reported empty"
 msgstr "{list} reported empty"
 
 #: src/features/printers/PrintersPage.tsx
-msgid "{list}: open a printer to see why and try again."
-msgstr "{list}: open a printer to see why and try again."
+msgid "{list}: open a printer to see why."
+msgstr "{list}: open a printer to see why."
 
 #: src/features/overview/OverviewPage.tsx
 msgid "{lowCount, plural, one {# printer is running low} other {# printers are running low}}"
@@ -845,6 +845,10 @@ msgstr "Arrangement"
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Ask an admin to set it up."
 msgstr "Ask an admin to set it up."
+
+#: src/features/printers/wiring.tsx
+msgid "Ask an administrator to check the printer."
+msgstr "Ask an administrator to check the printer."
 
 #: src/features/jobs/PageJobInfo.tsx
 msgid "Asked the printer to cancel."
@@ -5203,6 +5207,10 @@ msgstr "The hub cannot read this printer's status, so it cannot tell whether it 
 msgid "The hub cannot read this printer's status. An admin can check its address in the printer settings."
 msgstr "The hub cannot read this printer's status. An admin can check its address in the printer settings."
 
+#: src/features/printers/wiring.tsx
+msgid "The hub carries on without it, so nothing else is held up. Nothing can be printed on it until it is wired."
+msgstr "The hub carries on without it, so nothing else is held up. Nothing can be printed on it until it is wired."
+
 #: src/features/jobs/RetryError.tsx
 msgid "The hub could not be reached. Try again."
 msgstr "The hub could not be reached. Try again."
@@ -5226,10 +5234,6 @@ msgstr "the hub is not connected to this printer"
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub restarted while this label waited for the next part. Print it again."
 msgstr "The hub restarted while this label waited for the next part. Print it again."
-
-#: src/features/printers/wiring.tsx
-msgid "The hub started and carried on without it, so nothing else is held up. Jobs for this printer are refused until it is wired."
-msgstr "The hub started and carried on without it, so nothing else is held up. Jobs for this printer are refused until it is wired."
 
 #: src/features/printers/wiring.tsx
 msgid "The hub tries again by itself."

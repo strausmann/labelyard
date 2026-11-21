@@ -46,6 +46,12 @@ describe("PrinterDetail", () => {
     await renderApp({ path: `/printers/${PRINTER_A.id}`, session: { ...SIGNED_IN, scope: "read" } });
     expect(await screen.findByText("Not wired: the hub does not know this printer model")).toBeVisible();
     expect(screen.queryByRole("link", { name: "Open the printer settings" })).toBeNull();
+    // Saving is an admin action: another key is not told to do it, and is pointed to an administrator.
+    expect(screen.getByText(/Ask an administrator to check the printer\./)).toBeVisible();
+    expect(screen.queryByText(/Saving tries the connection again/)).toBeNull();
+    expect(screen.queryByText(/save the printer again/)).toBeNull();
+    // The sentence fits a save that failed at runtime as well as a start.
+    expect(screen.queryByText(/started/)).toBeNull();
     expect(screen.queryByText("Last attempt")).toBeNull(); // no time sent, none invented
   });
 

@@ -50,17 +50,25 @@ export function useWiringAdvice(): (reason: string | null | undefined) => string
   };
 }
 
+/** What a reader may do about it: an admin saves the printer again, any other key asks one (saving is an admin action). */
+function useNextStep(): (reason: string | null | undefined) => string {
+  const { t } = useLingui();
+  const advice = useWiringAdvice();
+  const admin = useSession().scope === "admin";
+  return (reason) => (admin ? advice(reason) : t`Ask an administrator to check the printer.`);
+}
+
 /** The two lines on a printer card: why it is not wired and what to do. Nothing for a wired printer. */
 export function WiringLines({ printer }: { printer: Printer }) {
   const { t } = useLingui();
   const words = useWiringWords();
-  const advice = useWiringAdvice();
+  const nextStep = useNextStep();
   if (!isNotWired(printer)) return null;
   const reason = words(printer.wiring_reason);
   return (
     <span className="flex flex-col gap-1 text-small [overflow-wrap:anywhere]">
       <span className="text-bad">{t`Not wired: ${reason}.`}</span>
-      <span className="text-ink-2">{advice(printer.wiring_reason)}</span>
+      <span className="text-ink-2">{nextStep(printer.wiring_reason)}</span>
     </span>
   );
 }
@@ -69,7 +77,7 @@ export function WiringLines({ printer }: { printer: Printer }) {
 export function WiringSections({ printer }: { printer: Printer }) {
   const { t, i18n } = useLingui();
   const words = useWiringWords();
-  const advice = useWiringAdvice();
+  const nextStep = useNextStep();
   const admin = useSession().scope === "admin";
   if (!isNotWired(printer)) return null;
   const reason = words(printer.wiring_reason);
@@ -80,8 +88,9 @@ export function WiringSections({ printer }: { printer: Printer }) {
       <div role="note" className="flex min-w-0 flex-col gap-1 rounded-r2 border border-bad bg-sunken p-3 text-small">
         <strong className="[overflow-wrap:anywhere]">{t`Not wired: ${reason}`}</strong>
         <span className="[overflow-wrap:anywhere]">
-          {t`The hub started and carried on without it, so nothing else is held up. Jobs for this printer are refused until it is wired.`}{" "}
-          {advice(code)} {t`Saving tries the connection again, you do not need to restart the hub.`}
+          {t`The hub carries on without it, so nothing else is held up. Nothing can be printed on it until it is wired.`}{" "}
+          {nextStep(code)}
+          {admin && <> {t`Saving tries the connection again, you do not need to restart the hub.`}</>}
         </span>
         {admin && (
           <Link to="/settings/printers" className="inline-flex min-h-11 w-fit items-center font-bold text-link underline underline-offset-2">

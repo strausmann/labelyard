@@ -3,7 +3,7 @@
 
 import { screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderApp } from "../../test-utils";
+import { renderApp, SIGNED_IN } from "../../test-utils";
 import { job, mockApi, PRINTER_A, PRINTER_B, status } from "../test-api";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -64,6 +64,17 @@ describe("Printers", () => {
     // One note above the cards names the printer.
     expect(await screen.findByText("1 printer is not wired")).toBeVisible();
     expect(screen.getByText(/Workshop PT-P750W: open a printer to see why/)).toBeVisible();
+  });
+
+  it("a key below admin is not told to save the printer again", async () => {
+    const stuck = { ...PRINTER_A, wiring: "not_wired", wiring_reason: "discovery_failed" };
+    mockApi({ "GET /api/v1/printers": [stuck] });
+    await renderApp({ path: "/printers", session: { ...SIGNED_IN, scope: "read" } });
+    const card = await screen.findByRole("link", { name: /Workshop PT-P750W/ });
+    expect(within(card).getByText("Not wired: the printer did not answer when the hub looked for it.")).toBeVisible();
+    expect(within(card).getByText("Ask an administrator to check the printer.")).toBeVisible();
+    expect(screen.queryByText(/save the printer again/)).toBeNull();
+    expect(screen.queryByText(/try again/)).toBeNull();
   });
 
   it("every reason has its own words, and an unknown code reads as the general sentence", async () => {
