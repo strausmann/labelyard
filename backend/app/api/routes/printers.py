@@ -150,6 +150,20 @@ def _confirmation_view(request: Request, printer: Printer) -> PrintConfirmationR
     return PrintConfirmationRead.from_stored(printer.print_confirmation, live=live)
 
 
+def _wiring_fields(request: Request, printer: Printer) -> dict[str, Any]:
+    """``wiring``, ``wiring_reason`` and ``wiring_at`` of the read (#401). Without a runtime (an app
+    without the lifespan) the printer reads as wired, the field default."""
+    runtime = get_printer_runtime(request)
+    if runtime is None:
+        return {}
+    state, reason = runtime.wiring_of(printer.id, enabled=printer.enabled)
+    return {
+        "wiring": state,
+        "wiring_reason": reason,
+        "wiring_at": runtime.wiring_failed_at(printer.id) if state == "not_wired" else None,
+    }
+
+
 PrintAuthDep = Annotated[AuthContext, Depends(require_print)]
 
 
@@ -248,6 +262,7 @@ async def list_printers(
                 updated_at=p.updated_at,
                 layout_defaults=_layout_defaults_view(p),
                 print_confirmation=_confirmation_view(request, p),
+                **_wiring_fields(request, p),
                 **_identity_fields(identities.get(p.id)),
             )
         )
@@ -294,6 +309,7 @@ async def get_printer(
         updated_at=printer.updated_at,
         layout_defaults=_layout_defaults_view(printer),
         print_confirmation=_confirmation_view(request, printer),
+        **_wiring_fields(request, printer),
         **await _identity_view(session, printer_id, _auth),
     )
 

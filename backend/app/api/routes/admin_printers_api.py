@@ -59,7 +59,14 @@ from app.models.printer_tray import PrinterTray
 from app.printer_backends.ipp.attributes import ProbeSummary
 from app.schemas._datetime import serialize_datetime_utc
 from app.schemas.label_layout import LayoutDefault, parse_layout_defaults
-from app.schemas.printer import CONNECTION_READ_DOC
+from app.schemas.printer import (
+    CONNECTION_READ_DOC,
+    WIRING_AT_DOC,
+    WIRING_DOC,
+    WIRING_REASON_DOC,
+    WiringReason,
+    WiringState,
+)
 from app.schemas.printer_admin import IppConnection, PrinterCreatePayload, PrinterUpdatePayload
 from app.services.event_bus import BusEvent, EventBus
 from app.services.printer_admin_service import (
@@ -140,6 +147,9 @@ class PrinterRead(BaseModel):
         default=None, description="The differing device a flagged swap is about; null otherwise"
     )
     observed_kind: str | None = Field(default=None, description="serial | ipp_uuid | mac")
+    wiring: WiringState = Field(default="wired", description=WIRING_DOC)
+    wiring_reason: WiringReason | None = Field(default=None, description=WIRING_REASON_DOC)
+    wiring_at: str | None = Field(default=None, description=WIRING_AT_DOC)
 
 
 class IdentityResolve(BaseModel):
@@ -192,10 +202,17 @@ def _tray_read(tray: PrinterTray) -> TrayRead:
 async def _read(
     svc: PrinterAdminService,
     printer: Printer,
+    request: Request,
     identities: dict[UUID, PrinterIdentity] | None = None,
 ) -> PrinterRead:
     """The admin view; a list passes ``identities`` (one query) instead of one read per row."""
     view = _row_to_read(printer)
+    runtime = getattr(request.app.state, "printer_runtime", None)
+    if runtime is not None:  # #401: whether the running hub could wire it
+        view.wiring, view.wiring_reason = runtime.wiring_of(printer.id, enabled=printer.enabled)
+        failed_at = runtime.wiring_failed_at(printer.id)
+        if view.wiring == "not_wired" and failed_at is not None:
+            view.wiring_at = serialize_datetime_utc(failed_at, None)
     if is_page_printer(printer):
         view.trays = [_tray_read(t) for t in await svc.list_trays(printer.id)]
     # Explicit, never from_attributes: the identity is inventory data for admins (#231).
@@ -296,6 +313,7 @@ def _audit_user(auth: AuthContext) -> str:
     ),
 )
 async def list_printers(
+    request: Request,
     session: SessionDep,
     _auth: AdminAuthDep,
     include_disabled: bool = False,
@@ -303,7 +321,7 @@ async def list_printers(
     svc = PrinterAdminService(session, audit_user=_audit_user(_auth))
     printers = await svc.list_printers(include_disabled=include_disabled)
     identities = await svc.get_identities([p.id for p in printers])
-    return [await _read(svc, p, identities) for p in printers]
+    return [await _read(svc, p, request, identities) for p in printers]
 
 
 @router.post(
@@ -349,7 +367,7 @@ async def create_printer(
         ) from exc
     await _apply_live(request, printer.id)  # before the event: see _apply_live
     _publish_changed(request, printer, "created")
-    return await _read(svc, printer)
+    return await _read(svc, printer, request)
 
 
 @router.post(
@@ -390,6 +408,7 @@ async def probe_ipp_printer(
 )
 async def get_printer(
     slug: str,
+    request: Request,
     session: SessionDep,
     _auth: AdminAuthDep,
 ) -> PrinterRead:
@@ -403,7 +422,7 @@ async def get_printer(
                 "error_message": f"Drucker mit Slug {slug!r} nicht gefunden.",
             },
         )
-    return await _read(svc, printer)
+    return await _read(svc, printer, request)
 
 
 @router.put(
@@ -474,7 +493,7 @@ async def update_printer(
         ) from exc
     await _apply_live(request, printer.id)  # before the event: see _apply_live
     _publish_changed(request, printer, "updated")
-    return await _read(svc, printer)
+    return await _read(svc, printer, request)
 
 
 @router.post(
@@ -517,7 +536,7 @@ async def disable_printer(
         ) from exc
     await _apply_live(request, printer.id)  # before the event: see _apply_live
     _publish_changed(request, printer, "disabled")
-    return await _read(svc, printer)
+    return await _read(svc, printer, request)
 
 
 @router.post(
@@ -558,7 +577,7 @@ async def enable_printer(
         ) from exc
     await _apply_live(request, printer.id)  # before the event: see _apply_live
     _publish_changed(request, printer, "enabled")
-    return await _read(svc, printer)
+    return await _read(svc, printer, request)
 
 
 @router.post(
@@ -626,4 +645,4 @@ async def resolve_identity(
     if runtime is not None:
         await runtime.resync_identity_hold(printer.id)
     _publish_changed(request, printer, "updated")
-    return await _read(svc, printer)
+    return await _read(svc, printer, request)
