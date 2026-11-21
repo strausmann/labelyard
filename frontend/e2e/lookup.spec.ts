@@ -59,7 +59,7 @@ test.describe("lookup", () => {
     await page.getByRole("region", { name: "Print", exact: true }).getByRole("button", { name: "Add to cart" }).click();
     await page.goto("/loc/5");
     await page.getByRole("region", { name: "Print", exact: true }).getByRole("button", { name: "Add to cart" }).click();
-    await page.getByRole("link", { name: "Cart (2)" }).click();
+    await page.getByRole("link", { name: "Cart, 2 items" }).click();
     await expect(page.getByRole("list", { name: "Cart" }).getByRole("listitem")).toHaveCount(2);
 
     // A reload keeps the cart (it lives in this browser).

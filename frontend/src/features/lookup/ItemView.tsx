@@ -145,7 +145,6 @@ function ItemDetail({ item }: { item: LookupResult }) {
   const printerName = selected?.name ?? "";
   const href = safeHref(item.url);
   const title = item.name ?? item.id;
-  const inCart = cart.items.length;
   const asItem = { app: item.app, id: item.id, name: title, content_type: contentType, copies };
 
   return (
@@ -163,11 +162,6 @@ function ItemDetail({ item }: { item: LookupResult }) {
             )}
           </p>
         </div>
-        {inCart > 0 && (
-          <Link to="/cart" className="press inline-flex h-11 items-center text-link underline underline-offset-2">
-            {t`Cart (${inCart})`}
-          </Link>
-        )}
       </header>
 
       <div className={pagePrinter ? "grid gap-4 lg:grid-cols-[22rem_minmax(0,1fr)]" : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"}>

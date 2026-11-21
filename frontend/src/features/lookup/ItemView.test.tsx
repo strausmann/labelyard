@@ -157,14 +157,22 @@ describe("ItemView", () => {
     expect(alert).not.toHaveTextContent("0000-uuid");
   });
 
-  it("Add to cart stores the item and shows the cart link", async () => {
+  it("Add to cart stores the item", async () => {
     mockApi(routes());
     await renderApp({ path: "/asset/42" });
     await userEvent.click(within(await screen.findByRole("region", { name: "Print" })).getByRole("button", { name: "Add to cart" }));
     expect(JSON.parse(localStorage.getItem(CART_KEY)!)).toEqual([
       { app: "snipeit", id: "42", name: "Cordless drill", content_type: "qr_two_lines", copies: 1 },
     ]);
-    expect(await screen.findByRole("link", { name: "Cart (1)" })).toHaveAttribute("href", "/cart");
+  });
+
+  // #407: the top-bar cart button is the only way to the cart.
+  it("item view has no cart text link", async () => {
+    mockApi(routes());
+    await renderApp({ path: "/asset/42" });
+    await userEvent.click(within(await screen.findByRole("region", { name: "Print" })).getByRole("button", { name: "Add to cart" }));
+    await screen.findByRole("link", { name: "Cart, 1 item" });
+    expect(within(screen.getByRole("main")).queryByRole("link", { name: /^Cart/ })).toBeNull();
   });
 
   it("remembers the printer the person picked", async () => {

@@ -731,8 +731,8 @@ msgid "Added by hand"
 msgstr "Von Hand aufgebracht"
 
 #: src/features/integrations/IntegrationPage.tsx
-msgid "Added to the cart: {added}"
-msgstr "In den Warenkorb gelegt: {added}"
+msgid "Added to the cart: {added} — open it with the cart button at the top"
+msgstr "In den Warenkorb gelegt: {added} — öffne ihn über den Warenkorb-Button oben"
 
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Added to the cart."
@@ -1091,11 +1091,6 @@ msgstr "Abgebrochen"
 #: src/shell/PrintToasts.tsx
 msgid "Cart"
 msgstr "Warenkorb"
-
-#: src/features/integrations/IntegrationPage.tsx
-#: src/features/lookup/ItemView.tsx
-msgid "Cart ({inCart})"
-msgstr "Warenkorb ({inCart})"
 
 #: src/shell/CartButton.tsx
 msgid "Cart, empty"
