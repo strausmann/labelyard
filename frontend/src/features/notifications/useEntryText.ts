@@ -6,6 +6,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useStoredJobErrorText } from "../jobs/jobErrorText";
 import { useFlagText } from "../printers/flags";
 import { useKindLabel, type PrinterKind } from "../printers/model";
+import { useWiringWords } from "../printers/wiring";
 import { useReasonWord } from "../printers/reasons";
 import { useRollWords } from "../printers/roll";
 import type { Notification } from "./derive";
@@ -31,6 +32,7 @@ export function useEntryText(): (entry: Pick<Notification, "textKey" | "values">
   const flagText = useFlagText();
   const storedError = useStoredJobErrorText();
   const rollWords = useRollWords();
+  const wiringWords = useWiringWords();
 
   return ({ textKey, values }) => {
     const title = values.title || t`Label`;
@@ -94,6 +96,11 @@ export function useEntryText(): (entry: Pick<Notification, "textKey" | "values">
       case "update.available": {
         const version = values.version ?? "";
         return version ? t`New version ${version} available` : t`New version available`;
+      }
+      case "printer.not_wired": {
+        // The reason code in words ("the printer did not answer ..."); never the code itself.
+        const reason = wiringWords(values.wiring);
+        return t`${printer}: Not wired: ${reason}`;
       }
       default: {
         if (textKey.startsWith("printer.")) {

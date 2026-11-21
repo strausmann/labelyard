@@ -381,6 +381,10 @@ msgid "{printer}: {what}"
 msgstr "{printer}: {what}"
 
 #: src/features/notifications/useEntryText.ts
+msgid "{printer}: Not wired: {reason}"
+msgstr "{printer}: Nicht angebunden: {reason}"
+
+#: src/features/notifications/useEntryText.ts
 msgid "{printer}: Unsupported roll loaded: {inline}"
 msgstr "{printer}: Nicht unterstützte Rolle eingelegt: {inline}"
 

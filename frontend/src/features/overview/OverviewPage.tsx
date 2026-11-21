@@ -24,6 +24,7 @@ import { FlagLine, RollLine } from "../printers/PrinterCard";
 import { usePrinterWaiting } from "../printers/flags";
 import { unsupportedRoll } from "../printers/roll";
 import { TapeSwatch } from "../printers/TapeSwatch";
+import { WiringLines } from "../printers/wiring";
 
 function Block({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -221,6 +222,7 @@ function AttentionItem({
         <span className="font-bold">{printer.name}</span>
         <StatusBadge state={view.badge} label={kinds[view.kind]} />
         {view.detail && <span className="text-small text-ink-2">{view.detail}</span>}
+        <WiringLines printer={printer} />
         <RollLine roll={view.roll} />
         {view.kind === "paused" && <PauseReason pause={printer.pause} />}
         <ReasonLine reasons={view.reasons} />

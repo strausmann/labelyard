@@ -249,6 +249,20 @@ describe("deriveNotifications: printers", () => {
     expect(one(A, okStatus(A, { polled: false }))[0]).toMatchObject({ id: `printer:${A.id}:not_polled`, severity: "warning" });
   });
 
+  it("a printer the hub could not wire is an error, with the reason for its words (#401)", () => {
+    const stuck = { ...A, wiring: "not_wired" as const, wiring_reason: "discovery_failed" as const };
+    // Not wired is derived before any status: the printer is unusable whatever an old probe said.
+    for (const status of [okStatus(A), undefined]) {
+      const [entry] = one(stuck, status);
+      expect(entry).toMatchObject({ id: `printer:${A.id}:not_wired`, severity: "error", textKey: "printer.not_wired" });
+      expect(entry!.values.wiring).toBe("discovery_failed");
+    }
+  });
+
+  it("a disabled printer raises no notification", () => {
+    expect(one({ ...A, enabled: false, wiring: "disabled" as const }, undefined)).toEqual([]);
+  });
+
   it("a low or empty supply is a warning in the status's own words", () => {
     const st = pageStatus(PAGE.id, {
       markers: [

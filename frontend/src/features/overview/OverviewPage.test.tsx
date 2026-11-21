@@ -77,6 +77,17 @@ describe("Overview", () => {
     expect(within(section).getByText("Failed")).toBeVisible();
   });
 
+  it("a printer the hub could not wire is under Needs attention, with its reason in words (#401)", async () => {
+    const stuck = { ...PRINTER_A, wiring: "not_wired", wiring_reason: "model_unknown" };
+    mockApi({ ...base(), "GET /api/v1/printers": [stuck, PRINTER_B] });
+    await renderApp({ path: "/" });
+    const section = await screen.findByRole("region", { name: "Needs attention" });
+    expect(await within(section).findByText("Workshop PT-P750W")).toBeVisible();
+    expect(within(section).getByText("Not wired")).toBeVisible();
+    expect(within(section).getByText("Not wired: the hub does not know this printer model.")).toBeVisible();
+    expect(screen.queryByText("Nothing needs attention.")).toBeNull();
+  });
+
   it("Needs attention lists the unresolved errors", async () => {
     const failed = "aaaaaaaa-0000-4000-8000-0000000000a1";
     const retried = "aaaaaaaa-0000-4000-8000-0000000000a2";
