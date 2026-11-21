@@ -26,6 +26,7 @@ import { printConfirmationText } from "./printConfirmation";
 import { RollColourEdit, RollColourPrompt } from "./RollColourPrompt";
 import { unsupportedRoll } from "./roll";
 import { TapeSwatch } from "./TapeSwatch";
+import { WiringSections } from "./wiring";
 
 const route = getRouteApi("/printers/$printerId");
 
@@ -119,6 +120,7 @@ function PrinterDetail({ printer }: { printer: Printer }) {
         </div>
       </header>
       <TestPrintFeedback mutation={testPrint} />
+      <WiringSections printer={printer} />
       {mismatch && <IdentityMismatchBanner printer={printer} onSettled={() => setSettledNotice(true)} />}
       {settledNotice && !mismatch && <SettledNotice />}
 

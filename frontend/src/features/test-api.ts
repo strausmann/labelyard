@@ -13,6 +13,7 @@ export const PRINTER_A = {
   connection: { host: "192.0.2.10", port: 9100 },
   enabled: true,
   paused: false,
+  wiring: "wired" as const,
   created_at: "2026-11-01T08:00:00Z",
   updated_at: "2026-11-01T08:00:00Z",
 };

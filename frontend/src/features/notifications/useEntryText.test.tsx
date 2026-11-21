@@ -29,3 +29,23 @@ describe("a failed job's entry (#389)", () => {
     expect(await failedText({ error: "weird_code: something odd" }, "en")).toBe("Box failed: weird_code: something odd");
   });
 });
+
+describe("a printer the hub could not wire (#401)", () => {
+  const text = async (lang: "en" | "de", wiring: string) => {
+    await initI18n(lang);
+    const { result } = renderHook(() => useEntryText(), {
+      wrapper: ({ children }) => <I18nProvider i18n={i18n}>{children}</I18nProvider>,
+    });
+    return result.current({ textKey: "printer.not_wired", values: { printer: "Desk inkjet", wiring } });
+  };
+
+  it("names the reason in words, never the code", async () => {
+    expect(await text("en", "discovery_failed")).toBe("Desk inkjet: Not wired: the printer did not answer when the hub looked for it");
+    expect(await text("de", "discovery_failed")).toBe("Desk inkjet: Nicht angebunden: der Drucker hat nicht geantwortet, als der Hub ihn gesucht hat");
+  });
+
+  it("says the general sentence for a missing or unknown code", async () => {
+    expect(await text("en", "")).toBe("Desk inkjet: Not wired: the hub is not connected to this printer");
+    expect(await text("en", "a_future_code")).toBe("Desk inkjet: Not wired: the hub is not connected to this printer");
+  });
+});

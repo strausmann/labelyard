@@ -96,6 +96,21 @@ PRINT_CONFIRMATION_DOC = (
 )
 
 
+WiringState = Literal["wired", "not_wired", "disabled"]
+# Why a stored printer could not be wired (#401, ADR 0024). Fixed codes: never exception text.
+WiringReason = Literal["model_unknown", "discovery_failed", "invalid_config", "unexpected"]
+
+WIRING_DOC = (
+    "Whether the hub is connected to this printer: wired, not_wired (it could not be wired when it "
+    "was last attached) or disabled (switched off on purpose). Kept in memory: a restart retries"
+)
+WIRING_REASON_DOC = (
+    "Why the printer is not wired, as a fixed code: model_unknown, discovery_failed, "
+    "invalid_config or unexpected. Never the error text; null when wired, disabled or unknown"
+)
+WIRING_AT_DOC = "When the last wiring attempt failed; null unless the printer is not wired"
+
+
 class PauseRead(BaseModel):
     """Why a printer is paused: ``user`` (manual) or ``printer_error`` (automatic)."""
 
@@ -158,10 +173,17 @@ class PrinterRead(BaseModel):
     print_confirmation: PrintConfirmationRead | None = Field(
         default=None, description=PRINT_CONFIRMATION_DOC
     )
+    wiring: WiringState = Field(default="wired", description=WIRING_DOC)
+    wiring_reason: WiringReason | None = Field(default=None, description=WIRING_REASON_DOC)
+    wiring_at: datetime | None = Field(default=None, description=WIRING_AT_DOC)
 
     @field_serializer("created_at", "updated_at")
     def _serialise_datetimes(self, dt: datetime, _info: object) -> str:
         return serialize_datetime_utc(dt, _info)
+
+    @field_serializer("wiring_at")
+    def _serialise_wiring_at(self, dt: datetime | None, _info: object) -> str | None:
+        return serialize_datetime_utc(dt, _info) if dt is not None else None
 
     @field_serializer("hardware_id_seen_at")
     def _serialise_seen_at(self, dt: datetime | None, _info: object) -> str | None:

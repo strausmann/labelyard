@@ -64,9 +64,9 @@ Links: [page](./m09-probe-print.html), [A4 at full size](png/m09-probe-print-a4-
 
 ## M10 Printer not wired
 
-Spec section 9.3, 11. Printers list and detail with the Not wired state, its reason in words and the other reason codes.
+Spec section 9.3, 11. Printers list and detail with the Not wired state and its reason in words; the view `read` is the same page for a key below admin. Changed by operator decision 2026-11-21: a wired printer carries no badge of its own, an admin gets a link to the printer settings instead of a re-save button, and the list of the other reason codes is no longer drawn (the code is shown beside the reason).
 [![M10 Printer not wired, 1280 px, light](png/m10-printer-not-wired-1280-light.png)](png/m10-printer-not-wired-1280-light.png)
-Links: [page](./m10-printer-not-wired.html), [1280 dark](png/m10-printer-not-wired-1280-dark.png), [390 light](png/m10-printer-not-wired-390-light.png), [390 dark](png/m10-printer-not-wired-390-dark.png)
+Links: [page](./m10-printer-not-wired.html), [read view](png/m10-printer-not-wired-read-1280-light.png), [1280 dark](png/m10-printer-not-wired-1280-dark.png), [390 light](png/m10-printer-not-wired-390-light.png), [390 dark](png/m10-printer-not-wired-390-dark.png)
 
 ## M11 Public web URL
 

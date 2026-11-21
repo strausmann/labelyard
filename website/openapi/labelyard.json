@@ -8064,6 +8064,47 @@
           "updated_at": {
             "title": "Updated At",
             "type": "string"
+          },
+          "wiring": {
+            "default": "wired",
+            "description": "Whether the hub is connected to this printer: wired, not_wired (it could not be wired when it was last attached) or disabled (switched off on purpose). Kept in memory: a restart retries",
+            "enum": [
+              "wired",
+              "not_wired",
+              "disabled"
+            ],
+            "title": "Wiring",
+            "type": "string"
+          },
+          "wiring_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the last wiring attempt failed; null unless the printer is not wired",
+            "title": "Wiring At"
+          },
+          "wiring_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "model_unknown",
+                  "discovery_failed",
+                  "invalid_config",
+                  "unexpected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the printer is not wired, as a fixed code: model_unknown, discovery_failed, invalid_config or unexpected. Never the error text; null when wired, disabled or unknown",
+            "title": "Wiring Reason"
           }
         },
         "required": [
@@ -8217,6 +8258,47 @@
           "updated_at": {
             "title": "Updated At",
             "type": "string"
+          },
+          "wiring": {
+            "default": "wired",
+            "description": "Whether the hub is connected to this printer: wired, not_wired (it could not be wired when it was last attached) or disabled (switched off on purpose). Kept in memory: a restart retries",
+            "enum": [
+              "wired",
+              "not_wired",
+              "disabled"
+            ],
+            "title": "Wiring",
+            "type": "string"
+          },
+          "wiring_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the last wiring attempt failed; null unless the printer is not wired",
+            "title": "Wiring At"
+          },
+          "wiring_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "model_unknown",
+                  "discovery_failed",
+                  "invalid_config",
+                  "unexpected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the printer is not wired, as a fixed code: model_unknown, discovery_failed, invalid_config or unexpected. Never the error text; null when wired, disabled or unknown",
+            "title": "Wiring Reason"
           }
         },
         "required": [

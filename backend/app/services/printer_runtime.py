@@ -41,7 +41,7 @@ import functools
 import hashlib
 import json
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -63,6 +63,7 @@ from app.printer_models.registry import ModelNotFoundError, ModelRegistry
 from app.repositories import printer_identity as identity_repo
 from app.repositories.write_lock import write_transaction
 from app.schemas.label_layout import parse_layout_defaults
+from app.schemas.printer import WiringReason, WiringState
 from app.services.backend_router import (
     BackendRouter,
     CutDefaults,
@@ -140,24 +141,32 @@ def tape_config(p: Any) -> PrinterYAMLConfig:
 # Discovery failures with a configured model to fall back on: a timeout, DNS or network error
 # (``OSError``, ``TimeoutError`` included), a malformed reply, a device no driver claims.
 _DISCOVERY_ERRORS = (SnmpDiscoveryError, PySnmpError, PyAsn1Error, OSError, ModelNotFoundError)
-# What a stored printer row can legitimately cause when it is wired: logged at WARNING. Any
-# other exception is a bug and is logged at ERROR with its traceback; the printer is skipped
-# either way, so one bad row never stops the hub.
-_EXPECTED_WIRING_ERRORS = (ValueError, *_DISCOVERY_ERRORS)
+
+# Why a stored printer could not be wired, mapped from the exception class (#401, ADR 0024).
+# The first matching row wins, so the specific classes come before ``ValueError`` (a
+# ``ModelNotFoundError`` is a ``ValueError`` too). A further reason is one more row here and one
+# more literal in ``WiringReason``; the exception text is never kept.
+_WIRING_REASONS: tuple[tuple[tuple[type[BaseException], ...], WiringReason], ...] = (
+    ((ModelNotFoundError,), "model_unknown"),
+    ((SnmpDiscoveryError, PySnmpError, PyAsn1Error, OSError), "discovery_failed"),
+    ((ValueError,), "invalid_config"),
+)
 
 
-def _log_not_wired(slug: str, exc: Exception, what: str) -> None:
-    """Log a printer that could not be wired. The message carries the class name only."""
-    if isinstance(exc, _EXPECTED_WIRING_ERRORS):
-        _log.warning("Printer slug=%s not wired: %s (%s)", slug, what, type(exc).__name__)
-    else:
-        _log.error(
-            "Printer slug=%s not wired: %s (%s), unexpected",
-            slug,
-            what,
-            type(exc).__name__,
-            exc_info=True,
-        )
+def wiring_reason_of(exc: BaseException) -> WiringReason:
+    """The fixed reason code for *exc*; ``unexpected`` for any class the table does not list."""
+    for classes, reason in _WIRING_REASONS:
+        if isinstance(exc, classes):
+            return reason
+    return "unexpected"
+
+
+@dataclass(frozen=True, slots=True)
+class WiringFailure:
+    """The last wiring failure of one printer: a reason code and when it happened, nothing else."""
+
+    reason: WiringReason
+    at: datetime
 
 
 async def _resolve_model_id_from_config(printer_cfg: PrinterYAMLConfig) -> str:
@@ -295,6 +304,11 @@ class PrinterRuntime:
         if queue is not None and getattr(type(queue), "set_roll_colour", None) is not None:
             queue.set_roll_colour(self.roll_tracker.colour_of)
         self._wired: dict[UUID, _Wiring] = {}
+        # #401: the last wiring failure per printer, in memory only (a restart retries anyway).
+        self._failures: dict[UUID, WiringFailure] = {}
+        # #401: while a printer is re-wired (detached, then attached again) a read reports the state
+        # it had when the re-wire began, so a save does not flash "not wired" for a healthy printer.
+        self._holding: dict[UUID, tuple[WiringState, WiringReason | None, datetime | None]] = {}
         self._ipp_limiter = asyncio.Semaphore(_IPP_PROBE_CONCURRENCY)
         self._tape_registry = TapeRegistry()
         self._started = False
@@ -324,7 +338,8 @@ class PrinterRuntime:
         async with self._serialized(printer.id):
             if self._is_closed():  # stop() may have run while this waited for the lock
                 return
-            await self._attach_locked(printer)
+            with self._rewiring(printer.id):
+                await self._attach_locked(printer)
 
     async def detach(self, printer_id: UUID) -> None:
         """Unwire a printer: stop its producer, take it out of the queue, close its clients.
@@ -339,6 +354,7 @@ class PrinterRuntime:
             if self._is_closed():  # stop() may have run while this waited for the lock
                 return
             await self._detach_locked(printer_id)
+            self._failures.pop(printer_id, None)  # gone on purpose: nothing left to explain
 
     async def reconcile(self, printer_id: UUID) -> None:
         """Bring the wiring of *printer_id* in line with its stored row (the admin routes).
@@ -359,8 +375,10 @@ class PrinterRuntime:
             if self._is_closed():  # stop() may have run while this waited for the lock
                 return
             try:
-                await self._reconcile_locked(printer_id)
+                with self._rewiring(printer_id):
+                    await self._reconcile_locked(printer_id)
             except Exception as exc:
+                self._remember_failure(printer_id, exc)  # #401: shown as "not wired"
                 _log.warning(
                     "Printer id=%s not reconciled (%s); left detached",
                     printer_id,
@@ -395,6 +413,8 @@ class PrinterRuntime:
         await self._detach_locked(printer_id)
         if row is not None and row.enabled:
             await self._attach_locked(row)
+        else:
+            self._failures.pop(printer_id, None)
 
     @staticmethod
     def _producer_missing(row: Printer, wiring: _Wiring) -> bool:
@@ -490,11 +510,85 @@ class PrinterRuntime:
         wiring = self._wired.get(printer_id)
         return wiring.service if wiring is not None else None
 
+    # ------------------------------------------------------------------ wiring state
+
+    def _record_not_wired(self, printer_id: UUID, slug: str, exc: Exception, what: str) -> None:
+        """Log a printer that could not be wired and remember why (#401).
+
+        The stored failure holds the reason code and the time, never the exception text (CWE-209):
+        the text of a discovery error names the device address. The log names the printer slug and
+        the error class; an ``unexpected`` error (a bug) is logged at ERROR with its traceback, as
+        before ADR 0024 was amended.
+        """
+        reason = self._remember_failure(printer_id, exc)
+        if reason != "unexpected":
+            _log.warning("Printer slug=%s not wired: %s (%s)", slug, what, type(exc).__name__)
+        else:
+            _log.error(
+                "Printer slug=%s not wired: %s (%s), unexpected",
+                slug,
+                what,
+                type(exc).__name__,
+                exc_info=True,
+            )
+
+    def _remember_failure(self, printer_id: UUID, exc: BaseException) -> WiringReason:
+        reason = wiring_reason_of(exc)
+        self._failures[printer_id] = WiringFailure(reason=reason, at=datetime.now(UTC))
+        return reason
+
+    def _state_now(
+        self, printer_id: UUID
+    ) -> tuple[WiringState, WiringReason | None, datetime | None]:
+        if printer_id in self._wired:
+            return "wired", None, None
+        failure = self._failures.get(printer_id)
+        if failure is None:
+            return "not_wired", None, None
+        return "not_wired", failure.reason, failure.at
+
+    @contextlib.contextmanager
+    def _rewiring(self, printer_id: UUID) -> Iterator[None]:
+        """Hold the reported state of *printer_id* for the length of an attach or a reconcile.
+
+        A printer with no state yet (its first attach) reads as wired meanwhile: nothing has failed.
+        """
+        if printer_id in self._holding:
+            yield
+            return
+        state = self._state_now(printer_id)
+        self._holding[printer_id] = (
+            ("wired", None, None) if state[1] is None and state[0] == "not_wired" else state
+        )
+        try:
+            yield
+        finally:
+            self._holding.pop(printer_id, None)
+
+    def wiring_of(
+        self, printer_id: UUID, *, enabled: bool
+    ) -> tuple[WiringState, WiringReason | None]:
+        """Is the stored printer wired into the running hub, and if not, why (#401).
+
+        ``disabled`` is a state the operator chose, not a failure. An enabled printer that is not
+        attached without a recorded failure (the runtime was stopped) is ``not_wired`` with no
+        reason.
+        """
+        if not enabled:
+            return "disabled", None
+        state, reason, _at = self._holding.get(printer_id) or self._state_now(printer_id)
+        return state, reason
+
+    def wiring_failed_at(self, printer_id: UUID) -> datetime | None:
+        """When the last wiring attempt of *printer_id* failed; ``None`` once it is wired."""
+        return (self._holding.get(printer_id) or self._state_now(printer_id))[2]
+
     # ------------------------------------------------------------------ attach
 
     async def _attach_locked(self, printer: Printer) -> None:
         if printer.id in self._wired:
             await self._detach_locked(printer.id)
+        self._failures.pop(printer.id, None)  # a new attempt: the old failure no longer holds
         if not printer.enabled:
             return
         paused_since = await self._paused_since(printer.id)
@@ -526,7 +620,7 @@ class PrinterRuntime:
             model_id = await _resolve_model_id_from_config(cfg)
             driver_cls: Any = ModelRegistry.find_by_model_id(model_id)
         except Exception as exc:
-            _log_not_wired(printer.slug, exc, "tape model unresolved")
+            self._record_not_wired(printer.id, printer.slug, exc, "tape model unresolved")
             return None
         queue = self._queue()
         registered = False
@@ -558,7 +652,7 @@ class PrinterRuntime:
         except Exception as exc:
             if registered:
                 self._router.unregister(cfg.slug)
-            _log_not_wired(cfg.slug, exc, "wiring failed")
+            self._record_not_wired(printer.id, cfg.slug, exc, "wiring failed")
             return None
         self._slug_to_id[cfg.slug] = printer.id
         return _Wiring(
@@ -620,9 +714,7 @@ class PrinterRuntime:
             )
         except Exception as exc:
             # A bad stored URI must not stop the hub (degraded, at startup and at runtime).
-            _log.warning(
-                "Degraded: IPP printer slug=%s not wired (%s)", printer.slug, type(exc).__name__
-            )
+            self._record_not_wired(printer.id, printer.slug, exc, "IPP client")
             return None
         state = IppPrinterState()
         probe_timeout = min(5.0, queue_timeout)
@@ -671,9 +763,7 @@ class PrinterRuntime:
                 paused_since=paused_since,
             )
         except Exception as exc:
-            _log.warning(
-                "Degraded: IPP printer slug=%s not wired (%s)", printer.slug, type(exc).__name__
-            )
+            self._record_not_wired(printer.id, printer.slug, exc, "IPP queue")
             if producer is not None:
                 await self._stop_producer_quietly(producer, printer.slug)
             with contextlib.suppress(Exception):

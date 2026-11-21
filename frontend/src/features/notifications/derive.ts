@@ -126,6 +126,8 @@ const PRINTER_SEVERITY: Partial<Record<PrinterKind, Severity>> = {
   paused: "warning",
   stale: "warning",
   not_polled: "warning",
+  // The hub could not wire it (#401): the printer is unusable, which is a problem, not a hint.
+  not_wired: "error",
 };
 
 function printerEntries(
@@ -179,7 +181,7 @@ function printerEntries(
       severity,
       kind: "printer",
       textKey: `printer.${view.kind}`,
-      values: { printer: printer.name, detail: view.detail ?? "", reasons: view.reasons.join(",") },
+      values: { printer: printer.name, detail: view.detail ?? "", reasons: view.reasons.join(","), wiring: printer.wiring_reason ?? "" },
       at: at(id),
       target,
     });

@@ -8,6 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - **Status:** Accepted
 - **Date:** 2026-11-11
 - **Deciders:** maintainer
+- **Decision labels:** D29
+- **Amended:** 2026-11-21 (#401) — a printer that could not be wired says so on its read, in memory, with a fixed reason code (D29), see "Amendment — 2026-11-21" at the end
 - **Related:** [0005](0005-print-queue-is-mandatory.md) (print queue), [0006](0006-status-sources-by-phase.md) (status sources), [0020](0020-backend-kinds-ipp-page-printers.md) (IPP page printers), [0023](0023-sheet-archive.md) (calibration, D17)
 
 ## Context
@@ -53,3 +55,17 @@ A printer is stored by its network address. Calibration (D17) belongs to a print
 
 - Issues: #224, #231, #252
 - Code: `backend/app/services/printer_runtime.py`, `backend/app/services/hardware_identity.py`
+
+## Amendment — 2026-11-21 (#401): a printer that could not be wired (D29)
+
+A printer whose wiring fails (an unknown model, discovery that cannot reach the device, a stored row that cannot be read) stays detached and the hub carries on. Until 1.8.0 the only trace was a log line, so the printer list showed a printer that did nothing without saying why.
+
+**Decision (maintainer, 2026-11-21): the runtime remembers why a printer is not wired and the printer read says so.**
+
+- **What is kept.** Per printer id, the last wiring failure: a fixed reason code and the time. `PrinterRuntime._record_not_wired` sets it at every place a wiring fails (tape model unresolved, tape wiring failed, IPP client or queue refused, a failed reconcile); the next attach, a missing row or a disabled row clears it. While a printer is re-wired, a read reports the state it had when the re-wire began, so a save does not show "not wired" for a healthy printer. The mapping is by exception class: `ModelNotFoundError` is `model_unknown`; `SnmpDiscoveryError`, `PySnmpError`, `PyAsn1Error` and `OSError` are `discovery_failed`; `ValueError` is `invalid_config`; anything else is `unexpected` and is still logged at ERROR with its traceback.
+- **In memory, not in the database.** A restart retries the wiring anyway, so a stored state would be stale. This is the design call of #401.
+- **On the read.** Both printer reads (`GET /api/v1/printers`, `GET /api/v1/printers/{id}` and the admin reads) gain `wiring` (`wired`, `not_wired` or `disabled`), `wiring_reason` (the code, or `null`) and `wiring_at` (when the last attempt failed, or `null`). They are additive with defaults, so no existing client changes. `disabled` is a state the operator chose and carries no reason.
+- **Never the error text.** The reason is one of the fixed codes. The text of a discovery error names the device address, so neither the response nor the stored failure carries it (CWE-209). The log names the printer and the error class; for an `unexpected` error, a bug, it also keeps the traceback, as it did before. The UI puts the code into words and shows the code beside it.
+- **Saving the printer again re-wires it** (`reconcile`, as above), so a corrected address needs no restart.
+
+Further reasons are added to the mapping table and the `WiringReason` literal; a client must read an unknown code as "not wired for a reason this version does not name".
