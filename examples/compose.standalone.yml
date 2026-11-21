@@ -8,9 +8,9 @@
 # Use only on a trusted LAN. First admin access: set LABELYARD_BOOTSTRAP_ADMIN_KEY
 # (32+ characters) for the first sign-in, or create a key inside the container:
 #   docker compose exec labelyard labelyard admin create-key --scope admin --name first-admin
-# The image serves HTTP with the h11 parser and refuses a request line or header block larger
-# than 16 KiB; that is a bound, not a replacement for a reverse proxy, which stays recommended
-# for anything beyond a trusted LAN.
+# The image serves HTTP with the h11 parser and bounds request data that stays incomplete across
+# several reads to 16 KiB; a complete header block in one read is not limited by that. A reverse
+# proxy stays recommended for anything beyond a trusted LAN.
 # ============================================================================
 
 services:

@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[3]
 WORKFLOWS = sorted((REPO / ".github" / "workflows").glob("*.yml"))
 USES_RE = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<ref>\S+)\s*(?:#\s*(?P<comment>.*))?$")
 PINNED_RE = re.compile(r"^[\w.-]+/[\w./-]+@[0-9a-f]{40}$")
-VERSION_COMMENT_RE = re.compile(r"^v\d+(\.\d+){0,2}\b")
+VERSION_COMMENT_RE = re.compile(r"^v\d+\.\d+\.\d+(?![\w.])")
 LICENCE_MARKER = "<!-- labelyard:licence-changes -->"
 DEPENDENCY_NAMES_RE = re.compile(r"steps\.[\w-]+\.outputs\.dependency-names")
 
