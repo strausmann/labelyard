@@ -31,7 +31,7 @@ import qrcode.exceptions
 from PIL import Image, ImageDraw
 
 from app.printer_backends.exceptions import UnsupportedTapeError
-from app.printer_backends.ptouch_backend import _PTOUCH_PRINTER_CLASSES, _PTOUCH_TAPE_CLASSES
+from app.printer_backends.ptouch_raw import _PTOUCH_PRINTER_CLASSES, _PTOUCH_TAPE_CLASSES
 from app.printer_models.ql import QL_DK_ENDLESS_TAPES
 from app.services.spool_swatch.font import Weight, draw_glyphs, text_mm
 
