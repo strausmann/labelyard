@@ -4,7 +4,10 @@
 """The process-wide render slots: CPU-bound page drawing in a thread, bounded and timed (#293).
 
 The sheet preview (``_draw_page``) and the page-job render (``render_page``) both draw in a
-worker thread. At most ``MAX_CONCURRENT_RENDERS`` such threads run at once in the process.
+worker thread. At most ``capacity()`` such threads run at once in the process: the setting
+``render.max_concurrent`` (``LABELYARD_RENDER_MAX_CONCURRENT``, 2 to 16, default
+``DEFAULT_MAX_CONCURRENT_RENDERS`` = 2). A changed value applies once no render holds or waits
+for a slot.
 
 A slot is held until its thread has really ended, not until the caller stops waiting (266-07):
 a slot freed early would let the next caller start one thread more than the cap. A Python
@@ -14,26 +17,30 @@ the thread ends. It is marked stuck by a timer started with the thread, not by t
 a render whose caller went away (a cancelled request) counts too. The count is logged and
 shown by the readiness check ``render_slots``.
 
-Every owner (``owner_of``: each API key, and one group ``NO_KEY`` for all callers without a
-key: browser sessions, SSO, the hub itself) holds at most ``OWNER_LIMIT`` (all slots but
-one) slots at once, counted from taking the slot to the end of the thread, running or stuck.
-A semaphore of that size per owner (created when first needed, dropped when unused) is taken
-before the slot, always in that order, and held until the thread ends. So no single owner can
-hang every slot, not even with renders started at the same time. On top of that, a key with a
-stuck render is refused at once (``OwnerRenderStuckError``), and the group without a key is
-refused at once while ``OWNER_LIMIT`` of its renders are stuck (``RenderUnavailableError``).
+Every owner (``owner_of``: each API key, each browser session without a key, and one group
+``NO_KEY`` for all callers with neither: SSO without a session, the hub's own page jobs) holds
+at most all slots but one at once, counted from taking the slot to the end of the thread,
+running or stuck. A semaphore of that size per owner (created when first needed, dropped when
+unused) is taken before the slot, always in that order, and held until the thread ends. So no
+single owner can hang every slot, not even with renders started at the same time.
+
+**Browser sessions count under ``NO_KEY`` too** (#405): a session owner takes its own semaphore
+and the one of ``NO_KEY``, and its stuck renders count for both. One person can open many
+sessions, and one signed-in user can have a stuck preview and a stuck page job at once; neither
+may hang every slot. On top of that, a key or session with a stuck render is refused at once
+(``OwnerRenderStuckError``, 429), and every caller of the group ``NO_KEY`` (sessions included) is
+refused at once while all slots but one are stuck in it (``RenderUnavailableError``, 503).
+
+With the default 2 slots this means: every caller without a key, signed-in users and page jobs
+together, shares one slot; the session whose render is stuck gets 429, the others 503, the keys
+keep the other slot. From 3 slots two signed-in users render side by side.
 
 Waiting is bounded: with every slot stuck a caller is refused at once, otherwise it waits at
 most the time limit for its owner's turn and its slot together (``RenderUnavailableError``).
 
-Accepted residual risk: with 2 slots, two *different* owners (two keys, or one key and one UI
-user) can together hang every slot; a single party cannot. Keys are issued by an admin; such
-a key is revoked and the hub restarted.
-
-Known limitation (accepted): the callers without a key share one owner and so block each other.
-While one of them renders, the next waits; while one render of theirs is stuck, every caller
-without a key gets ``RenderUnavailableError`` until it ends or the hub restarts. Signed-in UI
-users are trusted, and the keys keep their slot.
+Accepted residual risk: two *different* owners (two keys, or one key and the group without a
+key) can together hang every slot; a single party cannot. Keys are issued by an admin; such a
+key is revoked and the hub restarted.
 """
 
 from __future__ import annotations
@@ -46,8 +53,14 @@ from typing import Any, Final
 from uuid import UUID
 
 from app.config import get_settings
+from app.render_limits import (
+    DEFAULT_MAX_CONCURRENT_RENDERS,
+    MAX_CONCURRENT_RENDERS_LIMIT,
+    MIN_CONCURRENT_RENDERS,
+)
 
 __all__ = [
+    "DEFAULT_MAX_CONCURRENT_RENDERS",
     "MAX_CONCURRENT_RENDERS",
     "NO_KEY",
     "NO_KEY_STUCK_LIMIT",
@@ -55,6 +68,8 @@ __all__ = [
     "OwnerRenderStuckError",
     "RenderTimeoutError",
     "RenderUnavailableError",
+    "bind_max_concurrent",
+    "capacity",
     "free_slots",
     "owner_of",
     "render_bounded",
@@ -63,13 +78,34 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-MAX_CONCURRENT_RENDERS: Final = 2  # renders at once, process-wide (spec 18, CPU)
+MAX_CONCURRENT_RENDERS: Final = DEFAULT_MAX_CONCURRENT_RENDERS
+"""The default slot count (kept for callers that name it); the live count is ``capacity()``."""
 OWNER_LIMIT: Final = MAX_CONCURRENT_RENDERS - 1
-"""Slots one owner may hold at once, running or stuck: never the last one."""
+"""Slots one owner may hold at once with the default count; live: ``capacity() - 1``."""
 NO_KEY: Final = "no-key"
-"""The owner of every render without an API key (browser sessions, SSO, the hub itself)."""
+"""The group of every render without an API key: browser sessions (each also its own owner),
+SSO without a session, the hub's own page jobs."""
 NO_KEY_STUCK_LIMIT: Final = OWNER_LIMIT
-"""Stuck renders of the group without a key at which its callers are refused at once."""
+"""Stuck renders of the group without a key at which its callers are refused at once, with the
+default count; live: ``capacity() - 1``."""
+
+CapacitySource = Callable[[], int]
+_capacity_source: CapacitySource | None = None
+
+
+def bind_max_concurrent(source: CapacitySource | None) -> CapacitySource | None:
+    """Read the slot count from ``source`` (the settings store at startup); returns the source
+    it replaces. ``None`` falls back to ``DEFAULT_MAX_CONCURRENT_RENDERS``."""
+    global _capacity_source
+    previous, _capacity_source = _capacity_source, source
+    return previous
+
+
+def capacity() -> int:
+    """The configured number of concurrent renders (2 to 16)."""
+    source = _capacity_source
+    value = DEFAULT_MAX_CONCURRENT_RENDERS if source is None else int(source())
+    return max(MIN_CONCURRENT_RENDERS, min(MAX_CONCURRENT_RENDERS_LIMIT, value))
 
 
 class RenderTimeoutError(Exception):
@@ -94,6 +130,7 @@ class _OwnerGate:
 class _Slots:
     gate: asyncio.Semaphore
     loop: asyncio.AbstractEventLoop
+    size: int
     in_use: int = 0
     stuck: int = 0
     stuck_by_owner: dict[Hashable, int] = field(default_factory=dict)
@@ -103,12 +140,19 @@ class _Slots:
 _slots: _Slots | None = None
 
 
+def _idle(slots: _Slots) -> bool:
+    """No render holds a slot, none is stuck and nobody waits for an owner's turn."""
+    return slots.in_use == 0 and slots.stuck == 0 and not slots.owner_gates
+
+
 def _current() -> _Slots:
-    """The slots of the running event loop; rebuilt if the loop changed (tests)."""
+    """The slots of the running event loop; rebuilt if the loop changed (tests) or, once idle,
+    when ``render.max_concurrent`` changed."""
     global _slots
     loop = asyncio.get_running_loop()
-    if _slots is None or _slots.loop is not loop:
-        _slots = _Slots(asyncio.Semaphore(MAX_CONCURRENT_RENDERS), loop)
+    size = capacity()
+    if _slots is None or _slots.loop is not loop or (_slots.size != size and _idle(_slots)):
+        _slots = _Slots(asyncio.Semaphore(size), loop, size)
     return _slots
 
 
@@ -117,9 +161,18 @@ def gate() -> asyncio.Semaphore:
     return _current().gate
 
 
-def owner_of(api_key_id: UUID | None) -> Hashable:
-    """The render owner of a caller: its API key, or ``NO_KEY`` for every caller without one."""
-    return NO_KEY if api_key_id is None else api_key_id
+def owner_of(api_key_id: UUID | None, session_id: UUID | None = None) -> Hashable:
+    """The render owner of a caller: its API key; without one its browser session
+    (``("session", session_id)``, #405); ``NO_KEY`` only for callers with neither.
+
+    Callers with neither a key nor a session (Pangolin SSO without a hub session, the hub's own
+    page jobs) keep sharing the one group ``NO_KEY``.
+    """
+    if api_key_id is not None:
+        return api_key_id
+    if session_id is not None:
+        return ("session", session_id)
+    return NO_KEY
 
 
 def stuck_renders() -> int:
@@ -129,9 +182,16 @@ def stuck_renders() -> int:
 
 
 def free_slots() -> int:
-    """Slots no render holds right now (``MAX_CONCURRENT_RENDERS`` without a loop)."""
+    """Slots no render holds right now (``capacity()`` without a loop)."""
     slots = _slots
-    return MAX_CONCURRENT_RENDERS if slots is None else MAX_CONCURRENT_RENDERS - slots.in_use
+    return capacity() if slots is None else slots.size - slots.in_use
+
+
+def slot_count() -> int:
+    """The slots there are right now (the readiness metric): the live slots' size, else the
+    configured count."""
+    slots = _slots
+    return capacity() if slots is None else slots.size
 
 
 def owner_gates() -> int:
@@ -140,15 +200,30 @@ def owner_gates() -> int:
     return 0 if slots is None else len(slots.owner_gates)
 
 
+def _is_session(owner: Hashable | None) -> bool:
+    return isinstance(owner, tuple) and len(owner) == 2 and owner[0] == "session"
+
+
+def _gate_keys(owner: Hashable | None) -> list[Hashable]:
+    """The per-owner semaphores a call takes, in this order: its owner's, then its group's."""
+    if owner is None:
+        return []
+    return [owner, NO_KEY] if _is_session(owner) else [owner]
+
+
 def _refusal(slots: _Slots, owner: Hashable | None) -> Exception | None:
-    """Why ``owner`` gets no slot now: a key with a stuck render, or the group without a key
-    with ``NO_KEY_STUCK_LIMIT`` stuck renders. ``None``: it may try."""
+    """Why ``owner`` gets no slot now: a key or session with a stuck render (429), or the group
+    without a key, sessions included, with all slots but one stuck (503). ``None``: it may try."""
     if owner is None:
         return None
-    stuck = slots.stuck_by_owner.get(owner, 0)
+    group_full = slots.stuck_by_owner.get(NO_KEY, 0) >= slots.size - 1
     if owner == NO_KEY:
-        return RenderUnavailableError() if stuck >= NO_KEY_STUCK_LIMIT else None
-    return OwnerRenderStuckError() if stuck else None
+        return RenderUnavailableError() if group_full else None
+    if slots.stuck_by_owner.get(owner, 0):
+        return OwnerRenderStuckError()
+    if _is_session(owner) and group_full:
+        return RenderUnavailableError()
+    return None
 
 
 async def _acquire_until(sem: asyncio.Semaphore, deadline: float) -> None:
@@ -177,11 +252,11 @@ async def render_bounded[T](
 
     ``label`` names the render in the log (an id and a kind, never payload data). ``owner`` (see
     ``owner_of``; required, so no caller can forget it; ``None`` only on purpose, for a render
-    no caller owns, which then has no per-owner limit) holds at most ``OWNER_LIMIT`` slots at
-    once; a key with a stuck render is refused with ``OwnerRenderStuckError``, the group
-    ``NO_KEY`` with ``RenderUnavailableError`` while ``NO_KEY_STUCK_LIMIT`` of its renders are
-    stuck. With every slot stuck the call raises ``RenderUnavailableError`` at once; otherwise
-    it waits at most ``timeout_s`` for its owner's turn and a slot (then the same error).
+    no caller owns, which then has no per-owner limit) holds at most all slots but one at
+    once; a key or session with a stuck render is refused with ``OwnerRenderStuckError``, the
+    group ``NO_KEY`` (sessions included) with ``RenderUnavailableError`` while all slots but one
+    are stuck in it. With every slot stuck the call raises ``RenderUnavailableError`` at once;
+    otherwise it waits at most ``timeout_s`` for its owner's turn and a slot (then the same error).
     ``on_start`` runs when the slot is taken, ``on_end`` once the thread has ended (both on the
     event loop, without an await in between). Raises ``RenderTimeoutError`` past the limit; the
     thread keeps its slot until it ends.
@@ -192,36 +267,38 @@ async def render_bounded[T](
     refused = _refusal(slots, owner)
     if refused is not None:
         raise refused
-    if slots.stuck >= MAX_CONCURRENT_RENDERS:
+    if slots.stuck >= slots.size:
         raise RenderUnavailableError()
     deadline = loop.time() + limit
 
-    owner_gate: _OwnerGate | None = None
-    if owner is not None:
-        owner_gate = slots.owner_gates.get(owner)
-        if owner_gate is None:
-            owner_gate = slots.owner_gates[owner] = _OwnerGate(asyncio.Semaphore(OWNER_LIMIT))
-        owner_gate.users += 1
+    keys = _gate_keys(owner)
+    gates: list[_OwnerGate] = []
+    for key in keys:
+        found = slots.owner_gates.get(key)
+        if found is None:
+            found = slots.owner_gates[key] = _OwnerGate(asyncio.Semaphore(slots.size - 1))
+        found.users += 1
+        gates.append(found)
+    held = 0  # semaphores of ``gates`` this call holds, taken in order
 
     def _leave_owner() -> None:
-        """This call no longer waits for or holds its owner's semaphore."""
-        if owner_gate is None:
-            return
-        owner_gate.users -= 1
-        if owner_gate.users == 0 and slots.owner_gates.get(owner) is owner_gate:
-            del slots.owner_gates[owner]
+        """This call no longer waits for or holds its owner's (and group's) semaphores."""
+        for key, g in zip(keys, gates, strict=True):
+            g.users -= 1
+            if g.users == 0 and slots.owner_gates.get(key) is g:
+                del slots.owner_gates[key]
+
+    def _release_gates() -> None:
+        for g in gates[:held]:
+            g.sem.release()
 
     try:
-        if owner_gate is not None:
-            await _acquire_until(owner_gate.sem, deadline)
-    except BaseException:
-        _leave_owner()
-        raise
-    try:
+        for g in gates:
+            await _acquire_until(g.sem, deadline)
+            held += 1
         await _acquire_until(slots.gate, deadline)
     except BaseException:
-        if owner_gate is not None:
-            owner_gate.sem.release()
+        _release_gates()
         _leave_owner()
         raise
     # No await from here to the callback: the slots are always given back by the task.
@@ -230,8 +307,7 @@ async def render_bounded[T](
     def _give_back() -> None:
         slots.in_use -= 1
         slots.gate.release()
-        if owner_gate is not None:
-            owner_gate.sem.release()
+        _release_gates()
         _leave_owner()
 
     refused = _refusal(slots, owner)
@@ -252,15 +328,15 @@ async def render_bounded[T](
             return
         state["stuck"] = True
         slots.stuck += 1
-        if owner is not None:
-            slots.stuck_by_owner[owner] = slots.stuck_by_owner.get(owner, 0) + 1
+        for key in keys:
+            slots.stuck_by_owner[key] = slots.stuck_by_owner.get(key, 0) + 1
         logger.warning(
             "Render %s exceeded %ss; its thread keeps a render slot until it ends "
             "(%d of %d slots stuck)",
             label,
             limit,
             slots.stuck,
-            MAX_CONCURRENT_RENDERS,
+            slots.size,
         )
 
     task = asyncio.ensure_future(asyncio.to_thread(fn, *args))
@@ -272,12 +348,12 @@ async def render_bounded[T](
         _give_back()
         if state["stuck"]:
             slots.stuck -= 1
-            if owner is not None:
-                left = slots.stuck_by_owner.get(owner, 0) - 1
+            for key in keys:
+                left = slots.stuck_by_owner.get(key, 0) - 1
                 if left > 0:
-                    slots.stuck_by_owner[owner] = left
+                    slots.stuck_by_owner[key] = left
                 else:
-                    slots.stuck_by_owner.pop(owner, None)
+                    slots.stuck_by_owner.pop(key, None)
             logger.info(
                 "Stuck render %s ended; its slot is free (%d still stuck)", label, slots.stuck
             )

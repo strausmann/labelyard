@@ -167,6 +167,14 @@ Was der schwarze Balken des Spulen-Etiketts zeigt: `material` (Standard) oder de
 
 Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
 
+### `LABELYARD_LOOKUP_BATCH_DEADLINE_S`
+
+Standard: `30.0`
+
+Sekunden, die die Abfragen bei den Integrationen für einen Stapeldruck, einen Bogendruck oder eine Darstellungsprüfung zusammen brauchen dürfen, höchstens `300` (Standard `30`). Das Warten auf die gemeinsame Abfragegrenze zählt mit. Ein Eintrag, der bis dahin nicht abgefragt ist, scheitert mit `lookup-timeout` (`504` beim Drucken, ein Ergebnis je Eintrag bei der Darstellungsprüfung); ein Fehler der Integration davor behält seinen eigenen Code.
+
+Auch über die Einstellungs-API oder einen Einstellungsimport einstellbar (noch ohne Feld in der Oberfläche); ein hier gesetzter Wert gewinnt und sperrt sie dort.
+
 ### `LABELYARD_SERVER_PORT`
 
 Standard: `8000`
@@ -238,6 +246,14 @@ Bandläufe (Stapel), die ein Drucker gleichzeitig in der Warteschlange hat oder 
 Standard: `20`
 
 Bandläufe, die ein API-Schlüssel gleichzeitig über alle Drucker hat, zurückgehaltene Läufe eingeschlossen. Darüber antwortet ein Stapel mit `429` `too-many-queued-runs`.
+
+### `LABELYARD_RENDER_MAX_CONCURRENT`
+
+Standard: `2`
+
+Wie viele Seiten der Hub gleichzeitig zeichnet (Bogenvorschauen, Kalibrierseiten, Seitenaufträge), `2` bis `16`. Jeder Besitzer (ein API-Schlüssel, eine angemeldete Browsersitzung) lässt alle Plätze bis auf einen frei; angemeldete Nutzer und Seitenaufträge ohne Schlüssel zählen als eine Gruppe. Mit dem Standard `2` teilen sich alle angemeldeten Nutzer einen Platz: Die Sitzung, deren Zeichnen hängt, erhält `429` (`too-many-previews`), die anderen `503` (`render-unavailable`), API-Schlüssel behalten den anderen Platz. Ab `3` zeichnen angemeldete Nutzer nebeneinander. Eine Änderung gilt, sobald kein Zeichenvorgang mehr einen Platz belegt.
+
+Auch über die Einstellungs-API oder einen Einstellungsimport einstellbar (noch ohne Feld in der Oberfläche); ein hier gesetzter Wert gewinnt und sperrt sie dort.
 
 ### `LABELYARD_RENDER_TIMEOUT_S`
 

@@ -287,13 +287,15 @@ async def download_calibration_page(
         payload = await page.build_payload(
             session, printer_id, tray, type_key=type_key, version=version, corrected=corrected
         )
+    # No read transaction stays open while the page draws (#405), as in the other bounded renders.
+    await session.commit()
     # What the job renders, under the process-wide render slots like the sheet preview (#358).
     try:
         pdf = await render_slots.render_bounded(
             page.render_calibration_page,
             payload,
             label=f"calibration:{printer_id}",
-            owner=render_slots.owner_of(auth.api_key_id),
+            owner=render_slots.owner_of(auth.api_key_id, auth.session_id),
         )
     except render_slots.RenderTimeoutError:
         raise RenderTimeoutApiError().to_http() from None

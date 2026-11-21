@@ -95,7 +95,8 @@ _PREVIEW_ONLY_ERRORS: dict[int | str, dict[str, Any]] = {
         "description": (
             "A page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`). "
             "The drawing goes on: the key's next preview answers 429 `too-many-previews` until "
-            "it has ended."
+            "it has ended. Or the integration lookups did not finish within "
+            "`integrations.lookup_batch_deadline_s` (`lookup-timeout`, with `item_index`)."
         )
     },
 }
@@ -133,7 +134,12 @@ async def preview_sheet_print(
     # 266-07: one preview per key at a time (a request without a key: per caller and address).
     owner = auth.api_key_id or (auth.source, auth.user, auth.ip)
     try:
-        with print_service.preview_slot(owner, render_slots.owner_of(auth.api_key_id)), mapped():
+        with (
+            print_service.preview_slot(
+                owner, render_slots.owner_of(auth.api_key_id, auth.session_id)
+            ),
+            mapped(),
+        ):
             return await print_service.preview(
                 db_engine.async_session,
                 printer=printer,

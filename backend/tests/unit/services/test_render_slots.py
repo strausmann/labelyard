@@ -291,9 +291,7 @@ async def test_with_three_slots_a_stuck_group_render_keeps_its_group_place_until
     """G6 (reviewer's test): with 3 slots and an owner limit of 2, one group render stuck, then
     two group renders started together: one runs (and hangs), the other is refused, one slot
     stays free. Freeing the group's place at the timeout would let both start."""
-    monkeypatch.setattr(render_slots, "MAX_CONCURRENT_RENDERS", 3)
-    monkeypatch.setattr(render_slots, "OWNER_LIMIT", 2)
-    monkeypatch.setattr(render_slots, "NO_KEY_STUCK_LIMIT", 2)
+    monkeypatch.setattr(render_slots, "_capacity_source", lambda: 3)  # render.max_concurrent
     monkeypatch.setattr(render_slots, "_slots", None)
     no_key = render_slots.owner_of(None)
     with pytest.raises(render_slots.RenderTimeoutError):
@@ -625,3 +623,85 @@ async def test_an_on_end_that_raises_is_logged_and_does_not_escape_the_callback(
         loop.set_exception_handler(previous)
     assert escaped == []
     assert any("RuntimeError" in r.getMessage() for r in caplog.records), caplog.records
+
+
+async def test_owner_of_separates_two_browser_sessions(
+    hang: _Hang, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#405: callers without a key but with their own browser session are separate owners. With
+    room for two session renders (3 slots), a stuck render of one session refuses that session
+    (429) and does not hold up the other one."""
+    monkeypatch.setattr(render_slots, "_capacity_source", lambda: 3)  # render.max_concurrent
+    monkeypatch.setattr(render_slots, "_slots", None)
+    first, second = uuid4(), uuid4()
+    mine, theirs = render_slots.owner_of(None, first), render_slots.owner_of(None, second)
+    assert mine != theirs
+    assert render_slots.NO_KEY not in (mine, theirs)
+    with pytest.raises(render_slots.RenderTimeoutError):
+        await render_slots.render_bounded(hang, 1, label="t", owner=mine, timeout_s=SHORT_S)
+    with pytest.raises(render_slots.OwnerRenderStuckError):
+        await render_slots.render_bounded(lambda: 0, label="t", owner=mine, timeout_s=WAIT_S)
+    assert await render_slots.render_bounded(lambda: 2, label="t", owner=theirs) == 2
+    hang.release.set()
+    await _until(lambda: render_slots.stuck_renders() == 0)
+
+
+async def test_many_sessions_share_one_group_cap(hang: _Hang) -> None:
+    """#405 (security review): one person can open many browser sessions. All sessions together
+    hold at most ``OWNER_LIMIT`` slots and are refused while ``NO_KEY_STUCK_LIMIT`` of their
+    renders are stuck, the bound ``NO_KEY`` has: sessions can never hang every slot, a key
+    still renders."""
+    sessions = [render_slots.owner_of(None, uuid4()) for _ in range(4)]
+    started = [
+        asyncio.create_task(
+            render_slots.render_bounded(hang, n, label="t", owner=o, timeout_s=SHORT_S)
+        )
+        for n, o in enumerate(sessions)
+    ]
+    results = await asyncio.gather(*started, return_exceptions=True)
+    kinds = sorted(type(r).__name__ for r in results)
+    assert kinds.count("RenderTimeoutError") == render_slots.OWNER_LIMIT
+    assert render_slots.stuck_renders() == render_slots.OWNER_LIMIT
+    assert (
+        render_slots.free_slots() == render_slots.MAX_CONCURRENT_RENDERS - render_slots.OWNER_LIMIT
+    )
+    async with asyncio.timeout(WAIT_S / 10):  # a further session is refused at once
+        with pytest.raises(render_slots.RenderUnavailableError):
+            await render_slots.render_bounded(
+                lambda: 0, label="t", owner=render_slots.owner_of(None, uuid4()), timeout_s=WAIT_S
+            )
+    assert await render_slots.render_bounded(lambda: 7, label="t", owner=uuid4()) == 7
+    hang.release.set()
+    await _until(lambda: render_slots.stuck_renders() == 0)
+    assert render_slots.owner_gates() == 0
+
+
+async def test_owner_of_without_key_or_session_is_no_key() -> None:
+    """Callers with neither a key nor a session (SSO, the hub itself) keep sharing ``NO_KEY``;
+    a key wins over a session."""
+    key, session = uuid4(), uuid4()
+    assert render_slots.owner_of(None) == render_slots.NO_KEY
+    assert render_slots.owner_of(None, None) == render_slots.NO_KEY
+    assert render_slots.owner_of(key, session) == key
+
+
+async def test_a_session_and_the_group_without_a_key_together_leave_a_slot_for_keys(
+    hang: _Hang,
+) -> None:
+    """Fix round 1, Q1: a signed-in user's stuck preview (a session owner) and a stuck render
+    without a key (a page job) are one group: together they never hang every slot, so an API
+    key still renders. The session that is stuck is told so (429)."""
+    session = render_slots.owner_of(None, uuid4())
+    with pytest.raises(render_slots.RenderTimeoutError):
+        await render_slots.render_bounded(hang, 1, label="t", owner=session, timeout_s=SHORT_S)
+    async with asyncio.timeout(WAIT_S / 10):  # refused at once, not after the wait limit
+        with pytest.raises(render_slots.RenderUnavailableError):
+            await render_slots.render_bounded(
+                hang, 2, label="t", owner=render_slots.NO_KEY, timeout_s=SHORT_S
+            )
+        with pytest.raises(render_slots.OwnerRenderStuckError):
+            await render_slots.render_bounded(lambda: 0, label="t", owner=session)
+    assert render_slots.free_slots() == 1
+    assert await render_slots.render_bounded(lambda: 3, label="t", owner=uuid4()) == 3
+    hang.release.set()
+    await _until(lambda: render_slots.stuck_renders() == 0)

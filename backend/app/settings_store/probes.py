@@ -1,13 +1,26 @@
 # SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Test-connection probes for the integrations. Never echo the secret."""
+"""Test-connection probes for the integrations. Never echo the secret.
+
+The admin types the URL, so the answer comes from wherever it points (#405). Only the status
+counts: the probe asks for ``Accept-Encoding: identity``, refuses an answer that is compressed
+anyway (``probe_compressed_body``), reads at most ``PROBE_MAX_BODY_BYTES`` of the body and ends
+the whole exchange (connect, headers and body together) within the setting's ``timeout``, as
+the integration lookups do.
+"""
 
 from __future__ import annotations
+
+import asyncio
+from typing import Final
 
 import httpx
 
 from app.integrations.urls import api_url
+
+PROBE_MAX_BODY_BYTES: Final = 65_536
+"""The most the connection test reads of an answer's body; only the status counts."""
 
 _PROBES: dict[str, tuple[str, str | None]] = {
     # name: (path, header template or None); {s} is replaced with the secret
@@ -27,7 +40,7 @@ async def probe_integration(
     name: str, *, url: str, secret: str, timeout: float
 ) -> tuple[bool, int | None, str]:
     path, header = _PROBES[name]
-    headers: dict[str, str] = {"Accept": "application/json"}
+    headers: dict[str, str] = {"Accept": "application/json", "Accept-Encoding": "identity"}
     if header and secret:
         hname, _, template = header.partition(": ")
         headers[hname] = template.replace("{s}", secret)
@@ -36,15 +49,34 @@ async def probe_integration(
     except ValueError:
         return False, None, "invalid URL"
     try:
-        # follow_redirects=False: never forward the secret to a redirect target.
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            resp = await client.get(target, headers=headers)
+        async with asyncio.timeout(timeout):
+            status, compressed = await _answer(target, headers, timeout)
     except UnicodeError:
         return False, None, "invalid characters in the URL or secret"
-    except httpx.TimeoutException:
+    except (TimeoutError, httpx.TimeoutException):
         return False, None, "timeout"
     except httpx.HTTPError as exc:
         return False, None, f"connection failed ({type(exc).__name__})"
-    if 200 <= resp.status_code < 300:
-        return True, resp.status_code, "ok"
-    return False, resp.status_code, f"HTTP {resp.status_code}"
+    if compressed:
+        return False, status, "probe_compressed_body"
+    if 200 <= status < 300:
+        return True, status, "ok"
+    return False, status, f"HTTP {status}"
+
+
+async def _answer(target: str, headers: dict[str, str], timeout: float) -> tuple[int, bool]:
+    """The answer's status and whether it came compressed; reads at most 64 KiB of raw body."""
+    # follow_redirects=False: never forward the secret to a redirect target.
+    async with (
+        httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client,
+        client.stream("GET", target, headers=headers) as resp,
+    ):
+        encoding = resp.headers.get("Content-Encoding", "identity").strip().lower()
+        if encoding not in ("", "identity"):
+            return resp.status_code, True
+        read = 0
+        async for chunk in resp.aiter_raw():
+            read += len(chunk)
+            if read >= PROBE_MAX_BODY_BYTES:
+                break
+        return resp.status_code, False

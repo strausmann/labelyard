@@ -8,6 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.render_limits import DEFAULT_MAX_CONCURRENT_RENDERS
+from app.services.errors import DEFAULT_LOOKUP_BATCH_DEADLINE_S
+
 Kind = Literal["str", "int", "float", "bool", "url", "secret", "enum"]
 
 
@@ -122,8 +125,19 @@ _DEFS: list[SettingDef] = [
     *_integration("spoolman", secret=None, secret_env=None),
     *_spoolman_label(),
     *_integration("paperless", secret="token", secret_env="paperless_token"),
+    # #405: one deadline over the lookups of a batch, sheet print or render check.
+    SettingDef(
+        "integrations.lookup_batch_deadline_s",
+        "float",
+        DEFAULT_LOOKUP_BATCH_DEADLINE_S,
+        "lookup_batch_deadline_s",
+    ),
     SettingDef("access.webhook_api_key", "secret", "", "webhook_api_key"),
     SettingDef("jobs.retention_days", "int", 30, "job_retention_days"),
+    # #405: page renders at once (2 to 16); applies once no render holds a slot.
+    SettingDef(
+        "render.max_concurrent", "int", DEFAULT_MAX_CONCURRENT_RENDERS, "render_max_concurrent"
+    ),
 ]
 
 SETTINGS: dict[str, SettingDef] = {d.key: d for d in _DEFS}

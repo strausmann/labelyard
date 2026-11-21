@@ -52,6 +52,10 @@ TEXT = {
         "empty": "empty",
         "secret": "Secret: never logged or shown.",
         "ui": "Also set in the web UI; a value set here wins and locks the field there.",
+        "api": (
+            "Also set through the settings API or a settings import (no field in the web UI "
+            "yet); a value set here wins and locks it there."
+        ),
         "locked": "Shown read-only in the web UI; it always comes from the environment.",
         "required_heading": "Required",
         "optional_heading": "Optional",
@@ -81,11 +85,20 @@ TEXT = {
             "Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und "
             "sperrt das Feld dort."
         ),
+        "api": (
+            "Auch über die Einstellungs-API oder einen Einstellungsimport einstellbar (noch "
+            "ohne Feld in der Oberfläche); ein hier gesetzter Wert gewinnt und sperrt sie dort."
+        ),
         "locked": "In der Weboberfläche nur sichtbar; der Wert kommt immer aus der Umgebung.",
         "required_heading": "Pflichtangaben",
         "optional_heading": "Optional",
     },
 }
+
+
+# Settings in the settings store that the web UI shows no field for (yet): they are set through
+# the settings API or a settings import, and the page must not send readers to a missing field.
+API_ONLY: frozenset[str] = frozenset({"lookup_batch_deadline_s", "render_max_concurrent"})
 
 
 def _load_backend() -> tuple[dict[str, object], set[str], set[str]]:
@@ -140,7 +153,9 @@ def _render(
             lines += [" · ".join(facts), "", texts[name][lang]]
             if meta["secret"]:  # type: ignore[index]
                 lines += ["", t["secret"]]
-            if name in ui:
+            if name in ui and name in API_ONLY:
+                lines += ["", t["api"]]
+            elif name in ui:
                 lines += ["", t["ui"]]
             if name in locked:
                 lines += ["", t["locked"]]
@@ -161,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         for lang in ("en", "de"):
             if not str(entry.get(lang, "")).strip():
                 problems.append(f"{name}: no {lang} description in {DESCRIPTIONS.name}")
+    for name in sorted(API_ONLY - ui):
+        problems.append(f"{name}: in API_ONLY but not a setting of the settings store")
     for name in sorted(set(texts) - set(fields)):
         problems.append(f"{name}: described in {DESCRIPTIONS.name} but not a setting")
     if problems:

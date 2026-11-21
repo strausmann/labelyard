@@ -60,6 +60,12 @@ from app.config_legacy import (
     LegacyPrefixEnvSource,
     PrefixFilteredDotEnvSource,
 )
+from app.render_limits import (
+    DEFAULT_MAX_CONCURRENT_RENDERS,
+    MAX_CONCURRENT_RENDERS_LIMIT,
+    MIN_CONCURRENT_RENDERS,
+)
+from app.services.errors import DEFAULT_LOOKUP_BATCH_DEADLINE_S
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -136,6 +142,13 @@ class Settings(BaseSettings):
     """What the swatch label's black bar shows (#346): the filament's ``material`` (default)
     or its ``name``; the colour line under it shows the other one."""
 
+    lookup_batch_deadline_s: float = Field(
+        default=DEFAULT_LOOKUP_BATCH_DEADLINE_S, gt=0, le=300, allow_inf_nan=False
+    )
+    """Seconds the integration lookups of one batch print, sheet print or render check may take
+    together (#405); an item not looked up by then fails with ``lookup-timeout``. At most 300
+    (the settings store's bound for numbers); ``inf`` and ``nan`` are refused."""
+
     # Server
     server_port: int = 8000
     log_level: LogLevel = "INFO"
@@ -182,6 +195,15 @@ class Settings(BaseSettings):
     # ``too-many-queued-runs``.
     max_queued_runs_per_printer: int = Field(default=5, gt=0)
     max_queued_runs_per_key: int = Field(default=20, gt=0)
+
+    render_max_concurrent: int = Field(
+        default=DEFAULT_MAX_CONCURRENT_RENDERS,
+        ge=MIN_CONCURRENT_RENDERS,
+        le=MAX_CONCURRENT_RENDERS_LIMIT,
+    )
+    """#405: page renders at once, process-wide (sheet previews, calibration pages, page jobs), 2
+    to 16. Every owner keeps all slots but one; with the default 2 every caller without a key
+    shares one slot, from 3 two signed-in users render side by side."""
 
     render_timeout_s: float = Field(default=60.0, gt=0, le=600, allow_inf_nan=False)
     """#293: seconds one page may take to draw (sheet preview page, page job). Past it the
