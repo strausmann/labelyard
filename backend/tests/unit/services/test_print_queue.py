@@ -3,6 +3,7 @@
 
 import asyncio
 import uuid
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
@@ -16,6 +17,22 @@ from PIL import Image
 
 # Stable UUIDs for fake printers used throughout this test module.
 _PT750W_ID = UUID("aaaaaaaa-0000-0000-0000-000000000001")
+
+_RETRY_PAYLOAD: dict[str, Any] = {
+    "label_data": {
+        "title": "Test",
+        "primary_id": "T-001",
+        "qr_payload": "https://example.invalid/t",
+        "source_app": "manual",
+        "secondary": [],
+        "items": [],
+    },
+    "content_type": "qr_two_lines",
+    "rendered_tape_mm": 24,
+    "tape_mm": 24,
+    "options": {"auto_cut": True},
+}
+"""A stored tape payload the queue can render again, as the retry route writes it."""
 _P1_ID = UUID("aaaaaaaa-0000-0000-0000-000000000002")
 
 
@@ -159,10 +176,17 @@ async def test_queue_stop_drains_in_flight_job() -> None:
 
 
 @pytest.mark.asyncio
-async def test_queue_retry_failed_creates_new_job() -> None:
+async def test_a_retry_row_of_a_failed_job_is_queued_as_a_new_job() -> None:
+    """#405: the retry routes write the new row and hand it to ``enqueue_persisted`` (the
+    queue-only ``retry_job`` is gone). The failed job stays failed; the retry is a new job."""
+    from app.models.job import Job as DbJob
+    from app.services.job_store import MemoryJobStore
+    from app.services.layout_engine import LayoutEngine
+
     fake_printer = MagicMock()
     fake_printer.id = _PT750W_ID
-    queue = PrintQueue([fake_printer])
+    store = MemoryJobStore()
+    queue = PrintQueue([fake_printer], store=store, engine=LayoutEngine())
 
     img = Image.new("1", (300, 76))
     job_id = await queue.submit(_PT750W_ID, img, tape_mm=12)
@@ -171,13 +195,14 @@ async def test_queue_retry_failed_creates_new_job() -> None:
     JobStateMachine.transition(job, JobState.PRINTING)
     JobStateMachine.transition(job, JobState.FAILED)
 
-    new_id = await queue.retry_job(job_id)
-    assert new_id is not None
-    assert new_id != job_id
-    new_job = await queue.get(new_id)
+    row = DbJob(printer_id=_PT750W_ID, payload=dict(_RETRY_PAYLOAD))
+    await store.save_queued(row)
+    await queue.enqueue_persisted(row)
+    new_job = await queue.get(str(row.id))
+    assert str(row.id) != job_id
     assert new_job.state == JobState.QUEUED
-    assert new_job.retry_count == 1
-    assert new_job.options.get("parent_job_id") == job_id
+    assert new_job.image_payload  # rendered again from the stored payload
+    assert (await queue.get(job_id)).state == JobState.FAILED
 
 
 # ---------------------------------------------------------------------------

@@ -29,11 +29,13 @@ from app.printer_backends.exceptions import (
     TapeMismatchError,
     UnsupportedTapeError,
 )
+from app.services.errors import LookupDeadlineError
 from app.services.lookup_service import LookupFailedError, UnknownAppError
 
 SYNC_ERROR_MAP: dict[type[Exception], tuple[int, str]] = {
     UnknownAppError: (422, "integration_unknown_app"),
     LookupFailedError: (502, "integration_lookup_failed"),
+    LookupDeadlineError: (504, "lookup-timeout"),
     PrinterDisabledError: (409, "printer_disabled"),
     TapeMismatchError: (409, "tape_mismatch"),
     MediaTypeMismatchError: (409, "media_type_mismatch"),
@@ -56,6 +58,7 @@ KNOWN_PRINT_ERROR_TYPES: tuple[type[Exception], ...] = tuple(SYNC_ERROR_MAP)
 _FIXED_MESSAGES: dict[str, str] = {
     "integration_unknown_app": "The requested integration is not available.",
     "integration_lookup_failed": "The integration failed or could not be reached.",
+    "lookup-timeout": "The integration lookups did not finish in time.",
 }
 
 _UNSUPPORTED_WIDTH = "The currently loaded tape width is not supported by the layout engine."

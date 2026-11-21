@@ -150,6 +150,7 @@ from app.printer_models.registry import ModelRegistry
 from app.repositories import printer_status_cache as printer_status_cache_repo
 from app.repositories import printers as printers_repo
 from app.schemas.readiness import ReadinessResponse
+from app.services import lookup_gate
 from app.services.cleanup_task import CleanupTask
 from app.services.event_bus import EventBus
 from app.services.job_store_sqlite import SQLiteJobStore
@@ -353,6 +354,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _bind = getattr(_plugin, "bind", None)
         if callable(_bind):
             _bind(settings_store)
+    # #405: the deadline over the lookups of one fan-out request follows the setting live.
+    lookup_gate.bind_batch_deadline(
+        lambda: float(settings_store.get("integrations.lookup_batch_deadline_s"))
+    )
     # -------------------------------------------------------------------------
 
     # Phase 2: JobStore + CleanupTask

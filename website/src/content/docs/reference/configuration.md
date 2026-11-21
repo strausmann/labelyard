@@ -167,6 +167,14 @@ What the black bar of the spool label shows: `material` (default) or the filamen
 
 Also set in the web UI; a value set here wins and locks the field there.
 
+### `LABELYARD_LOOKUP_BATCH_DEADLINE_S`
+
+Default: `30.0`
+
+Seconds the integration lookups of one batch print, sheet print or render check may take together, at most `300` (default `30`). Waiting for the shared lookup bound counts. An item not looked up by then fails with `lookup-timeout` (`504` for a print, a per-item verdict for a render check); an integration error before it keeps its own code.
+
+Also set in the web UI; a value set here wins and locks the field there.
+
 ### `LABELYARD_SERVER_PORT`
 
 Default: `8000`

@@ -625,3 +625,32 @@ async def test_an_on_end_that_raises_is_logged_and_does_not_escape_the_callback(
         loop.set_exception_handler(previous)
     assert escaped == []
     assert any("RuntimeError" in r.getMessage() for r in caplog.records), caplog.records
+
+
+async def test_owner_of_separates_two_browser_sessions(hang: _Hang) -> None:
+    """#405: callers without a key but with their own browser session are separate owners. A
+    stuck render of one session neither refuses nor holds up the other one."""
+    first, second = uuid4(), uuid4()
+    assert render_slots.owner_of(None, first) != render_slots.owner_of(None, second)
+    assert render_slots.owner_of(None, first) != render_slots.NO_KEY
+    with pytest.raises(render_slots.RenderTimeoutError):
+        await render_slots.render_bounded(
+            hang, 1, label="t", owner=render_slots.owner_of(None, first), timeout_s=SHORT_S
+        )
+    assert (
+        await render_slots.render_bounded(
+            lambda: 2, label="t", owner=render_slots.owner_of(None, second), timeout_s=WAIT_S
+        )
+        == 2
+    )
+    hang.release.set()
+    await _until(lambda: render_slots.stuck_renders() == 0)
+
+
+async def test_owner_of_without_key_or_session_is_no_key() -> None:
+    """Callers with neither a key nor a session (SSO, the hub itself) keep sharing ``NO_KEY``;
+    a key wins over a session."""
+    key, session = uuid4(), uuid4()
+    assert render_slots.owner_of(None) == render_slots.NO_KEY
+    assert render_slots.owner_of(None, None) == render_slots.NO_KEY
+    assert render_slots.owner_of(key, session) == key

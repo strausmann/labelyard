@@ -29,9 +29,13 @@ from app.schemas.render_check import (
     RenderCheckResult,
 )
 from app.schemas.tape_geometry import TAPE_GEOMETRY
-from app.services.errors import AppLookupNotFoundError, IntegrationNotConfiguredError
+from app.services.errors import (
+    AppLookupNotFoundError,
+    IntegrationNotConfiguredError,
+    LookupDeadlineError,
+)
 from app.services.layout_engine import LayoutEngine
-from app.services.lookup_gate import lookup_gate
+from app.services.lookup_gate import BatchDeadline, lookup_gate
 from app.services.lookup_service import LookupFailedError, UnknownAppError
 from app.services.ql_layout import resolve_layout
 from app.services.spool_swatch import SWATCH_TAPES
@@ -84,12 +88,18 @@ async def check_items(request: RenderCheckRequest, lookups: _Lookups) -> RenderC
 
     engine = LayoutEngine()
     gate = lookup_gate()
+    deadline = BatchDeadline()  # one deadline over every lookup of the request (#405)
+
+    async def _gated(app: str, identifier: str) -> LabelData:
+        async with gate:
+            return await lookups.lookup(app, identifier)
 
     async def _checked(key: _Key) -> _Verdict:
         app, identifier, content_type = key
         try:
-            async with gate:
-                data = await lookups.lookup(app, identifier)
+            data = await deadline.run(_gated(app, identifier))
+        except LookupDeadlineError:
+            return ("lookup-timeout", "The integration lookups did not finish in time.", None)
         except UnknownAppError:  # before LookupFailedError: it is the subclass
             return ("integration_unknown_app", "The requested integration is not available.", None)
         except LookupFailedError:

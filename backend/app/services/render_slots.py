@@ -14,14 +14,15 @@ the thread ends. It is marked stuck by a timer started with the thread, not by t
 a render whose caller went away (a cancelled request) counts too. The count is logged and
 shown by the readiness check ``render_slots``.
 
-Every owner (``owner_of``: each API key, and one group ``NO_KEY`` for all callers without a
-key: browser sessions, SSO, the hub itself) holds at most ``OWNER_LIMIT`` (all slots but
-one) slots at once, counted from taking the slot to the end of the thread, running or stuck.
-A semaphore of that size per owner (created when first needed, dropped when unused) is taken
-before the slot, always in that order, and held until the thread ends. So no single owner can
-hang every slot, not even with renders started at the same time. On top of that, a key with a
-stuck render is refused at once (``OwnerRenderStuckError``), and the group without a key is
-refused at once while ``OWNER_LIMIT`` of its renders are stuck (``RenderUnavailableError``).
+Every owner (``owner_of``: each API key, each browser session without a key, and one group
+``NO_KEY`` for all callers with neither: SSO without a session, the hub itself) holds at most
+``OWNER_LIMIT`` (all slots but one) slots at once, counted from taking the slot to the end of
+the thread, running or stuck. A semaphore of that size per owner (created when first needed,
+dropped when unused) is taken before the slot, always in that order, and held until the thread
+ends. So no single owner can hang every slot, not even with renders started at the same time. On
+top of that, a key or session with a stuck render is refused at once (``OwnerRenderStuckError``),
+and the group ``NO_KEY`` is refused at once while ``OWNER_LIMIT`` of its renders are stuck
+(``RenderUnavailableError``).
 
 Waiting is bounded: with every slot stuck a caller is refused at once, otherwise it waits at
 most the time limit for its owner's turn and its slot together (``RenderUnavailableError``).
@@ -30,10 +31,10 @@ Accepted residual risk: with 2 slots, two *different* owners (two keys, or one k
 user) can together hang every slot; a single party cannot. Keys are issued by an admin; such
 a key is revoked and the hub restarted.
 
-Known limitation (accepted): the callers without a key share one owner and so block each other.
-While one of them renders, the next waits; while one render of theirs is stuck, every caller
-without a key gets ``RenderUnavailableError`` until it ends or the hub restarts. Signed-in UI
-users are trusted, and the keys keep their slot.
+Known limitation (accepted): the callers with neither a key nor a session share one owner and
+so block each other. While one of them renders, the next waits; while one render of theirs is
+stuck, every such caller gets ``RenderUnavailableError`` until it ends or the hub restarts.
+Signed-in UI users have their own session owner (#405), and the keys keep their slot.
 """
 
 from __future__ import annotations
@@ -67,7 +68,7 @@ MAX_CONCURRENT_RENDERS: Final = 2  # renders at once, process-wide (spec 18, CPU
 OWNER_LIMIT: Final = MAX_CONCURRENT_RENDERS - 1
 """Slots one owner may hold at once, running or stuck: never the last one."""
 NO_KEY: Final = "no-key"
-"""The owner of every render without an API key (browser sessions, SSO, the hub itself)."""
+"""The owner of every render with neither an API key nor a browser session (SSO, the hub)."""
 NO_KEY_STUCK_LIMIT: Final = OWNER_LIMIT
 """Stuck renders of the group without a key at which its callers are refused at once."""
 
@@ -117,9 +118,18 @@ def gate() -> asyncio.Semaphore:
     return _current().gate
 
 
-def owner_of(api_key_id: UUID | None) -> Hashable:
-    """The render owner of a caller: its API key, or ``NO_KEY`` for every caller without one."""
-    return NO_KEY if api_key_id is None else api_key_id
+def owner_of(api_key_id: UUID | None, session_id: UUID | None = None) -> Hashable:
+    """The render owner of a caller: its API key; without one its browser session
+    (``("session", session_id)``, #405); ``NO_KEY`` only for callers with neither.
+
+    Callers with neither a key nor a session (Pangolin SSO without a hub session, the hub's own
+    page jobs) keep sharing the one group ``NO_KEY``.
+    """
+    if api_key_id is not None:
+        return api_key_id
+    if session_id is not None:
+        return ("session", session_id)
+    return NO_KEY
 
 
 def stuck_renders() -> int:

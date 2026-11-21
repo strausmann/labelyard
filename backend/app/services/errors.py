@@ -19,6 +19,14 @@ class IntegrationNotConfiguredError(Exception):
     """Raised when a lookup targets an integration without URL (or key) in the settings."""
 
 
+class LookupDeadlineError(Exception):
+    """A lookup of a fan-out request was not done when the request's deadline passed (#405).
+
+    Not a ``LookupFailedError``: the integration did not fail, the request ran out of time
+    (``integrations.lookup_batch_deadline_s``). Answered as 504 ``lookup-timeout``.
+    """
+
+
 class LookupFailedError(Exception):
     """Resolving label data via an integration plugin failed.
 

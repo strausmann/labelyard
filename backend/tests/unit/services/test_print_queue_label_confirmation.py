@@ -14,16 +14,34 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from app.models.job import Job as DbJob
 from app.models.job import JobState as DbJobState
 from app.printer_backends.exceptions import LabelsNotConfirmedError, PrinterOfflineError
 from app.services.job_lifecycle import JobState
 from app.services.job_store import MemoryJobStore
-from app.services.print_queue import PrintQueue
+from app.services.layout_engine import LayoutEngine
+from app.services.print_queue import PrintQueue, fixed_error_text
 from PIL import Image
 
 from tests.unit.services.test_print_queue_tape_runs import _run, _states, _stopped, _until
 
 pytestmark = pytest.mark.anyio
+
+_RETRY_PAYLOAD: dict[str, Any] = {
+    "label_data": {
+        "title": "Test",
+        "primary_id": "T-001",
+        "qr_payload": "https://example.invalid/t",
+        "source_app": "manual",
+        "secondary": [],
+        "items": [],
+    },
+    "content_type": "qr_two_lines",
+    "rendered_tape_mm": 24,
+    "tape_mm": 24,
+    "options": {"auto_cut": True},
+}
+"""A stored tape payload the queue can render again, as the retry route writes it."""
 
 
 class _Confirming:
@@ -56,7 +74,7 @@ class _Confirming:
 
 
 async def _single(printer: _Confirming) -> tuple[PrintQueue, Any]:
-    queue = PrintQueue([printer])
+    queue = PrintQueue([printer], store=MemoryJobStore(), engine=LayoutEngine())
     await queue.start()
     job_id = await queue.submit(printer.id, Image.new("1", (306, 120)), tape_mm=29)
     await queue.wait_for_job(job_id, timeout_s=5)
@@ -69,7 +87,8 @@ async def test_a_single_job_the_printer_did_not_confirm_fails() -> None:
     try:
         assert job.state == JobState.FAILED
         assert job.error_code == "labels_not_confirmed"
-        assert job.error_message == "0 of 1 labels printed"
+        # #405: the fixed text of the code; the numbers are in the detail.
+        assert job.error_message == fixed_error_text("labels_not_confirmed")
         assert job.error_detail == {"printed": 0, "expected": 1}
         assert not queue.is_paused(printer.id)
     finally:
@@ -80,10 +99,13 @@ async def test_a_retry_of_an_unconfirmed_job_prints_it_again() -> None:
     printer = _Confirming(LabelsNotConfirmedError(printed=0, expected=1))
     queue, job = await _single(printer)
     try:
-        new_id = await queue.retry_job(job.id)
-        assert new_id is not None
-        await queue.wait_for_job(new_id, timeout_s=5)
-        assert (await queue.get(new_id)).state == JobState.COMPLETED
+        # The retry routes write the new row and hand it to the queue (#405).
+        assert job.state == JobState.FAILED
+        row = DbJob(printer_id=printer.id, payload=dict(_RETRY_PAYLOAD))
+        await queue._store.save_queued(row)
+        await queue.enqueue_persisted(row)
+        await queue.wait_for_job(str(row.id), timeout_s=5)
+        assert (await queue.get(str(row.id))).state == JobState.COMPLETED
         assert printer.calls == [1, 1]
     finally:
         await queue.stop()

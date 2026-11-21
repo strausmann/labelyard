@@ -1069,7 +1069,7 @@ export interface paths {
         put?: never;
         /**
          * Check cart items against the layout before printing
-         * @description Looks up every distinct item once (at most eight lookups at a time), draws it for ``tape_mm`` with the given ``orientation`` and ``layout_preset``, and answers one verdict per item in request order.  A failing item does not fail the request: its result carries ``error_code`` (``qr_payload_too_long``, ``content_type_data_mismatch``, ``integration_item_not_found``, ``integration_unknown_app``, ``integration_lookup_failed``, ``integration_not_configured``) and, where it helps, ``error_detail``.  Returns 409 (``unsupported_tape``) before any lookup when the tape width or the orientation is not available.  Rate limit: the request's own token pays for the first distinct lookup, each further one takes another token from the key's bucket (never more than a full bucket); a request the remaining budget cannot cover is refused with 429 ``rate_limit_exceeded`` before any lookup.  Nothing is printed and no job is created.
+         * @description Looks up every distinct item once (at most eight lookups at a time), draws it for ``tape_mm`` with the given ``orientation`` and ``layout_preset``, and answers one verdict per item in request order.  A failing item does not fail the request: its result carries ``error_code`` (``qr_payload_too_long``, ``content_type_data_mismatch``, ``integration_item_not_found``, ``integration_unknown_app``, ``integration_lookup_failed``, ``integration_not_configured``, ``lookup-timeout``: not looked up within ``integrations.lookup_batch_deadline_s``) and, where it helps, ``error_detail``.  Returns 409 (``unsupported_tape``) before any lookup when the tape width or the orientation is not available.  Rate limit: the request's own token pays for the first distinct lookup, each further one takes another token from the key's bucket (never more than a full bucket); a request the remaining budget cannot cover is refused with 429 ``rate_limit_exceeded`` before any lookup.  Nothing is printed and no job is created.
          */
         post: operations["render_check_api_v1_render_check_post"];
         delete?: never;
@@ -6393,6 +6393,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Known printer or render errors: `lookup-timeout`. Body: `{error_code, error_message, error_detail?}`; a disabled printer answers `{"error": "printer_disabled", "slug"}`. */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     create_batch_api_v1_print__printer_key__batch_post: {
@@ -6466,6 +6473,13 @@ export interface operations {
             };
             /** @description `router_not_initialized`, `printer_unreachable` or `service_not_initialized`. Known printer or render errors: `printer_offline`, `snmp_query_failed`. Body: `{detail: {error_code, error_message, error_detail?}}`. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Known printer or render errors: `lookup-timeout`. Body: `{detail: {error_code, error_message, error_detail?}}`. */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6642,7 +6656,7 @@ export interface operations {
                     "application/json": components["schemas"]["SheetApiErrorResponse"];
                 };
             };
-            /** @description A page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`). The drawing goes on: the key's next preview answers 429 `too-many-previews` until it has ended. */
+            /** @description A page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`). The drawing goes on: the key's next preview answers 429 `too-many-previews` until it has ended. Or the integration lookups did not finish within `integrations.lookup_batch_deadline_s` (`lookup-timeout`, with `item_index`). */
             504: {
                 headers: {
                     [name: string]: unknown;
@@ -7360,6 +7374,13 @@ export interface operations {
             };
             /** @description Known printer or render errors: `integration-lookup-failed`. Body: a problem under `detail` (`type` is the code, `title` the message, structured values in `extensions`). */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Known printer or render errors: `lookup-timeout`. Body: a problem under `detail` (`type` is the code, `title` the message, structured values in `extensions`). */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8987,6 +9008,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Known printer or render errors: `lookup-timeout`. Body: `{error_code, error_message, error_detail?}`; a disabled printer answers `{"error": "printer_disabled", "slug"}`. */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     grocy_label_webhook_api_v1_webhook_grocy_label_post: {
@@ -9163,6 +9191,13 @@ export interface operations {
             };
             /** @description The webhook key is not configured, no enabled tape printer, or `integration_not_configured` (problem body). Known printer or render errors: `printer_offline`, `snmp_query_failed`. Body: `{error_code, error_message, error_detail?}`; a disabled printer answers `{"error": "printer_disabled", "slug"}`. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Known printer or render errors: `lookup-timeout`. Body: `{error_code, error_message, error_detail?}`; a disabled printer answers `{"error": "printer_disabled", "slug"}`. */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
