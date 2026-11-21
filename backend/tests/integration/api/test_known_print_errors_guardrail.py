@@ -48,6 +48,7 @@ from app.printer_backends.exceptions import (
     TapeMismatchError,
     UnsupportedTapeError,
 )
+from app.services.errors import LookupDeadlineError
 from app.services.lookup_service import LookupFailedError, UnknownAppError
 from app.services.print_error_codes import KNOWN_PRINT_ERROR_TYPES, SYNC_ERROR_MAP
 from app.services.rate_limiter import _rate_limiter
@@ -90,6 +91,7 @@ def _sample(cls: type[Exception]) -> Exception:
     samples: dict[type[Exception], Callable[[], Exception]] = {
         UnknownAppError: lambda: UnknownAppError("no such app"),
         LookupFailedError: lambda: LookupFailedError("https://grocy.example.invalid/x secret"),
+        LookupDeadlineError: LookupDeadlineError,  # #405
         PrinterDisabledError: lambda: PrinterDisabledError(uuid4(), SLUG),
         TapeMismatchError: lambda: TapeMismatchError(expected_mm=12, loaded_mm=24),
         TapeEmptyError: TapeEmptyError,
