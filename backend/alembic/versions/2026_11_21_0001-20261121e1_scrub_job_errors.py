@@ -16,9 +16,10 @@ Per ``jobs.error`` row, in this order:
 
 * **kept**: a bare marker of ``_MARKERS``, or a bare class name (``^[A-Z][A-Za-z0-9]*$``);
 * **kept**: it starts with ``interrupted:``, ``not_started:`` or ``tape_run_interrupted:``;
-* **kept**: ``<code>: <rest>`` where ``<rest>`` is a text of one of the three frozen tables
-  below, or a cause code (``_CAUSE_CODES``: ``outcome_unknown: tape_empty`` names the cause of
-  a group the printer may have printed, no free text);
+* **kept**: ``<code>: <rest>`` where ``<rest>`` is a text of one of the frozen tables below
+  (the queue's, the page runner's and the deferred tape label's), or a cause code
+  (``_CAUSE_CODES``: ``outcome_unknown: tape_empty`` names the cause of a group the printer may
+  have printed, no free text);
 * **rewritten**: ``<code>: <free text>`` with ``<code>`` a code of ``_PRINTER_ERROR_TEXTS`` (to
   that text) or of ``_PAGE_MESSAGES`` (to that text); the code prefix stays;
 * **kept**: everything else, ``<unknown code>: <text>`` included.
@@ -27,8 +28,10 @@ Only rows classified as rewritten are written (one ``UPDATE`` each). The migrati
 never row contents. The downgrade is a no-op (ADR 0034): the scrub removed only free text, which
 cannot be restored and which 1.7.x does not need.
 
-The tables are frozen copies of the code at this revision, not imports: a later change of the
-live tables must not change what this migration does.
+The tables (``_PRINTER_ERROR_TEXTS``, ``_UNREACHABLE_TEXT``, ``_PAGE_MESSAGES``,
+``_DEFERRED_FAILURE_MESSAGES`` with its fallback) are frozen copies of the code at this
+revision, not imports: a later change of the live tables must not change what this migration
+does.
 """
 
 import logging
@@ -83,6 +86,25 @@ _PAGE_MESSAGES: dict[str, str] = {
     "printer-identity-mismatch": "The device behind this printer changed; the job was not printed.",
 }
 
+# Frozen copy of ``app.services.print_service._DEFERRED_FAILURE_MESSAGES`` and its fallback
+# (1.7.x and 1.8.0): a deferred tape label stores ``<code>: <its text>``, a fixed text too.
+_DEFERRED_FAILURE_MESSAGES: dict[str, str] = {
+    "printer_disabled": "The printer is disabled.",
+    "printer_offline": "The printer could not be reached.",
+    "printer_cover_open": "The printer cover is open.",
+    "no_tape_loaded": "No tape is loaded in the printer.",
+    "tape_empty": "The tape is empty.",
+    "tape_mismatch": "The loaded tape does not fit the label.",
+    "media_type_mismatch": "The loaded roll is die-cut labels; only continuous tape prints.",
+    "printer_error": "The printer reports an error state.",
+    "unsupported_tape": "The loaded tape is not supported.",
+    "content_type_data_mismatch": "The label data does not fit the content type.",
+    "qr_payload_too_long": "The QR code content is too long for the loaded tape.",
+    "tape_label_too_long": "The label is longer than the loaded tape allows.",
+    "snmp_query_failed": "The printer did not answer the status query.",
+}
+_DEFERRED_FAILURE_FALLBACK = "The label could not be printed."
+
 _MARKERS: frozenset[str] = frozenset(
     {
         "printer_interrupted",
@@ -94,7 +116,13 @@ _MARKERS: frozenset[str] = frozenset(
 )
 _KEPT_PREFIXES: tuple[str, ...] = ("interrupted:", "not_started:", "tape_run_interrupted:")
 _FIXED_TEXTS: frozenset[str] = frozenset(
-    {*_PRINTER_ERROR_TEXTS.values(), *_UNREACHABLE_TEXT.values(), *_PAGE_MESSAGES.values()}
+    {
+        *_PRINTER_ERROR_TEXTS.values(),
+        *_UNREACHABLE_TEXT.values(),
+        *_PAGE_MESSAGES.values(),
+        *_DEFERRED_FAILURE_MESSAGES.values(),
+        _DEFERRED_FAILURE_FALLBACK,
+    }
 )
 _CAUSE_CODES: frozenset[str] = frozenset({*_PRINTER_ERROR_TEXTS, "batch_failed"})
 """What ``print_queue`` writes after ``outcome_unknown:`` (the error code of the cause)."""

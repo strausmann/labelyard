@@ -181,7 +181,7 @@ def _check_render_slots() -> CheckStatus:
     ``degraded``, tape printing still works).
     """
     stuck = render_slots.stuck_renders()
-    slots = render_slots.MAX_CONCURRENT_RENDERS
+    slots = render_slots.slot_count()
     metric: dict[str, Any] = {"stuck": stuck, "slots": slots}
     if stuck >= slots:
         return CheckStatus(

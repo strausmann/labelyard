@@ -19,7 +19,7 @@ import weakref
 from collections.abc import Awaitable, Callable
 from typing import Final
 
-from app.services.errors import LookupDeadlineError
+from app.services.errors import DEFAULT_LOOKUP_BATCH_DEADLINE_S, LookupDeadlineError
 
 MAX_BATCH_LOOKUPS = 8
 """Integration lookups of fan-out requests that run at once, all requests together."""
@@ -39,7 +39,7 @@ def lookup_gate() -> asyncio.Semaphore:
     return gate
 
 
-DEFAULT_BATCH_DEADLINE_S: Final = 30.0
+DEFAULT_BATCH_DEADLINE_S: Final = DEFAULT_LOOKUP_BATCH_DEADLINE_S
 """Default of ``integrations.lookup_batch_deadline_s`` (#405)."""
 
 DeadlineSource = Callable[[], float]

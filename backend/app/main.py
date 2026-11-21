@@ -150,7 +150,7 @@ from app.printer_models.registry import ModelRegistry
 from app.repositories import printer_status_cache as printer_status_cache_repo
 from app.repositories import printers as printers_repo
 from app.schemas.readiness import ReadinessResponse
-from app.services import lookup_gate
+from app.services import lookup_gate, render_slots
 from app.services.cleanup_task import CleanupTask
 from app.services.event_bus import EventBus
 from app.services.job_store_sqlite import SQLiteJobStore
@@ -358,6 +358,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     lookup_gate.bind_batch_deadline(
         lambda: float(settings_store.get("integrations.lookup_batch_deadline_s"))
     )
+    # #405: the number of concurrent renders follows the setting (applies once idle).
+    render_slots.bind_max_concurrent(lambda: int(settings_store.get("render.max_concurrent")))
     # -------------------------------------------------------------------------
 
     # Phase 2: JobStore + CleanupTask

@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.app_setting import AppSetting
+from app.render_limits import MAX_CONCURRENT_RENDERS_LIMIT, MIN_CONCURRENT_RENDERS
 from app.schemas.settings_api import SettingView
 from app.security.secret_box import SecretBox, UndecryptableSecret, secret_box_from_settings
 from app.settings_store.registry import (
@@ -106,6 +107,12 @@ def _validate(d: SettingDef, value: Any) -> Any:
             raise bad("expected an integer")
         if d.key == "jobs.retention_days" and not 1 <= value <= 3650:
             raise bad("must be between 1 and 3650")
+        if d.key == "render.max_concurrent" and not (
+            MIN_CONCURRENT_RENDERS <= value <= MAX_CONCURRENT_RENDERS_LIMIT
+        ):
+            raise bad(
+                f"must be between {MIN_CONCURRENT_RENDERS} and {MAX_CONCURRENT_RENDERS_LIMIT}"
+            )
         return value
     if kind == "float":
         if isinstance(value, bool) or not isinstance(value, int | float):

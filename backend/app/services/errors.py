@@ -19,6 +19,14 @@ class IntegrationNotConfiguredError(Exception):
     """Raised when a lookup targets an integration without URL (or key) in the settings."""
 
 
+LOOKUP_TIMEOUT_CODE = "lookup-timeout"
+LOOKUP_TIMEOUT_MESSAGE = "The integration lookups did not finish in time."
+"""The fixed text of ``lookup-timeout``, for every route and the render check (#405)."""
+
+DEFAULT_LOOKUP_BATCH_DEADLINE_S = 30.0
+"""Default of ``integrations.lookup_batch_deadline_s`` and ``LABELYARD_LOOKUP_BATCH_DEADLINE_S``."""
+
+
 class LookupDeadlineError(Exception):
     """A lookup of a fan-out request was not done when the request's deadline passed (#405).
 

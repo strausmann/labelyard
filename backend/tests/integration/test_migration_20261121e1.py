@@ -57,6 +57,12 @@ ROWS: dict[str, tuple[str | None, str | None]] = {
         f"ipp_unreachable: {UNREACHABLE}",
     ),
     "cause_code": ("outcome_unknown: tape_empty", "outcome_unknown: tape_empty"),
+    # A deferred tape label (``print_service._DEFERRED_FAILURE_MESSAGES``): a fixed text too.
+    "deferred_fixed": ("tape_empty: The tape is empty.", "tape_empty: The tape is empty."),
+    "deferred_fallback": (
+        "tape_mismatch: The label could not be printed.",
+        "tape_mismatch: The label could not be printed.",
+    ),
     "unknown_code": ("some_future_code: text", "some_future_code: text"),
     "no_error": (None, None),
 }
@@ -171,6 +177,13 @@ def test_e1_keeps_rows_with_unknown_codes(populated) -> None:
     after = _upgraded(populated)
     assert after["unknown_code"] == "some_future_code: text"
     assert after["no_error"] is None
+
+
+def test_e1_keeps_deferred_label_fixed_texts(populated) -> None:
+    """Fix round 1, Q2: a deferred label stores ``<code>: <its own fixed text>``; not free text."""
+    after = _upgraded(populated)
+    assert after["deferred_fixed"] == "tape_empty: The tape is empty."
+    assert after["deferred_fallback"] == "tape_mismatch: The label could not be printed."
 
 
 def test_e1_keeps_a_cause_code_after_its_code(populated) -> None:

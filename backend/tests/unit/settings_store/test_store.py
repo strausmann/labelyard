@@ -65,6 +65,7 @@ def test_registry_has_exactly_the_specified_keys() -> None:
         "integrations.paperless.token",
         "integrations.paperless.timeout",
         "integrations.lookup_batch_deadline_s",
+        "render.max_concurrent",
         "access.webhook_api_key",
         "jobs.retention_days",
         "integrations.grocy.label.enabled",

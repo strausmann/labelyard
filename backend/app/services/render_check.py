@@ -30,6 +30,8 @@ from app.schemas.render_check import (
 )
 from app.schemas.tape_geometry import TAPE_GEOMETRY
 from app.services.errors import (
+    LOOKUP_TIMEOUT_CODE,
+    LOOKUP_TIMEOUT_MESSAGE,
     AppLookupNotFoundError,
     IntegrationNotConfiguredError,
     LookupDeadlineError,
@@ -99,7 +101,7 @@ async def check_items(request: RenderCheckRequest, lookups: _Lookups) -> RenderC
         try:
             data = await deadline.run(_gated(app, identifier))
         except LookupDeadlineError:
-            return ("lookup-timeout", "The integration lookups did not finish in time.", None)
+            return (LOOKUP_TIMEOUT_CODE, LOOKUP_TIMEOUT_MESSAGE, None)
         except UnknownAppError:  # before LookupFailedError: it is the subclass
             return ("integration_unknown_app", "The requested integration is not available.", None)
         except LookupFailedError:

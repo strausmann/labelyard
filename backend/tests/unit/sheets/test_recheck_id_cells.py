@@ -1,12 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""#405: ``_recheck_id_cells`` releases what never reached the queue, and nothing else.
+"""#405: ``_recheck_id_cells`` checks the ID cell of every reserved page, releases on a refusal.
 
-A stored run (a Grocy label printed as its stored ``queued`` row, ``print_sheets(job_id=...)``)
-keeps its cells when its row already is a queued page: that row is printed onto them by the next
-recovery (T7-1, R-281-16), as ``_undo_partial_print`` decides for the same row. A row that is
-still deferred, or a run without a stored row, is released as before.
+``zip(strict=True)``: one sheet view per reserved page, a missing view is a bug, never a skipped
+check. A stored run (a Grocy label) is released like any other: at this point its row is still the
+deferred one (``grocy_sheet.py``; the payload swap comes later in ``_queue_pages``), so a
+"keep the cells of a stored row" branch could never fire (fix round 1, Q3).
 """
 
 from __future__ import annotations
@@ -76,33 +76,13 @@ def released(monkeypatch: pytest.MonkeyPatch) -> list[UUID]:
     return freed
 
 
-async def _recheck(factory: Any, pages: list[ReservedPage], sheets: list[Any], **kw: Any) -> None:
+async def _recheck(factory: Any, pages: list[ReservedPage], sheets: list[Any]) -> None:
     await sps._recheck_id_cells(
-        factory, pages, sheets, scan=lambda code: code, render_dpi=600, bus=None, **kw
+        factory, pages, sheets, scan=lambda code: code, render_dpi=600, bus=None
     )
 
 
-async def test_recheck_keeps_reservations_of_a_stored_retry(
-    factory: async_sessionmaker[AsyncSession], released: list[UUID]
-) -> None:
-    job_id = uuid4()
-    await _store(factory, job_id, {"kind": "sheet_page", "detail": {}})
-    with pytest.raises(IdCellContentMismatchError):
-        await _recheck(factory, [_page(job_id)], [_SHEET], stored=True)
-    assert released == []
-
-
-async def test_recheck_releases_a_stored_row_that_is_still_deferred(
-    factory: async_sessionmaker[AsyncSession], released: list[UUID]
-) -> None:
-    job_id = uuid4()
-    await _store(factory, job_id, {"deferred": True, "deferred_kind": "sheet_page"})
-    with pytest.raises(IdCellContentMismatchError):
-        await _recheck(factory, [_page(job_id)], [_SHEET], stored=True)
-    assert released == [job_id]
-
-
-async def test_recheck_releases_a_run_without_a_stored_row(
+async def test_recheck_releases_every_page_when_the_id_label_does_not_fit(
     factory: async_sessionmaker[AsyncSession], released: list[UUID]
 ) -> None:
     job_id = uuid4()

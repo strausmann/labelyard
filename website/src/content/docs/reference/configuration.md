@@ -173,7 +173,7 @@ Default: `30.0`
 
 Seconds the integration lookups of one batch print, sheet print or render check may take together, at most `300` (default `30`). Waiting for the shared lookup bound counts. An item not looked up by then fails with `lookup-timeout` (`504` for a print, a per-item verdict for a render check); an integration error before it keeps its own code.
 
-Also set in the web UI; a value set here wins and locks the field there.
+Also set through the settings API or a settings import (no field in the web UI yet); a value set here wins and locks it there.
 
 ### `LABELYARD_SERVER_PORT`
 
@@ -246,6 +246,14 @@ Tape runs (batches) one printer has queued or printing at once; at least `5`, th
 Default: `20`
 
 Tape runs one API key has at once over all printers, held runs included. Above it a batch answers `429` `too-many-queued-runs`.
+
+### `LABELYARD_RENDER_MAX_CONCURRENT`
+
+Default: `2`
+
+Page renders at once in the whole hub (sheet previews, calibration pages, page jobs), `2` to `16`. Every owner (an API key, a signed-in browser session) keeps all slots but one free; signed-in users and page jobs without a key count as one group. With the default `2` all signed-in users share one slot: the session whose render is stuck gets `429` (`too-many-previews`), the others `503` (`render-unavailable`), API keys keep the other slot. From `3` signed-in users render side by side. A change applies once no render holds a slot.
+
+Also set through the settings API or a settings import (no field in the web UI yet); a value set here wins and locks it there.
 
 ### `LABELYARD_RENDER_TIMEOUT_S`
 

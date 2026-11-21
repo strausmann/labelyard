@@ -77,6 +77,8 @@ from app.schemas.sheet_print import (
 from app.schemas.spool_swatch import SpoolSwatch
 from app.services import render_slots
 from app.services.errors import (
+    LOOKUP_TIMEOUT_CODE,
+    LOOKUP_TIMEOUT_MESSAGE,
     AppLookupNotFoundError,
     IntegrationNotConfiguredError,
     LookupDeadlineError,
@@ -255,8 +257,8 @@ _LOOKUP_ERRORS: Final[tuple[tuple[type[Exception], int, str, str], ...]] = (
     (
         LookupDeadlineError,
         504,
-        "lookup-timeout",
-        "The integration lookups did not finish in time.",
+        LOOKUP_TIMEOUT_CODE,
+        LOOKUP_TIMEOUT_MESSAGE,
     ),
 )
 
@@ -1346,7 +1348,6 @@ async def _recheck_id_cells(
     scan: Callable[[str], str],
     render_dpi: int,
     bus: Any,
-    stored: bool = False,
 ) -> None:
     """Check the ID cell of every reserved page once the reservation has decided it (#215).
 
@@ -1354,10 +1355,9 @@ async def _recheck_id_cells(
     holding the sheet's ID cell may be released during the item lookups, and the reservation
     then puts the hub's own label into a cell the plan never checked. When that label does not
     fit, every reservation of the run is released and the 422 is raised.
-
-    ``stored`` (#405): the run prints as stored rows (a Grocy label, R-281-16). Their state
-    decides, as in ``_undo_partial_print``: a row that already is a queued page keeps its cells
-    (the next recovery prints it onto them, T7-1); every other page is released.
+    A stored run (a Grocy label, ``job_id``) is released the same way: its row is still the
+    deferred one at this point (``grocy_sheet.py``, the payload swap comes later in
+    ``_queue_pages``), so the row's cells were never handed to a page (#405, fix round 1).
     """
     try:
         # strict: one sheet view per reserved page; a missing one is a bug, never a skipped check.
@@ -1375,22 +1375,8 @@ async def _recheck_id_cells(
     except BaseException:
         # The threaded check is a suspension point after the reservation committed: a cancel or
         # any other error there must not leave the run's cells reserved without a job row.
-        await asyncio.shield(_release_unqueued(session_factory, reserved, bus, stored=stored))
+        await asyncio.shield(_release_all(session_factory, [p.job_id for p in reserved], bus))
         raise
-
-
-async def _release_unqueued(
-    session_factory: async_sessionmaker[AsyncSession],
-    reserved: Sequence[ReservedPage],
-    bus: Any,
-    *,
-    stored: bool,
-) -> None:
-    """Release the pages of ``reserved`` that are not queued; a stored run's row decides."""
-    pending = [p.job_id for p in reserved]
-    if stored:
-        pending = [j for j in pending if not await _stored_row_keeps_cells(session_factory, j)]
-    await _release_all(session_factory, pending, bus)
 
 
 def _check_plan_items(
@@ -1865,7 +1851,6 @@ async def print_sheets(
             scan=scan,
             render_dpi=facts.render_dpi,
             bus=bus,
-            stored=job_id is not None,
         )
 
         batch_id, printed = await _queue_pages(
