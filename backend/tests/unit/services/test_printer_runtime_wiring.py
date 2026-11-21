@@ -195,3 +195,22 @@ async def test_a_save_keeps_the_old_reason_until_the_attempt_ends(env: Env) -> N
         release.set()
         await task
     assert env.runtime.wiring_of(printer.id, enabled=True) == ("wired", None)
+
+
+async def test_the_hold_is_released_when_the_attach_raises(env: Env) -> None:
+    printer = _tape()
+    await env.runtime.attach(printer)
+
+    async def _boom(row: Any) -> None:
+        await env.runtime._detach_locked(row.id)  # the re-wire began, then the attach blew up
+        raise RuntimeError("boom")
+
+    with (
+        patch.object(env.runtime, "_attach_locked", _boom),
+        pytest.raises(RuntimeError),
+    ):
+        await env.runtime.attach(printer)
+
+    assert printer.id not in env.runtime._holding
+    # Not held any more: the real state shows, not the "wired" the hold kept while it ran.
+    assert env.runtime.wiring_of(printer.id, enabled=True) == ("not_wired", None)

@@ -515,8 +515,10 @@ class PrinterRuntime:
     def _record_not_wired(self, printer_id: UUID, slug: str, exc: Exception, what: str) -> None:
         """Log a printer that could not be wired and remember why (#401).
 
-        The log and the stored failure carry the class name and the mapped reason only, never
-        the exception text (CWE-209): the text of a discovery error names the device address.
+        The stored failure holds the reason code and the time, never the exception text (CWE-209):
+        the text of a discovery error names the device address. The log names the printer slug and
+        the error class; an ``unexpected`` error (a bug) is logged at ERROR with its traceback, as
+        before ADR 0024 was amended.
         """
         reason = self._remember_failure(printer_id, exc)
         if reason != "unexpected":
