@@ -23,6 +23,7 @@ from app.printer_backends.exceptions import (
     TapeMismatchError,
     UnsupportedTapeError,
 )
+from app.services.errors import LookupDeadlineError
 from app.services.lookup_service import LookupFailedError, UnknownAppError
 from app.services.print_error_codes import (
     KNOWN_PRINT_ERROR_TYPES,
@@ -33,6 +34,7 @@ from app.services.print_service import _DEFERRED_FAILURE_MESSAGES
 SAMPLES: dict[type[Exception], Exception] = {
     UnknownAppError: UnknownAppError("no such app"),
     LookupFailedError: LookupFailedError("upstream down"),
+    LookupDeadlineError: LookupDeadlineError(),
     PrinterDisabledError: PrinterDisabledError(uuid4(), "tape-a"),
     TapeMismatchError: TapeMismatchError(expected_mm=12, loaded_mm=24),
     TapeEmptyError: TapeEmptyError(),
@@ -55,8 +57,9 @@ def test_every_known_class_is_described() -> None:
     assert set(KNOWN_PRINT_ERROR_TYPES) == set(SAMPLES), "a sample per known class"
     for cls in KNOWN_PRINT_ERROR_TYPES:
         known = describe_print_error(SAMPLES[cls])
-        # 4xx, or the upstream/printer 502 and 503: never the 500 of an unhandled error.
-        assert 400 <= known.status < 500 or known.status in (502, 503), (cls, known.status)
+        # 4xx, or the upstream/printer 502 and 503, or 504 when the lookups of a batch ran out of
+        # time (#405): never the 500 of an unhandled error.
+        assert 400 <= known.status < 500 or known.status in (502, 503, 504), (cls, known.status)
         assert known.code, cls
         assert known.message, cls
 
