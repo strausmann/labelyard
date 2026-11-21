@@ -337,11 +337,11 @@ jobs:
             exit 0
           fi
           gh release view "v${VERSION}" --json body --jq .body > "$work/body.md"
-          if grep -q '^## Licence changes' "$work/body.md"; then
+          if grep -qF '<!-- labelyard:licence-changes -->' "$work/body.md"; then
             echo "The notes already carry the licence changes"
             exit 0
           fi
-          { cat "$work/body.md"; echo; cat "$work/section.md"; } > "$work/notes.md"
+          { cat "$work/body.md"; echo; echo '<!-- labelyard:licence-changes -->'; cat "$work/section.md"; } > "$work/notes.md"
           gh release edit "v${VERSION}" --notes-file "$work/notes.md"
 
   # Publishes the draft once the images and the SBOM asset are in place. Runs
