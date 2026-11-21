@@ -46,6 +46,8 @@ backend/app/
 ├── printer_backends/             # How bytes reach a printer (ADR 0020)
 │   ├── base.py                   # backend interface
 │   ├── ptouch_backend.py         # PT-Series over TCP/9100
+│   ├── ptouch_raw.py             # PT-Series raw send (print, IPP render)
+│   ├── ptouch_status.py          # PT-Series status reads (socket, SNMP)
 │   ├── brother_ql_backend.py     # QL-Series over TCP/9100
 │   ├── mock_backend.py           # fake printer for tests and the smoke compose file
 │   └── ipp/                      # own IPP client for page printers

@@ -49,6 +49,7 @@ def _classes() -> tuple[dict[str, type], dict[int, type]]:
 
     The call sites live in ``ptouch_backend`` and so does the namespace tests patch the maps in;
     the lookup goes through it, so a patched map reaches the helpers in this module too.
+    Patch these maps on ``ptouch_backend``, not on ``ptouch_raw``.
     """
     from app.printer_backends import ptouch_backend
 

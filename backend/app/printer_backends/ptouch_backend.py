@@ -157,7 +157,7 @@ class PTouchBackend:
     def flags_before_send(self) -> frozenset[str]:
         """The error bits of the read before the last send (``post_send.check_after_send``)."""
         status = self.last_send_status
-        return frozenset(status.error_flags) if status else frozenset()
+        return frozenset(status.error_flags) if status is not None else frozenset()
 
     def roll_at_send(self) -> dict[str, object] | None:
         """The tape the last send was checked against (#389), for the job record."""
