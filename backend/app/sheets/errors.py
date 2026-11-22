@@ -141,6 +141,29 @@ class SheetBusyError(SheetApiError):
     message = "Sheet is in use by a running job."
 
 
+class SheetLimitReachedError(SheetApiError):
+    """A new sheet would exceed ``sheets.max_active`` (``hub``) or ``sheets.max_active_per_type``
+    (``type``); only active sheets count, so discarding one frees room (#204)."""
+
+    status = 409
+    error_code = "sheet_limit_reached"
+    message = "The limit of active sheets is reached. Discard a sheet to make room."
+
+    def __init__(self, cap: int, scope: str) -> None:
+        super().__init__(detail={"cap": cap, "scope": scope})
+
+
+class SheetPurgedError(SheetApiError):
+    """A job names a sheet that was purged (#204): the job keeps its payload, the sheet is gone."""
+
+    status = 409
+    error_code = "sheet_purged"
+    message = "The sheet of this job was purged."
+
+    def __init__(self, sheet_code: str) -> None:
+        super().__init__(detail={"sheet_code": sheet_code})
+
+
 class CellsTakenError(SheetApiError):
     status = 409
     error_code = "cells_taken"

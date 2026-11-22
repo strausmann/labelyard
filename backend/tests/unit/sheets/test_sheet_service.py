@@ -542,9 +542,9 @@ async def test_discard_busy_and_ok(session: AsyncSession, l4736: str) -> None:
 
     detail = await ss.get_sheet(session, code)
     assert detail.sheet.state == "discarded"
-    assert [r.sheet.code for r in await ss.list_sheets(session)] == []
-    assert [r.sheet.code for r in await ss.list_sheets(session, state="discarded")] == [code]
-    assert [r.sheet.code for r in await ss.list_sheets(session, state="all")] == [code]
+    assert [r.sheet.code for r in (await ss.list_sheets(session)).rows] == []
+    assert [r.sheet.code for r in (await ss.list_sheets(session, state="discarded")).rows] == [code]
+    assert [r.sheet.code for r in (await ss.list_sheets(session, state="all")).rows] == [code]
     with pytest.raises(SheetNotFoundError):
         await ss.discard_sheet(session, "L4736-0055", actor="tester")
 
@@ -583,21 +583,21 @@ async def test_list_order_fits_first(session: AsyncSession, l4736: str) -> None:
     c3 = await _sheet_with_free(session, 3)
     c31 = await _sheet_with_free(session, 31)
     c9 = await _sheet_with_free(session, 9)
-    rows = await ss.list_sheets(session, free_at_least=9)
+    rows = (await ss.list_sheets(session, free_at_least=9)).rows
     assert [r.sheet.code for r in rows] == [c31, c9, c3]
     assert [r.free for r in rows] == [31, 9, 3]
     assert (rows[0].total, rows[0].used, rows[0].type.key, rows[0].version.version) == (
         48, 17, l4736, 1
     )  # fmt: skip
     # only the 31 fits a request for 10; the rest follow by free cells, most first
-    rows = await ss.list_sheets(session, free_at_least=10)
+    rows = (await ss.list_sheets(session, free_at_least=10)).rows
     assert [r.sheet.code for r in rows] == [c31, c9, c3]
 
 
 async def test_list_ties_order_by_code(session: AsyncSession, l4736: str) -> None:
     a = await _sheet_with_free(session, 5)
     b = await _sheet_with_free(session, 5)
-    assert [r.sheet.code for r in await ss.list_sheets(session)] == [a, b]
+    assert [r.sheet.code for r in (await ss.list_sheets(session)).rows] == [a, b]
 
 
 async def test_list_filters(session: AsyncSession, l4736: str) -> None:
@@ -609,15 +609,15 @@ async def test_list_filters(session: AsyncSession, l4736: str) -> None:
     await ss.discard_sheet(session, gone, actor="tester")
 
     codes = lambda rows: sorted(r.sheet.code for r in rows)  # noqa: E731
-    assert codes(await ss.list_sheets(session)) == sorted([full, part, other])
-    assert codes(await ss.list_sheets(session, state="full")) == [full]
-    assert codes(await ss.list_sheets(session, state="all")) == sorted([full, part, other, gone])
-    assert codes(await ss.list_sheets(session, type_key="other-type")) == [other]
-    assert codes(await ss.list_sheets(session, type_key="other-type", state="all")) == sorted(
-        [other, gone]
-    )
-    assert codes(await ss.list_sheets(session, q="other-0")) == [other]
-    assert codes(await ss.list_sheets(session, q="l4736")) == sorted([full, part])
+    assert codes((await ss.list_sheets(session)).rows) == sorted([full, part, other])
+    assert codes((await ss.list_sheets(session, state="full")).rows) == [full]
+    everything = (await ss.list_sheets(session, state="all")).rows
+    assert codes(everything) == sorted([full, part, other, gone])
+    assert codes((await ss.list_sheets(session, type_key="other-type")).rows) == [other]
+    of_other = (await ss.list_sheets(session, type_key="other-type", state="all")).rows
+    assert codes(of_other) == sorted([other, gone])
+    assert codes((await ss.list_sheets(session, q="other-0")).rows) == [other]
+    assert codes((await ss.list_sheets(session, q="l4736")).rows) == sorted([full, part])
     with pytest.raises(SheetTypeNotFoundError):
         await ss.list_sheets(session, type_key="no-such-type")
 
@@ -626,7 +626,7 @@ async def test_list_counts_per_state(session: AsyncSession, l4736: str) -> None:
     sheet = await _create(session, used_cells=[MarkedCell(1)])
     await _add_cell(session, sheet.code, 2, "reserved", job_id=uuid4())
     await _add_cell(session, sheet.code, 3, "unconfirmed", job_id=uuid4())
-    (row,) = await ss.list_sheets(session)
+    (row,) = (await ss.list_sheets(session)).rows
     assert (row.used, row.reserved, row.unconfirmed, row.free, row.total) == (1, 1, 1, 45, 48)
 
 

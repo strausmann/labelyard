@@ -128,7 +128,7 @@ async def _settle_locked(
     touched: list[SheetTouched] = []
     for sheet_id in sorted(changed, key=str):
         sheet = await session.get(Sheet, sheet_id, populate_existing=True)
-        if sheet is None:  # foreign keys make this unreachable
+        if sheet is None:  # purged since (#204): its cells went with it
             continue
         if sheet_id in used_at:
             known = _aware(sheet.last_used_at) if sheet.last_used_at is not None else None

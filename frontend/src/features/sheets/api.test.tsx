@@ -318,3 +318,24 @@ describe("preview and print", () => {
     expect(renderHook(() => useWatchedPrints()).result.current).toHaveLength(0);
   });
 });
+
+describe("useSheets reads every page (#204)", () => {
+  it("keeps one row per code when a sheet moved across the page boundary between two requests", async () => {
+    const json = { "Content-Type": "application/json" };
+    mockApi({
+      "GET /api/v1/sheets": (_init: RequestInit, url: URL) =>
+        url.searchParams.get("offset") === "2"
+          ? new Response(JSON.stringify([sheetSummary("L4736-0002", { used: 9, free: 39 }), sheetSummary("L4736-0003")]), { status: 200, headers: json })
+          : new Response(JSON.stringify([sheetSummary("L4736-0001"), sheetSummary("L4736-0002")]), {
+              status: 200,
+              headers: { ...json, Link: '</api/v1/sheets?state=active&limit=2&offset=2>; rel="next"' },
+            }),
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useSheets({ state: "active" }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data!.map((s) => s.code)).toEqual(["L4736-0001", "L4736-0002", "L4736-0003"]);
+    // The first answer wins: the earlier page is the earlier rank in the order.
+    expect(result.current.data![1]!.free).toBe(sheetSummary("L4736-0002").free);
+  });
+});

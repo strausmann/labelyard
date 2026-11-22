@@ -12,6 +12,10 @@ msgstr ""
 msgid "(opens in a new tab)"
 msgstr "(opens in a new tab)"
 
+#: src/features/jobs/PageJobInfo.tsx
+msgid "(sheet purged)"
+msgstr "(sheet purged)"
+
 #. placeholder {0}: chosen.length
 #: src/features/sheets/SheetDetail.tsx
 msgid "{0, plural, one {# cell chosen} other {# cells chosen}}"
@@ -65,6 +69,11 @@ msgstr "{0, plural, one {# product code} other {# product codes}}"
 msgid "{0, plural, one {# row} other {# rows}}"
 msgstr "{0, plural, one {# row} other {# rows}}"
 
+#. placeholder {0}: codes.length
+#: src/features/sheets/PurgeDialog.tsx
+msgid "{0, plural, one {# sheet would be purged:} other {# sheets would be purged:}}"
+msgstr "{0, plural, one {# sheet would be purged:} other {# sheets would be purged:}}"
+
 #. placeholder {0}: Number(values.count) || 0
 #: src/features/notifications/useEntryText.ts
 msgid "{0, plural, one {# unconfirmed cell} other {# unconfirmed cells}}"
@@ -74,6 +83,11 @@ msgstr "{0, plural, one {# unconfirmed cell} other {# unconfirmed cells}}"
 #: src/features/sheets/SheetDetail.tsx
 msgid "{0, plural, one {Mark # cell as used} other {Mark # cells as used}}"
 msgstr "{0, plural, one {Mark # cell as used} other {Mark # cells as used}}"
+
+#. placeholder {0}: codes.length
+#: src/features/sheets/PurgeDialog.tsx
+msgid "{0, plural, one {Purge # sheet} other {Purge # sheets}}"
+msgstr "{0, plural, one {Purge # sheet} other {Purge # sheets}}"
 
 #. placeholder {0}: resolvingAll.cells.length
 #: src/features/sheets/SheetDetail.tsx
@@ -101,6 +115,11 @@ msgstr "{0, plural, one {Show the # cell} other {Show all # cells}}"
 #: src/features/sheets/print/SheetPreview.tsx
 msgid "{0, plural, one {Show the # cell} other {Show the # cells}}"
 msgstr "{0, plural, one {Show the # cell} other {Show the # cells}}"
+
+#. placeholder {0}: codes.length
+#: src/features/sheets/PurgeDialog.tsx
+msgid "{0, plural, one {The oldest # sheet goes in this step; more follow.} other {The oldest # sheets go in this step; more follow.}}"
+msgstr "{0, plural, one {The oldest # sheet goes in this step; more follow.} other {The oldest # sheets go in this step; more follow.}}"
 
 #. placeholder {0}: chosen.length
 #: src/features/sheets/SheetDetail.tsx
@@ -387,6 +406,10 @@ msgstr "{printer}: Not wired: {reason}"
 #: src/features/notifications/useEntryText.ts
 msgid "{printer}: Unsupported roll loaded: {inline}"
 msgstr "{printer}: Unsupported roll loaded: {inline}"
+
+#: src/features/sheets/PurgeDialog.tsx
+msgid "{purged, plural, one {# sheet purged.} other {# sheets purged.}}"
+msgstr "{purged, plural, one {# sheet purged.} other {# sheets purged.}}"
 
 #: src/features/sheets/print/PrintResult.tsx
 msgid "{queued, plural, one {# label was queued and will print.} other {# labels were queued and will print.}}"
@@ -784,6 +807,10 @@ msgstr "An item"
 msgid "An item is no longer in its app, so it cannot be printed. Remove it from the cart and try again."
 msgstr "An item is no longer in its app, so it cannot be printed. Remove it from the cart and try again."
 
+#: src/features/sheets/PurgeDialog.tsx
+msgid "and {rest} more"
+msgstr "and {rest} more"
+
 #: src/features/scan/CameraScanner.tsx
 msgid "Another app may be using the camera. Close it and try again."
 msgstr "Another app may be using the camera. Close it and try again."
@@ -1075,6 +1102,7 @@ msgstr "Can't be read with the current secret key — enter it again"
 #: src/features/settings/PrinterForm.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 #: src/features/sheets/backSide/ActivateBackSide.tsx
+#: src/features/sheets/PurgeDialog.tsx
 #: src/features/sheets/SheetCodePanel.tsx
 #: src/features/sheets/SheetDetail.tsx
 #: src/features/sheets/SheetsPage.tsx
@@ -1207,6 +1235,10 @@ msgstr "Check the tray:"
 msgid "check this reading"
 msgstr "check this reading"
 
+#: src/features/sheets/PurgeDialog.tsx
+msgid "Check what would go"
+msgstr "Check what would go"
+
 #: src/shell/SessionStatus.tsx
 msgid "Checking your session…"
 msgstr "Checking your session…"
@@ -1316,6 +1348,7 @@ msgstr "Clients"
 #: src/features/settings/IppPrinterFields.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 #: src/features/sheets/backSide/ActivateBackSide.tsx
+#: src/features/sheets/PurgeDialog.tsx
 #: src/shell/PhoneMenu.tsx
 #: src/shell/RollToast.tsx
 msgid "Close"
@@ -1616,6 +1649,10 @@ msgstr "Delete this type?"
 msgid "Delete type"
 msgstr "Delete type"
 
+#: src/features/sheets/PurgeDialog.tsx
+msgid "Deletes discarded sheets with their cells for good. Their codes are never given out again; jobs that printed on them stay in the history."
+msgstr "Deletes discarded sheets with their cells for good. Their codes are never given out again; jobs that printed on them stay in the history."
+
 #: src/features/archive/TypeForm.tsx
 msgid "Describe what changed."
 msgstr "Describe what changed."
@@ -1723,6 +1760,10 @@ msgstr "Discard the rest"
 msgctxt "sheet state"
 msgid "discarded"
 msgstr "discarded"
+
+#: src/features/sheets/PurgeDialog.tsx
+msgid "Discarded more than (days) ago"
+msgstr "Discarded more than (days) ago"
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "Discarded on {discardedOn}, this code is not used again."
@@ -1975,6 +2016,10 @@ msgstr "Find a spool"
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Find an asset or location"
 msgstr "Find an asset or location"
+
+#: src/features/sheets/SheetsPage.tsx
+msgid "First 500 shown. Narrow the filter to find the others."
+msgstr "First 500 shown. Narrow the filter to find the others."
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "First enabled tape printer"
@@ -2902,6 +2947,10 @@ msgstr "No code found in this photo. Hold the camera closer and try again."
 msgid "No correction stored for this tray."
 msgstr "No correction stored for this tray."
 
+#: src/features/sheets/PurgeDialog.tsx
+msgid "No discarded sheet matches."
+msgstr "No discarded sheet matches."
+
 #: src/features/jobs/jobErrorText.ts
 msgid "No drawing slot became free in time; the page was not drawn. Try again later."
 msgstr "No drawing slot became free in time; the page was not drawn. Try again later."
@@ -2909,6 +2958,10 @@ msgstr "No drawing slot became free in time; the page was not drawn. Try again l
 #: src/features/archive/IdPlacementSection.tsx
 msgid "No free strip of this print takes the code."
 msgstr "No free strip of this print takes the code."
+
+#: src/features/sheets/PurgeDialog.tsx
+msgid "No further discarded sheet matches."
+msgstr "No further discarded sheet matches."
 
 #: src/features/printers/PrinterDetail.tsx
 msgid "No hardware identity — device swaps are not detected"
@@ -3862,6 +3915,11 @@ msgstr "Public web address"
 #: src/shell/PullToRefresh.tsx
 msgid "Pull down to reload"
 msgstr "Pull down to reload"
+
+#: src/features/sheets/PurgeDialog.tsx
+#: src/features/sheets/SheetsPage.tsx
+msgid "Purge discarded sheets"
+msgstr "Purge discarded sheets"
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "Purpose (optional)"
@@ -5915,6 +5973,10 @@ msgstr "The sheet types could not be loaded."
 #: src/features/sheets/SheetsPage.tsx
 msgid "The sheets could not be loaded."
 msgstr "The sheets could not be loaded."
+
+#: src/features/sheets/PurgeDialog.tsx
+msgid "The sheets could not be purged."
+msgstr "The sheets could not be purged."
 
 #: src/features/calibration/guide/StillOff.tsx
 msgid "The shift differs from sheet to sheet"

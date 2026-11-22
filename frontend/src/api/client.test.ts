@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiFetch, setCsrfToken, setOnUnauthorized } from "./client";
+import { ApiError, apiFetch, apiFetchWithHeaders, fetchAllPages, nextLink, setCsrfToken, setOnUnauthorized } from "./client";
 
 function respond(status: number, body?: unknown, contentType = "application/json"): Response {
   return new Response(body === undefined ? null : typeof body === "string" ? body : JSON.stringify(body), {
@@ -209,5 +209,57 @@ describe("apiFetch", () => {
       fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
       expect(await apiFetch("/x").catch((e: unknown) => e)).toMatchObject({ errorDetail: null });
     });
+  });
+});
+
+describe("bounded lists (#204, D31)", () => {
+  const page = (rows: number[], link?: string, extra: Record<string, string> = {}) =>
+    new Response(JSON.stringify(rows), { status: 200, headers: { "Content-Type": "application/json", ...(link ? { Link: link } : {}), ...extra } });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("apiFetchWithHeaders returns the Link and X-Used-Up-Hidden headers", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => page([1], '</api/v1/sheets?limit=1&offset=1>; rel="next"', { "X-Used-Up-Hidden": "7" })));
+    const { data, headers } = await apiFetchWithHeaders<number[]>("/api/v1/sheets?limit=1");
+    expect(data).toEqual([1]);
+    expect(headers.get("X-Used-Up-Hidden")).toBe("7");
+    expect(nextLink(headers)).toBe("/api/v1/sheets?limit=1&offset=1");
+  });
+
+  it("apiFetchWithHeaders fails like apiFetch", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => respond(409, { detail: { error_code: "sheet_limit_reached", error_message: "x", error_detail: { cap: 2, scope: "hub" } } })));
+    const error = await apiFetchWithHeaders("/api/v1/sheets", { method: "GET" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("sheet_limit_reached");
+    expect((error as ApiError).errorDetail).toEqual({ cap: 2, scope: "hub" });
+  });
+
+  it("nextLink reads only rel=next", () => {
+    expect(nextLink(new Headers())).toBeNull();
+    expect(nextLink(new Headers({ Link: '</a>; rel="prev"' }))).toBeNull();
+    expect(nextLink(new Headers({ Link: '</a>; rel="prev", </b>; rel="next"' }))).toBe("/b");
+  });
+
+  it("fetchAllPages follows Link to the last page", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const offset = new URL(String(input), "http://localhost").searchParams.get("offset") ?? "0";
+      if (offset === "0") return page([1, 2], "</api/v1/sheets?state=active&limit=2&offset=2>; rel=\"next\"");
+      if (offset === "2") return page([3, 4], "</api/v1/sheets?state=active&limit=2&offset=4>; rel=\"next\"");
+      return page([5]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await fetchAllPages<number>("/api/v1/sheets?state=active", 20)).toEqual([1, 2, 3, 4, 5]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("fetchAllPages stops at the page bound and never leaves the API", async () => {
+    const endless = vi.fn(async () => page([1], '</api/v1/sheets?offset=1>; rel="next"'));
+    vi.stubGlobal("fetch", endless);
+    expect(await fetchAllPages<number>("/api/v1/sheets", 3)).toEqual([1, 1, 1]);
+    expect(endless).toHaveBeenCalledTimes(3);
+    const away = vi.fn(async () => page([1], '<https://evil.example.invalid/x>; rel="next"'));
+    vi.stubGlobal("fetch", away);
+    expect(await fetchAllPages<number>("/api/v1/sheets", 3)).toEqual([1]);
+    expect(away).toHaveBeenCalledTimes(1);
   });
 });

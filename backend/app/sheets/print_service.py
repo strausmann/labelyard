@@ -129,6 +129,7 @@ from app.sheets.errors import (
     SheetDiscardedError,
     SheetIdJobFailedError,
     SheetNotFoundError,
+    SheetPurgedError,
     SheetTypeArchivedError,
     SheetTypeNotFoundError,
     SheetTypeVersionNotFoundError,
@@ -2506,17 +2507,21 @@ async def retry_sheet_page(
             render_dpi=facts.render_dpi,
             language=None if language is None else str(language),
         )
-        page = await reserve_exact(
-            session,
-            job_id=new_id,
-            sheet_code=detail.sheet_code,
-            cells=[(c.cell, _retry_meta(c)) for c in detail.cells],
-            id_cell=None if detail.id_cell is None else detail.id_cell.cell,
-            hw_margins_hmm=facts.margins_hmm,
-            margin=margin,
-            actor=actor,
-            bus=bus,
-        )
+        try:
+            page = await reserve_exact(
+                session,
+                job_id=new_id,
+                sheet_code=detail.sheet_code,
+                cells=[(c.cell, _retry_meta(c)) for c in detail.cells],
+                id_cell=None if detail.id_cell is None else detail.id_cell.cell,
+                hw_margins_hmm=facts.margins_hmm,
+                margin=margin,
+                actor=actor,
+                bus=bus,
+            )
+        except SheetNotFoundError:
+            # #204: the sheet was purged; the job keeps its payload, nothing was reserved.
+            raise SheetPurgedError(detail.sheet_code) from None
         try:
             info = await _type_info(session, page.type_version_id, {})
             new_detail = detail.model_copy(

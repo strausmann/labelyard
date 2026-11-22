@@ -20,6 +20,7 @@ import pytest_asyncio
 from app.db.engine import _apply_pragmas
 from app.models.sheet import SheetCell
 from app.page_render.transform import Deviation
+from app.sheets import limits as sheet_limits
 from app.sheets import reservation as rv
 from app.sheets import sheet_service as ss
 from app.sheets import type_service as ts
@@ -64,6 +65,15 @@ FIELDS = ts.TypeFields(
 MARGIN = MarginContext(
     deviation=Deviation(), scan_payload=lambda c: f"sheet:{c}", render_dpi=600, language=None
 )
+
+
+@pytest.fixture(autouse=True)
+def no_sheet_caps() -> Any:
+    """The bursts here open far more sheets of one type than the default caps allow (#204);
+    they test the write lock, not the caps, so the largest caps are bound."""
+    previous = sheet_limits.bind_caps(lambda: sheet_limits.SheetCaps(10_000, 10_000))
+    yield
+    sheet_limits.bind_caps(previous)
 
 
 @pytest.fixture(autouse=True)

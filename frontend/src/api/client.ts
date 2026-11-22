@@ -177,6 +177,11 @@ async function readBody(response: Response): Promise<unknown> {
 }
 
 export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> {
+  return (await apiFetchWithHeaders<T>(path, init)).data;
+}
+
+/** `apiFetch` that also hands back the response headers (`Link`, `X-Used-Up-Hidden`); same errors. */
+export async function apiFetchWithHeaders<T>(path: string, init: ApiInit = {}): Promise<{ data: T; headers: Headers }> {
   const { json, as: bodyAs = "json", skipUnauthorized = false, headers: initHeaders, ...rest } = init;
   const method = (rest.method ?? "GET").toUpperCase();
   const headers = new Headers(initHeaders);
@@ -214,7 +219,36 @@ export async function apiFetch<T>(path: string, init: ApiInit = {}): Promise<T> 
     if (response.status === 401 && !skipUnauthorized) void onUnauthorized?.();
     throw error;
   }
-  if (response.status === 204) return undefined as T;
-  if (bodyAs === "blob") return (await response.blob()) as T;
-  return (await readBody(response)) as T;
+  const responseHeaders = response.headers ?? new Headers();
+  if (response.status === 204) return { data: undefined as T, headers: responseHeaders };
+  if (bodyAs === "blob") return { data: (await response.blob()) as T, headers: responseHeaders };
+  return { data: (await readBody(response)) as T, headers: responseHeaders };
+}
+
+/** The target of `Link: <…>; rel="next"` (RFC 8288), or null when the header names no next page. */
+export function nextLink(headers: Headers): string | null {
+  const header = headers.get("Link");
+  if (!header) return null;
+  for (const part of header.split(",")) {
+    const match = /^\s*<([^>]*)>\s*;(.*)$/.exec(part);
+    if (match?.[1] !== undefined && /(^|;)\s*rel\s*=\s*"?next"?\s*(;|$)/i.test(match[2] ?? "")) return match[1];
+  }
+  return null;
+}
+
+/**
+ * Every page of a bounded list (ADR 0021, D31): follows `Link` until the last page, at most
+ * `maxPages` requests. A list longer than that is answered with what was read; the caller that
+ * needs to know asks with `nextLink` itself. Only same-origin targets under `/api/v1/` are followed.
+ */
+export async function fetchAllPages<T>(path: string, maxPages: number): Promise<T[]> {
+  const rows: T[] = [];
+  let next: string | null = path;
+  for (let page = 0; next !== null && page < maxPages; page++) {
+    const { data, headers }: { data: T[]; headers: Headers } = await apiFetchWithHeaders<T[]>(next);
+    rows.push(...(data ?? []));
+    const link = nextLink(headers);
+    next = link !== null && link.startsWith("/api/v1/") ? link : null;
+  }
+  return rows;
 }

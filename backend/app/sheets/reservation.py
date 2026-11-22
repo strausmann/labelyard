@@ -666,7 +666,7 @@ async def release(session: AsyncSession, job_id: UUID, *, bus: EventBus | None =
                 if sheet is None
                 else await session.get(SheetTypeVersion, sheet.type_version_id)
             )
-            if sheet is None or version is None:  # foreign keys make this unreachable
+            if sheet is None or version is None:  # a sheet purged since (#204); the version is a FK
                 continue
             total = cell_count(version_geometry(version))
             remaining = len(await repo.cells_of(session, sheet_id))

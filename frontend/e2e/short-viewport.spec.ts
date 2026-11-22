@@ -404,6 +404,28 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await page.keyboard.press("Escape");
       });
 
+      test("purge dialog days field and footer in view", async () => {
+        await prepare(mode);
+        await page.goto("/sheets");
+        await page.getByRole("button", { name: "Purge discarded sheets" }).click();
+        const dialog = dialogOf(page);
+        await expect(dialog).toBeVisible();
+        const days = dialog.getByLabel("Discarded more than (days) ago");
+        await days.click();
+        await keyboard(mode);
+        await page.keyboard.press("End");
+        await page.keyboard.type("0");
+        await expectInSight(page, frameOf(dialog), "the dialog");
+        await days.scrollIntoViewIfNeeded();
+        await expectInSight(page, days, "the days field");
+        const check = buttonIn(dialog, "Check what would go");
+        await check.scrollIntoViewIfNeeded();
+        await expectInSight(page, check, "the Check button");
+        await buttonIn(dialog, "Cancel").scrollIntoViewIfNeeded();
+        await expectInSight(page, buttonIn(dialog, "Cancel"), "the Cancel button");
+        await page.keyboard.press("Escape");
+      });
+
       /** #350: the add dialog with the 3490 type (its code goes on the back), handed over to the activation steps. */
       async function openActivation() {
         const dialog = await openAddSheet();

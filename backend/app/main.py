@@ -170,6 +170,7 @@ from app.services.producers.print_queue_producer import PrintQueueProducer
 from app.services.producers.printer_pause_producer import PrinterPauseProducer
 from app.services.readiness import build_readiness_response
 from app.settings_store import SettingsStore
+from app.sheets import limits as sheet_limits
 from app.sheets.back_side import render_sheet_back_page, render_tray_loading_page
 from app.sheets.grocy_sheet import GrocySheetLabels
 from app.sheets.outcome import SheetCellsOutcome, sweep_orphan_reservations
@@ -363,6 +364,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     # #405: the number of concurrent renders follows the setting (applies once idle).
     render_slots.bind_max_concurrent(lambda: int(settings_store.get("render.max_concurrent")))
+    # #204: the caps on active sheets follow the settings live.
+    _previous_sheet_caps = sheet_limits.bind_caps(
+        lambda: sheet_limits.SheetCaps(
+            max_active=int(settings_store.get("sheets.max_active")),
+            max_active_per_type=int(settings_store.get("sheets.max_active_per_type")),
+        )
+    )
     # -------------------------------------------------------------------------
 
     # Phase 2: JobStore + CleanupTask
@@ -467,6 +475,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # already been closed.
         IntegrationRegistry.clear()
         integration_links.bind_settings(_previous_link_settings)
+        sheet_limits.bind_caps(_previous_sheet_caps)
 
 
 class _LifespanManager:

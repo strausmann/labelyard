@@ -8,6 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - **Status:** Accepted
 - **Date:** 2026-11-10
 - **Deciders:** maintainer
+- **Decision labels:** D31
+- **Amended:** 2026-11-22 (#204) — compatibility rules within `/api/v1`: additive fields, bounded lists with a `Link` header (`GET /api/v1/sheets` at most 500 rows), tolerated and tightened request changes with upgrade notes (D31), see "Amendment — 2026-11-22" at the end
 - **Related:** [0011](0011-openapi-as-api-contract.md) (OpenAPI is the contract); the paths quoted in older ADRs are the original ones (#226)
 
 ## Context
@@ -58,3 +60,14 @@ The guard test walks the real route table, recursing into included routers (a na
 - Issue: #226
 - Guard test: `backend/tests/integration/api/test_route_versioning.py`
 - Related ADRs: [0011](0011-openapi-as-api-contract.md), [0015](0015-single-process-deployment.md)
+
+## Amendment — 2026-11-22 (#204): compatibility within `/api/v1` (D31)
+
+The decision above fixes where the contract lives; it said nothing about how a route may change while it stays at `v1`. 1.8.0 needs that answer: the sheet list must be bounded (#204), and several requests are tightened. The rules for every change within `/api/v1` (spec 3.2 of the 1.8.0 design):
+
+- **Responses only grow.** No response field is removed or renamed. A new field is additive and has a default, so a client that ignores it keeps working. Where a field's meaning would change, a new field is added and the old one keeps its meaning, with a description that points to the new one.
+- **A list is bounded opt-in or with a `Link` header, never by changing the body.** A list that has to be bounded keeps its body a plain JSON array and names the next page in a `Link: <…>; rel="next"` header (RFC 8288, a relative reference with the other query parameters kept, `backend/app/api/pagination.py`); `limit` and `offset` are query parameters. `GET /api/v1/sheets` is the first: at most 500 rows per request (default and largest `limit`), with the order and every filter applied in SQL before the page is cut. A bounded default instead of opt-in because the bound protects the hub for every caller (#204: 20,000 sheets); 500 lies above the default per-type cap of active sheets (200), so an ordinary installation never sees a second page.
+- **A loosening, a tolerated request change and a tightening are allowed in a minor release, each with an upgrade note** (`website/src/content/docs/admin/upgrades/`, English and German). A loosening accepts what was refused (deleting a seeded type) or bounds an answer (the sheet list). A tolerated change ignores a part of a request in favour of the server's own value (the preview's `data.qr_payload` when `item` is sent). A tightening refuses a value that was accepted but wrong or unsafe (user info in URLs, invisible format characters, an oversized corner radius); it is released as a `fix`.
+- **Anything else is a new route or a new version.** A response field removed or renamed, a changed body shape or a changed meaning of an existing field does not ship under `/api/v1`.
+
+The generated client (`frontend/src/api/schema.gen.ts`) and the OpenAPI document (ADR 0011) describe the headers of a bounded list; the web UI follows `Link` where it needs every row (`fetchAllPages` in `frontend/src/api/client.ts`).

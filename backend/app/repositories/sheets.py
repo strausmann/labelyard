@@ -12,10 +12,24 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, case, exists, func, literal_column, select
+from sqlalchemy import (
+    ColumnElement,
+    and_,
+    case,
+    delete,
+    exists,
+    false,
+    func,
+    literal_column,
+    not_,
+    or_,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
@@ -95,43 +109,174 @@ async def counter(session: AsyncSession, prefix: str) -> SheetIdCounter | None:
     return await session.get(SheetIdCounter, prefix, populate_existing=True)
 
 
-def _count_state(state: str) -> ColumnElement[int]:
-    return func.coalesce(func.sum(case((col(SheetCell.state) == state, 1), else_=0)), 0)
+def _cell_count(state: str) -> Any:
+    """The sheet's cells in ``state``, correlated to the outer ``sheets`` row.
+
+    A lookup on the ``(sheet_id, cell_no)`` primary key per sheet, never a pass over every row of
+    ``sheet_cells`` (#204: a list request costs the sheets it looks at, not the whole archive).
+    """
+    return (
+        select(func.count())
+        .select_from(SheetCell)
+        .where(col(SheetCell.sheet_id) == col(Sheet.id), col(SheetCell.state) == state)
+        .correlate(Sheet)
+        .scalar_subquery()
+    )
+
+
+@dataclass(frozen=True)
+class SheetListFilter:
+    """What ``GET /api/v1/sheets`` narrows by; every part runs in SQL (#204)."""
+
+    type_id: UUID | None = None
+    sheet_state: str | None = None  # ``active``, ``discarded`` or ``None`` (all)
+    full: bool = False  # only active sheets without a free cell
+    q: str | None = None  # part of the code, case-insensitive
+    back_missing: bool = False  # a wanted code on the back is not confirmed yet
+    hide_used_up: bool = False  # leave out active sheets without a free cell
+
+
+def _listing(f: SheetListFilter) -> tuple[Any, ColumnElement[int], ColumnElement[bool]]:
+    """The sheet rows with their counts, narrowed by ``f`` except ``hide_used_up``.
+
+    Returns the statement, the free-cell expression (cells of the pinned version minus the
+    used, reserved and unconfirmed ones) and the "used up" condition (active, nothing free).
+    """
+    used = _cell_count("used")
+    reserved = _cell_count("reserved")
+    unconfirmed = _cell_count("unconfirmed")
+    free = col(SheetTypeVersion.cols) * col(SheetTypeVersion.rows) - used - reserved - unconfirmed
+    used_up = and_(col(Sheet.state) == "active", free <= 0)
+    stmt = (
+        select(Sheet, SheetType, SheetTypeVersion, used, reserved, unconfirmed)
+        .join(SheetType, col(SheetType.id) == col(Sheet.type_id))
+        .join(SheetTypeVersion, col(SheetTypeVersion.id) == col(Sheet.type_version_id))
+    )
+    if f.type_id is not None:
+        stmt = stmt.where(col(Sheet.type_id) == f.type_id)
+    if f.sheet_state is not None:
+        stmt = stmt.where(col(Sheet.state) == f.sheet_state)
+    if f.full:
+        stmt = stmt.where(used_up)
+    if f.q:
+        stmt = stmt.where(func.lower(col(Sheet.code)).contains(f.q.lower(), autoescape=True))
+    if f.back_missing:  # the rule of ``sheet_service.back_side_missing``
+        stmt = stmt.where(
+            col(Sheet.state) == "active",
+            or_(
+                and_(col(Sheet.id_placement) == "back_side", col(Sheet.id_printed).is_(false())),
+                and_(
+                    col(Sheet.id_placement) != "back_side",
+                    col(Sheet.back_side_state) == "pending",
+                ),
+            ),
+        )
+    return stmt, free, used_up
+
+
+_ListRow = tuple[Sheet, SheetType, SheetTypeVersion, int, int, int]
+
+
+def _rows(result: Any) -> list[_ListRow]:
+    return [(row[0], row[1], row[2], int(row[3]), int(row[4]), int(row[5])) for row in result.all()]
 
 
 async def list_with_counts(
     session: AsyncSession, *, type_id: UUID | None, sheet_state: str | None
-) -> Sequence[tuple[Sheet, SheetType, SheetTypeVersion, int, int, int]]:
-    """Sheets with type, pinned version and the number of used/reserved/unconfirmed cells."""
-    counts = (
-        select(
-            col(SheetCell.sheet_id).label("sid"),
-            _count_state("used").label("used"),
-            _count_state("reserved").label("reserved"),
-            _count_state("unconfirmed").label("unconfirmed"),
+) -> Sequence[_ListRow]:
+    """Sheets with type, pinned version and the number of used/reserved/unconfirmed cells.
+
+    Unordered and unbounded: for one type's active sheets only, which the per-type cap bounds.
+    """
+    stmt, _free, _used_up = _listing(SheetListFilter(type_id=type_id, sheet_state=sheet_state))
+    return _rows(await session.execute(stmt))
+
+
+async def list_page(
+    session: AsyncSession,
+    f: SheetListFilter,
+    *,
+    free_at_least: int,
+    limit: int,
+    offset: int,
+) -> tuple[list[_ListRow], bool]:
+    """One page in the OC-34 order: rows with ``free >= free_at_least`` first, then most free,
+    then (length, code) so a five-digit code comes after the four-digit ones (264-05).
+
+    Returns the rows and whether more follow (one row more is read to know).
+    """
+    rows = _rows(
+        await session.execute(
+            page_statement(f, free_at_least=free_at_least, limit=limit, offset=offset)
         )
-        .group_by(col(SheetCell.sheet_id))
-        .subquery()
     )
-    stmt = (
-        select(
-            Sheet,
-            SheetType,
-            SheetTypeVersion,
-            func.coalesce(counts.c.used, 0),
-            func.coalesce(counts.c.reserved, 0),
-            func.coalesce(counts.c.unconfirmed, 0),
+    return rows[:limit], len(rows) > limit
+
+
+def page_statement(f: SheetListFilter, *, free_at_least: int, limit: int, offset: int) -> Any:
+    """The statement of ``list_page``: one row more than ``limit``, to know whether more follow."""
+    stmt, free, used_up = _listing(f)
+    if f.hide_used_up:
+        stmt = stmt.where(not_(used_up))
+    return (
+        stmt.order_by(
+            case((free >= free_at_least, 0), else_=1),
+            free.desc(),
+            func.length(col(Sheet.code)),
+            col(Sheet.code),
         )
-        .join(SheetType, col(SheetType.id) == col(Sheet.type_id))
-        .join(SheetTypeVersion, col(SheetTypeVersion.id) == col(Sheet.type_version_id))
-        .outerjoin(counts, counts.c.sid == col(Sheet.id))
+        .limit(limit + 1)
+        .offset(offset)
     )
+
+
+async def count_used_up(session: AsyncSession, f: SheetListFilter) -> int:
+    """How many sheets matching ``f`` are used up (what ``hide_used_up`` leaves out)."""
+    result = await session.execute(used_up_count_statement(f))
+    return int(result.scalar_one())
+
+
+def used_up_count_statement(f: SheetListFilter) -> Any:
+    """The statement of ``count_used_up``."""
+    stmt, _free, used_up = _listing(f)
+    inner = stmt.where(used_up).with_only_columns(col(Sheet.id)).subquery()
+    return select(func.count()).select_from(inner)
+
+
+async def count_active(session: AsyncSession, type_id: UUID | None = None) -> int:
+    """Active sheets of the hub, or of one type (the caps, #204)."""
+    stmt = select(func.count()).select_from(Sheet).where(col(Sheet.state) == "active")
     if type_id is not None:
         stmt = stmt.where(col(Sheet.type_id) == type_id)
-    if sheet_state is not None:
-        stmt = stmt.where(col(Sheet.state) == sheet_state)
-    result = await session.execute(stmt)
-    return [(row[0], row[1], row[2], int(row[3]), int(row[4]), int(row[5])) for row in result.all()]
+    return int((await session.execute(stmt)).scalar_one())
+
+
+async def purge_candidates(
+    session: AsyncSession, *, discarded_before: datetime, limit: int
+) -> tuple[list[tuple[UUID, str]], bool]:
+    """Discarded sheets discarded before the cut-off, oldest first, and whether more match."""
+    result = await session.execute(
+        select(col(Sheet.id), col(Sheet.code))
+        .where(
+            col(Sheet.state) == "discarded",
+            col(Sheet.discarded_at).is_not(None),
+            col(Sheet.discarded_at) < discarded_before,
+        )
+        .order_by(col(Sheet.discarded_at), col(Sheet.code))
+        .limit(limit + 1)
+        .execution_options(**_FRESH)
+    )
+    rows = [(sid, code) for sid, code in result.all()]
+    return rows[:limit], len(rows) > limit
+
+
+async def delete_sheets(session: AsyncSession, sheet_ids: Sequence[UUID]) -> None:
+    """Delete the sheets and their cells; the prefix counters stay as they are."""
+    ids = list(sheet_ids)
+    for start in range(0, len(ids), _JOB_CHUNK):
+        chunk = ids[start : start + _JOB_CHUNK]
+        await session.execute(delete(SheetCell).where(col(SheetCell.sheet_id).in_(chunk)))
+        await session.execute(delete(Sheet).where(col(Sheet.id).in_(chunk)))
 
 
 async def cells_by_ref(

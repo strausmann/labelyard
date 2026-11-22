@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from app.render_limits import DEFAULT_MAX_CONCURRENT_RENDERS
 from app.services.errors import DEFAULT_LOOKUP_BATCH_DEADLINE_S
+from app.sheets.limits import DEFAULT_MAX_ACTIVE, DEFAULT_MAX_ACTIVE_PER_TYPE
 
 Kind = Literal["str", "int", "float", "bool", "url", "secret", "enum"]
 
@@ -147,6 +148,9 @@ _DEFS: list[SettingDef] = [
     SettingDef(
         "render.max_concurrent", "int", DEFAULT_MAX_CONCURRENT_RENDERS, "render_max_concurrent"
     ),
+    # #204: caps on active sheets (1 to 10000), checked when a sheet is created.
+    SettingDef("sheets.max_active", "int", DEFAULT_MAX_ACTIVE, None),
+    SettingDef("sheets.max_active_per_type", "int", DEFAULT_MAX_ACTIVE_PER_TYPE, None),
 ]
 
 SETTINGS: dict[str, SettingDef] = {d.key: d for d in _DEFS}

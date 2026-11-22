@@ -71,6 +71,8 @@ def test_registry_has_exactly_the_specified_keys() -> None:
         "render.max_concurrent",
         "access.webhook_api_key",
         "jobs.retention_days",
+        "sheets.max_active",
+        "sheets.max_active_per_type",
         "integrations.grocy.label.enabled",
         "integrations.grocy.label.printer",
         "integrations.grocy.label.sheet_type",
