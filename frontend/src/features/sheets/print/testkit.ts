@@ -50,6 +50,7 @@ export function previewPage(code: string | null, fresh: number[], used: number[]
         purpose: index >= 0 ? `Flour ${index + 1}` : used.includes(cell) ? `Grocy · item ${cell}` : null,
         is_id: false,
         hw_margin: false,
+        qr_withheld: false,
         mapped: false,
         truncated: false,
       };

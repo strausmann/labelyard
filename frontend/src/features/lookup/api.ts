@@ -52,7 +52,7 @@ export function usePreviewImage(item: LookupResult, contentType: ContentType, ta
   const asked = JSON.parse(settled) as LayoutOptions | null;
   const swatch = swatchOf(item);
   const query = useQuery({
-    queryKey: ["preview", item.app, item.id, item.name, item.url, contentType, tapeMm, settled, JSON.stringify(swatch ?? null)],
+    queryKey: ["preview", item.app, item.id, item.name, contentType, tapeMm, settled, JSON.stringify(swatch ?? null)],
     queryFn: () =>
       apiFetch<Blob>("/api/v1/render/preview", {
         method: "POST",
@@ -64,10 +64,12 @@ export function usePreviewImage(item: LookupResult, contentType: ContentType, ta
           data: {
             title: item.name,
             primary_id: item.id,
-            qr_payload: item.url,
             secondary: secondaryOf(item),
             ...(contentType === "spool_swatch" && swatch !== undefined ? { swatch } : {}),
           },
+          // #247: the hub looks the item up and draws the code a print of it carries; `item.url`
+          // is only the public link and is null without a web address.
+          item: { app: item.app, id: item.id },
         },
       }).then(toDataUrl),
     retry: false,

@@ -49,6 +49,9 @@ describe("the QL 62 mm layout choice in the cart", () => {
       layout_preset: "small_qr",
       data: { title: "Cordless drill", primary_id: "42", secondary: ["Shelf 3"] },
     });
+    // #247: the hub draws the item's printed code; the client sends the item, not a payload.
+    expect(preview.item).toMatchObject({ id: "42" });
+    expect(preview.data).not.toHaveProperty("qr_payload");
     await userEvent.click(screen.getByRole("radio", { name: "Standard" }));
     await userEvent.click(screen.getByRole("button", { name: "Print 3 labels" }));
     await screen.findByText(/3 labels sent to Office QL-820NWB/);

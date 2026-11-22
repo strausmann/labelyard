@@ -250,3 +250,17 @@ def test_preview_qr_for_follows_who_may_print() -> None:
     web = preview_qr_for(_auth("read"), "snipeit", payload, _settings(snipeit=SNIPE_WEB))
     assert web == (f"{SNIPE_WEB}/hardware/42", False)
     assert preview_qr_for(_auth("read"), "snipeit", None, _settings()) == (None, False)
+
+
+def test_a_base_that_is_its_own_web_address_is_public() -> None:
+    """Codex P2: ``url`` and ``web_url`` the same address: that address is not internal."""
+    public = "https://inventory.example.invalid"
+    settings = _Settings(
+        {"integrations.snipeit.url": public, "integrations.snipeit.web_url": f"{public}/"}
+    )
+    payload = f"{public}/hardware/42"
+    assert web_link_for("snipeit", payload, settings) == payload
+    assert redact_for(_auth("read"), "snipeit", payload, settings) == payload
+    # Another integration's internal base still counts.
+    leaky = _Settings({**settings._values, "integrations.grocy.url": GROCY})
+    assert redact_for(_auth("read"), "manual", f"{GROCY}/product/1", leaky) is None

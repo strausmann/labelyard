@@ -214,7 +214,8 @@ describe("the spool label of a Spoolman item (#346)", () => {
     await renderApp({ path: "/spool/7" });
     await screen.findByRole("img", { name: "Label preview" });
     const body = previews(calls).at(-1)!;
-    expect(body).toMatchObject({ content_type: "spool_swatch", tape_mm: 62, data: { swatch: SWATCH, qr_payload: "https://spoolman.example.invalid/spool/show/7" } });
+    expect(body).toMatchObject({ content_type: "spool_swatch", tape_mm: 62, data: { swatch: SWATCH }, item: { app: "spoolman", id: "7" } });
+    expect(body.data).not.toHaveProperty("qr_payload"); // #247: the hub draws the printed code
     expect(screen.getByRole("combobox", { name: "Layout" })).toHaveValue("spool_swatch");
   });
 

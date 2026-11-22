@@ -167,16 +167,19 @@ def printed_label(
 def _markers(settings: SettingsLike) -> list[str]:
     """Case-folded strings that betray an internal base: the base itself and its ``//host``.
 
-    The host is left out when the integration's web address uses the same host: it is public then.
+    The host is left out when the integration's web address uses the same host, and the base
+    altogether when it is the web address itself: it is public then.
     """
     found: list[str] = []
     for name in INTEGRATIONS:
         base = _internal_base(name, settings)
         if not base:
             continue
+        web = _web_base(name, settings)
+        if web and _strip_one_slash(web).casefold() == base.casefold():
+            continue  # the operator declared this base public: it is its own web address
         found.append(base.casefold())
         netloc = urlsplit(base).netloc.casefold()
-        web = _web_base(name, settings)
         if netloc and (not web or urlsplit(web).netloc.casefold() != netloc):
             found.append("//" + netloc)
     return found

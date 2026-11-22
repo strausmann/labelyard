@@ -380,6 +380,7 @@ export const sheetPreview = (over: Partial<Schemas["SheetPreview"]> = {}): Schem
         purpose: null,
         is_id: false,
         hw_margin: false,
+        qr_withheld: false,
         mapped: true,
         truncated: false,
       })),
