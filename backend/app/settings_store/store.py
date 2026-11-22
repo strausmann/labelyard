@@ -149,6 +149,9 @@ def _validate(d: SettingDef, value: Any) -> Any:
             raise bad("must be an http(s) URL")
         if parts.username is not None or parts.password is not None:
             raise bad("credentials in the URL are not allowed")
+        if d.key.endswith(".web_url") and ("?" in text or "#" in text):
+            # #247: a web address is a base; links append the item's path, query and fragment.
+            raise bad("a web address has no query or fragment")
         if any(c.isspace() for c in text):
             raise bad("not a valid URL")
         return _norm_url(text)

@@ -20,16 +20,22 @@ from app.integrations.links import redact_job_payload
 from app.schemas.job import JobRead
 
 
+def job_payload(
+    payload: dict[str, Any], auth: AuthContext | None, request: Request
+) -> dict[str, Any]:
+    """A stored job ``payload`` as ``auth`` may see it, for answers that are not ``JobRead``."""
+    caller = auth or AuthContext(source="api-key", scope="read", api_key_id=None, ip="")
+    settings = getattr(request.app.state, "settings_store", None)
+    return redact_job_payload(caller, payload, settings)
+
+
 def redacted(read: JobRead, auth: AuthContext | None, request: Request) -> JobRead:
     """``read`` with its payload as ``auth`` may see it.
 
     ``None`` (no auth context) only occurs where a test overrides the scope dependency
     (see ``owner_only``); it is treated as a caller that is not an admin.
     """
-    caller = auth or AuthContext(source="api-key", scope="read", api_key_id=None, ip="")
-    settings = getattr(request.app.state, "settings_store", None)
-    payload = redact_job_payload(caller, read.payload, settings)
-    return read.model_copy(update={"payload": payload})
+    return read.model_copy(update={"payload": job_payload(read.payload, auth, request)})
 
 
 def job_read(job: Any, auth: AuthContext | None, request: Request) -> JobRead:

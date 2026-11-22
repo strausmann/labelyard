@@ -286,3 +286,93 @@ def test_a_web_address_under_the_internal_base_is_not_rebased_twice() -> None:
         )
         is None
     )
+
+
+# -- fix round 1 ------------------------------------------------------------------------
+
+
+def test_stored_payload_after_a_base_change_is_null_for_non_admins() -> None:
+    """A job printed under an old base names no current base: not trusted, answered null."""
+    old = "http://old-snipe.internal.example.invalid/hardware/42"
+    assert redact_for(_auth("read"), "snipeit", old, _settings()) is None
+    assert redact_for(_auth("read"), "snipeit", old, _settings(snipeit=SNIPE_WEB)) is None
+    # An older web form after the web address moved is not current either.
+    moved = "https://old-inventory.example.invalid/hardware/42"
+    assert redact_for(_auth("read"), "snipeit", moved, _settings(snipeit=SNIPE_WEB)) is None
+    assert redact_for(_auth("admin"), "snipeit", old, _settings()) == old
+
+
+def test_stored_payload_of_a_cleared_integration_is_null() -> None:
+    cleared = _Settings({"integrations.grocy.url": GROCY})  # Snipe-IT has no base any more
+    payload = f"{SNIPE}/hardware/42"
+    assert redact_for(_auth("read"), "snipeit", payload, cleared) is None
+
+
+def test_grocy_codes_and_manual_labels_keep_their_payload() -> None:
+    reader = _auth("read")
+    assert redact_for(reader, "grocy", "grcy:p:7", _settings()) == "grcy:p:7"
+    assert redact_for(reader, "manual", "https://example.invalid/m", _settings()) == (
+        "https://example.invalid/m"
+    )
+    assert redact_for(reader, "hub", "https://hub.example.invalid/s/AT1-0001", _settings()) == (
+        "https://hub.example.invalid/s/AT1-0001"
+    )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "https://pub.example.invalid/?a=1",
+        "https://pub.example.invalid/#f",
+        "https://pub.example.invalid?",
+    ],
+)
+def test_web_url_with_query_or_fragment_is_refused(bad: str) -> None:
+    with pytest.raises(InvalidSettingValueError):
+        _validate(SETTINGS["integrations.snipeit.web_url"], bad)
+    assert web_link_for("snipeit", f"{SNIPE}/hardware/1", _settings(snipeit=bad)) is None
+
+
+def test_environment_web_url_loses_every_trailing_slash() -> None:
+    settings = _settings(snipeit="https://pub.example.invalid//")
+    assert web_link_for("snipeit", f"{SNIPE}/hardware/1", settings) == (
+        "https://pub.example.invalid/hardware/1"
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "http://x@snipe.internal.example.invalid/h",
+        "http://snipe%2Einternal%2Eexample%2Einvalid/h",
+        "https://ok.example.invalid/?u=http%3A%2F%2Fsnipe.internal.example.invalid%2Fh",
+        "http://SNIPE.internal.example.invalid./h",
+        "http://snipe.internal.example.invalid:8443/h",
+    ],
+)
+def test_internal_host_is_found_in_every_spelling(payload: str) -> None:
+    assert redact_for(_auth("read"), "manual", payload, _settings()) is None
+
+
+def test_unicode_and_punycode_hosts_are_the_same_host() -> None:
+    uni = _Settings({"integrations.snipeit.url": "http://bücher.internal.example.invalid"})
+    puny = _Settings({"integrations.snipeit.url": "http://xn--bcher-kva.internal.example.invalid"})
+    reader = _auth("read")
+    assert (
+        redact_for(reader, "manual", "http://xn--bcher-kva.internal.example.invalid/x", uni) is None
+    )
+    assert redact_for(reader, "manual", "http://bücher.internal.example.invalid/x", puny) is None
+
+
+def test_the_longer_prefix_wins() -> None:
+    """The internal base lies under the web host: a payload under it is internal, not public."""
+    settings = _Settings(
+        {
+            "integrations.snipeit.url": "https://inv.example.invalid/internal-api",
+            "integrations.snipeit.web_url": "https://inv.example.invalid",
+        }
+    )
+    payload = "https://inv.example.invalid/internal-api/hardware/1"
+    assert redact_for(_auth("read"), "snipeit", payload, settings) == (
+        "https://inv.example.invalid/hardware/1"
+    )

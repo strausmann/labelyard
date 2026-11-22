@@ -62,9 +62,18 @@ addresses are only answered to admin callers.
   `qr_payload` in a job payload (tape `label_data`, `detail.cells[].label_data`,
   `detail.id_cell.label_data` and each `label_data.items[]` row) is answered in its web form when
   `web_url` is set and as `null` when it is not (`redact_for`, `redact_job_payload`). This holds
-  for the job list, the job detail and every other route that answers a job. A payload that
-  carries no internal base address of any integration (a manual URL, a Grocy code) is answered
-  unchanged. The stored row is never changed; an admin sees it as stored.
+  for the job list, the job detail, a printer's queue and every other route that answers a job.
+  A label of a looked-up integration is trusted only under that integration's **current**
+  addresses: a payload stored under an earlier base, or of an integration that was cleared since,
+  is `null`. A payload of any other label (`manual`, `hub`) that carries no internal base of any
+  integration, and a Grocy code, is answered unchanged. An internal host is recognised in every
+  spelling (case, trailing dot, user info, port, percent-encoding, IDNA), and the longer of two
+  matching prefixes decides whether a payload is public or internal. The stored row is never
+  changed; an admin sees it as stored.
+- **Two rules, on purpose.** Job answers are redacted for every scope below `admin`, print keys
+  and SSO users included, while the previews show the printed code to every caller that may
+  print: a job answer is history anyone with read access can list, a preview is the picture of
+  paper the caller could print anyway. Both are safe; the difference is by design.
 
 - **The preview image is a response too.** `POST /api/v1/render/preview` and
   `POST /api/v1/print/{printer}/sheet/preview` are open to read scope (`Depends(require_read)`).

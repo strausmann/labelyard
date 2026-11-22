@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
 from app.api.dependencies.printer_runtime import get_printer_runtime
+from app.api.job_views import job_payload
 from app.api.routes.pause_view import pause_view
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.ownership import may_see, owner_only
@@ -649,6 +650,7 @@ async def get_printer_tape(
     ),
 )
 async def get_printer_queue(
+    request: Request,
     printer_id: UUID,
     session: SessionDep,
     _auth: ReadAuthDep,
@@ -670,7 +672,7 @@ async def get_printer_queue(
             "printer_id": str(j.printer_id),
             "template_key": j.template_key,
             "state": j.state,
-            "payload": j.payload,
+            "payload": job_payload(j.payload, _auth, request),  # ADR 0033
             "created_at": j.created_at.isoformat(),
         }
         for j in printer_jobs

@@ -21,11 +21,14 @@ startup (:func:`bind_settings`, like ``lookup_gate.bind_batch_deadline``); route
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import re
 from typing import TYPE_CHECKING, Any, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from app.integrations.urls import base_url
+from app.schemas.grocy_label import is_grocycode
 from app.settings_store.registry import INTEGRATIONS, SETTINGS
 
 if TYPE_CHECKING:
@@ -69,8 +72,10 @@ def check_web_url(raw: str) -> str:
 
     The settings validator refuses a bad value on write; an environment value bypasses it
     (``LABELYARD_<NAME>_WEB_URL``), so the same rules are applied again here: http or https,
-    a host, no user info, no whitespace, at most :data:`MAX_WEB_URL_LENGTH` characters. Task 6b
-    of 1.8.0 replaces this local check with ``check_http_url`` once that is tightened.
+    a host, no user info, no query or fragment, no whitespace, at most
+    :data:`MAX_WEB_URL_LENGTH` characters; every trailing slash is stripped, like the validator
+    does. Task 6b of 1.8.0 replaces this local check with ``check_http_url`` once that is
+    tightened.
     """
     text = raw.strip()
     if not text or len(text) > MAX_WEB_URL_LENGTH or any(c.isspace() for c in text):
@@ -84,7 +89,9 @@ def check_web_url(raw: str) -> str:
         return ""
     if parts.username is not None or parts.password is not None:
         return ""
-    return text
+    if "?" in text or "#" in text:  # a base address carries no query and no fragment
+        return ""
+    return text.rstrip("/")
 
 
 def _strip_one_slash(url: str) -> str:
@@ -164,25 +171,83 @@ def printed_label(
     return label.model_copy(update={"qr_payload": payload})
 
 
-def _markers(settings: SettingsLike) -> list[str]:
-    """Case-folded strings that betray an internal base: the base itself and its ``//host``.
+def _host_forms(host: str) -> set[str]:
+    """A host in every spelling that names it: lower case, no trailing dot, Unicode and IDNA."""
+    plain = host.casefold().rstrip(".")
+    forms = {plain}
+    with contextlib.suppress(UnicodeError):
+        forms.add(plain.encode("idna").decode("ascii"))
+    with contextlib.suppress(UnicodeError):
+        forms.add(plain.encode("ascii").decode("idna"))
+    return {f for f in forms if f}
 
-    The host is left out when the integration's web address uses the same host, and the base
-    altogether when it is the web address itself: it is public then.
+
+def _markers(settings: SettingsLike) -> tuple[list[str], list[re.Pattern[str]]]:
+    """What betrays an internal base: the base itself, and its host in any spelling.
+
+    The host counts wherever it follows ``//`` or ``@`` (user info), with or without a port or a
+    trailing dot. It is left out when the integration's web address uses the same host, and the
+    base altogether when it is the web address itself: it is public then.
     """
-    found: list[str] = []
+    bases: list[str] = []
+    hosts: list[re.Pattern[str]] = []
     for name in INTEGRATIONS:
         base = _internal_base(name, settings)
         if not base:
             continue
         web = _web_base(name, settings)
-        if web and _strip_one_slash(web).casefold() == base.casefold():
+        if web and web.casefold() == base.casefold():
             continue  # the operator declared this base public: it is its own web address
-        found.append(base.casefold())
-        netloc = urlsplit(base).netloc.casefold()
-        if netloc and (not web or urlsplit(web).netloc.casefold() != netloc):
-            found.append("//" + netloc)
-    return found
+        bases.append(base.casefold())
+        host = urlsplit(base).hostname or ""
+        web_host = (urlsplit(web).hostname or "") if web else ""
+        if not host or (web_host and _host_forms(web_host) & _host_forms(host)):
+            continue
+        for form in _host_forms(host):
+            hosts.append(re.compile(r"(?://|@)" + re.escape(form) + r"\.?(?=[:/?#\\]|$)"))
+    return bases, hosts
+
+
+def _names_internal(text: str, settings: SettingsLike) -> bool:
+    """Whether ``text`` (also percent-decoded, twice) names an internal base or host."""
+    bases, hosts = _markers(settings)
+    seen = {text}
+    current = text
+    for _ in range(2):
+        current = unquote(current)
+        seen.add(current)
+    for variant in seen:
+        folded = variant.casefold()
+        if any(b in folded for b in bases) or any(h.search(folded) for h in hosts):
+            return True
+    return False
+
+
+def _longest_prefix(
+    payload: str, names: list[str], settings: SettingsLike
+) -> tuple[str, str, str] | None:
+    """``(kind, name, rest)`` of the longest base ``payload`` lies under (``web`` or ``internal``).
+
+    The longer prefix wins: an internal base under the web host (``https://h/api`` below
+    ``https://h``) is internal, a web address under the internal base is public.
+    """
+    best: tuple[int, str, str, str] | None = None
+    for name in names:
+        for kind, base in (
+            ("web", _web_base(name, settings)),
+            ("internal", _internal_base(name, settings)),
+        ):
+            rest = _remainder(payload, base) if base else None
+            if rest is not None:
+                length = len(_strip_one_slash(base))
+                if best is None or length > best[0]:
+                    best = (length, kind, name, rest)
+    return None if best is None else best[1:]
+
+
+def _lookup_apps() -> list[str]:
+    """The integrations whose items are looked up and printed: those with a web address."""
+    return [n for n in INTEGRATIONS if web_url_key(n) in SETTINGS]
 
 
 def redact_for(
@@ -190,37 +255,42 @@ def redact_for(
 ) -> str | None:
     """``payload`` as a caller with ``auth`` may see it (ADR 0033).
 
-    Admins see it unchanged. For anyone else a payload under an internal base address (of
-    ``app`` first, then of any other integration: a manual label can carry any of them) is
-    answered in its web form, or ``None`` when that integration has no web address; a payload
-    that still names an internal base anywhere (another case, inside a query) is ``None``. A
-    payload without an internal address (a manual URL, a Grocy code) stays.
+    Admins see it unchanged. For anyone else:
+
+    - a label of a looked-up integration (``app`` Snipe-IT, Grocy, Spoolman) is trusted only
+      under that integration's **current** addresses: under its web address it stays, under its
+      base it is answered in web form (``None`` without one); anything else, such as a job
+      printed under an earlier base or an integration that was cleared since, is ``None``. A
+      Grocy code (``grcy:…``) is not an address and stays;
+    - any other label (``manual``, ``hub``, …) is rebased the same way when it lies under some
+      integration's base (the longer prefix wins), and otherwise stays.
+
+    In both cases a result that still names an internal base or host anywhere after its public
+    prefix (another case, user info, a percent-encoded query, IDNA) is ``None``.
     """
     if auth.scope == "admin" or payload is None:
         return payload
     if settings is None:
         return None  # nothing to compare against: fail closed
-    names = [app] if app in INTEGRATIONS else []
-    names += [n for n in INTEGRATIONS if n != app]
-    candidate: str | None = payload
-    checked = payload  # the part that must name no internal base (a public prefix is exempt)
-    for name in names:
-        web = _strip_one_slash(_web_base(name, settings))
-        public_rest = _remainder(payload, web) if web else None
-        if public_rest is not None:
-            # Already public (a printed payload): never rebased again, even when the web
-            # address lies under the internal base (``https://h`` and ``https://h/inv``).
-            checked = public_rest
-            break
-        rest = _remainder(payload, _internal_base(name, settings))
-        if rest is not None:
-            candidate = web + rest if web else None
-            checked = rest
-            break
-    if candidate is None:
-        return None
-    folded = checked.casefold()
-    if any(marker in folded for marker in _markers(settings)):
+    strict = app in _lookup_apps()
+    if strict and app == "grocy" and is_grocycode(payload):
+        return payload
+    names = [app] if strict and app is not None else list(INTEGRATIONS)
+    match = _longest_prefix(payload, names, settings)
+    if match is None:
+        if strict:
+            return None  # not under any current address of its own integration
+        candidate, checked = payload, payload
+    else:
+        kind, name, rest = match
+        if kind == "web":
+            candidate, checked = payload, rest  # already public: never rebased again
+        else:
+            web = _web_base(name, settings)
+            if not web:
+                return None
+            candidate, checked = web + rest, rest
+    if _names_internal(checked, settings):
         return None
     return candidate
 

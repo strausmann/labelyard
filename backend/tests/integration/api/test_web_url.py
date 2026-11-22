@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 import app.models  # noqa: F401
 import httpx
 import pytest
+from app.config import get_settings
 from app.models.job import Job as DbJob
 from httpx import AsyncClient
 from sqlalchemy import update
@@ -141,6 +142,33 @@ async def _sheet_job(printer_id: UUID, owner: UUID) -> UUID:
     return job_id
 
 
+async def _queued_job(printer_id: UUID, owner: UUID) -> UUID:
+    """A queued tape job (stored only: the worker never sees it), for the printer's queue read."""
+    import app.db.engine as eng
+
+    job_id = uuid4()
+    label = {
+        "source_app": "snipeit",
+        "title": "Queued",
+        "primary_id": "A-1",
+        "qr_payload": SNIPE + PATH["snipeit"],
+        "items": [],
+    }
+    async with eng.async_session() as s:
+        s.add(
+            DbJob(
+                id=job_id,
+                printer_id=printer_id,
+                template_key=None,
+                state="queued",
+                payload={"label_data": label, "content_type": "qr_two_lines"},
+                api_key_id=owner,
+            )
+        )
+        await s.commit()
+    return job_id
+
+
 async def _printed_jobs(client: AsyncClient, keys: Keys, hub: Hub) -> list[str]:
     """A looked-up tape item per integration, a listing label with nested items, a sheet job."""
     ids: list[str] = []
@@ -173,6 +201,7 @@ async def _printed_jobs(client: AsyncClient, keys: Keys, hub: Hub) -> list[str]:
     assert listing.status_code == 202, listing.text
     ids.append(listing.json()["job_id"])
     ids.append(str(await _sheet_job(hub.printer_id, keys.print_id)))
+    ids.append(str(await _queued_job(hub.printer_id, keys.print_id)))
     return ids
 
 
@@ -203,6 +232,10 @@ async def test_read_key_responses_contain_no_internal_base_url(hub: Hub, with_we
                 ("settings", await client.get("/api/v1/settings", headers=h(key))),
                 ("info", await client.get("/api/v1/info", headers=h(key))),
                 ("jobs", await client.get("/api/v1/jobs?limit=200", headers=h(key))),
+                (
+                    "queue",
+                    await client.get(f"/api/v1/printers/{hub.printer_id}/queue", headers=h(key)),
+                ),
             ]
             for job_id in ids:
                 out.append(
@@ -223,10 +256,17 @@ async def test_read_key_responses_contain_no_internal_base_url(hub: Hub, with_we
             await s.commit()
         checked += await responses(keys.read)
 
-    jobs_seen = 0
+    jobs_seen = queued_seen = 0
     for where, r in checked:
         assert r.status_code in (200, 403), f"{where}: {r.status_code}"
         assert_no_internal(where, r.text)
+        if where == "queue":
+            assert r.status_code == 200, r.text
+            for job in r.json():
+                queued_seen += 1
+                for value in _qr_payloads(job["payload"]):
+                    if value is not None:
+                        assert any(value.startswith(w.rstrip("/")) for w in WEB.values()), where
         if where.startswith("job") and r.status_code == 200:
             body = r.json()
             jobs = body if isinstance(body, list) else [body]
@@ -235,8 +275,9 @@ async def test_read_key_responses_contain_no_internal_base_url(hub: Hub, with_we
                 for value in _qr_payloads(job["payload"]):
                     if value is not None:
                         assert any(value.startswith(w.rstrip("/")) for w in WEB.values()), where
-    # Each key: 5 jobs in the list plus 5 single reads; without the walk nothing would be checked.
-    assert jobs_seen == 20
+    # Each key: 6 jobs in the list plus 6 single reads; without the walk nothing would be checked.
+    assert jobs_seen == 24
+    assert queued_seen >= 2  # the queued job, once per key
 
 
 async def test_admin_job_detail_keeps_the_payload(hub: Hub) -> None:
@@ -244,8 +285,8 @@ async def test_admin_job_detail_keeps_the_payload(hub: Hub) -> None:
     hub.web("snipeit")
     async with hub.running() as (client, keys):
         ids = await _printed_jobs(client, keys, hub)
-        r = await client.get(f"/api/v1/jobs/{ids[-1]}", headers=h(keys.admin))
-        listing = await client.get(f"/api/v1/jobs/{ids[-2]}", headers=h(keys.admin))
+        r = await client.get(f"/api/v1/jobs/{ids[-2]}", headers=h(keys.admin))
+        listing = await client.get(f"/api/v1/jobs/{ids[-3]}", headers=h(keys.admin))
     assert r.status_code == 200, r.text
     detail = r.json()["payload"]["detail"]
     assert detail["cells"][0]["label_data"]["qr_payload"] == GROCY + PATH["grocy"]
@@ -295,3 +336,22 @@ async def test_batch_read_and_retry_answers_are_redacted(hub: Hub) -> None:
     assert 200 <= retry.status_code < 300, retry.text
     assert retry.json()["payload"]["label_data"]["qr_payload"] is None
     assert_no_internal("retry", retry.text)
+
+
+async def test_a_test_print_job_names_no_printer_address(hub: Hub) -> None:
+    """The test label's code is the hub's own page of the printer (``public_url``), not the
+    printer's connection address: a print key's job answer carries neither that address nor an
+    integration base."""
+    async with hub.running() as (client, keys):
+        r = await client.post(
+            f"/api/v1/printers/{hub.printer_id}/test-print", headers=h(keys.print)
+        )
+        assert r.status_code == 202, r.text
+        job = await client.get(f"/api/v1/jobs/{r.json()['job_id']}", headers=h(keys.print))
+    assert job.status_code == 200, job.text
+    assert "198.51.100.10" not in job.text  # the printer's connection host (fixture)
+    stored = job.json()["payload"]
+    assert stored["label_data"].get("qr_payload") is None  # the label data carries no code
+    code = stored["test_label"]["qr_payload"]  # services/test_print.py: the hub's printer page
+    assert code == f"{get_settings().public_url}".rstrip("/") + f"/printers/{hub.printer_id}"
+    assert_no_internal("test print", job.text)

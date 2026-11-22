@@ -878,7 +878,13 @@ async def test_get_printer_queue_direct_returns_active_jobs(session) -> None:
     # DONE job must NOT appear
     await _make_job(session, printer.id, state=JobState.DONE.value)
 
-    result = await get_printer_queue(printer_id=printer.id, session=session, _auth=None)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+    result = await get_printer_queue(
+        request=request,  # type: ignore[arg-type]
+        printer_id=printer.id,
+        session=session,
+        _auth=None,
+    )
 
     assert isinstance(result, list)
     ids = {item["id"] for item in result}
