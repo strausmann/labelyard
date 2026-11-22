@@ -214,6 +214,48 @@ def redact_for(
     return candidate
 
 
+def may_print(auth: AuthContext) -> bool:
+    """Whether ``auth`` could print an item and so read its code from the paper anyway.
+
+    A key or session with ``print`` or ``admin`` scope; an SSO user, who is granted every scope
+    a route asks for (``require_scope``); the Basic bypass unless it is limited to ``read``.
+    """
+    if auth.source == "pangolin-sso":
+        return True
+    if auth.source == "pangolin-bypass":
+        from app.config import get_settings
+
+        return not get_settings().pangolin_bypass_scope_downgrade
+    return auth.scope in ("print", "admin")
+
+
+def qr_stand_in(payload: str) -> str:
+    """A code of the same byte length as ``payload`` and nothing in it (ADR 0033).
+
+    Lowercase letters are encoded in byte mode like an address, so the stand-in needs the same
+    QR version: a preview keeps the size and the fit of the printed code.
+    """
+    return "x" * len(payload.encode("utf-8"))
+
+
+def preview_qr_for(
+    auth: AuthContext, app: str, payload: str | None, settings: SettingsLike | None
+) -> tuple[str | None, bool]:
+    """The code a preview draws for the printed ``payload`` of an item, and whether it is withheld.
+
+    Every preview that draws an integration item's QR uses this (the tape preview and the sheet
+    preview, ADR 0033). A caller that may print sees the printed code: it could print the item
+    and read the paper. Anyone else gets :func:`redact_for` (the web form), or, while there is
+    none, :func:`qr_stand_in` with ``True`` so the answer can say so.
+    """
+    if payload is None or may_print(auth):
+        return payload, False
+    shown = redact_for(auth, app, payload, settings)
+    if shown is None:
+        return qr_stand_in(payload), True
+    return shown, False
+
+
 def _redact_label(auth: AuthContext, label: Any, settings: SettingsLike | None) -> None:
     """Redact ``label["qr_payload"]`` and every ``label["items"][i]["qr_payload"]`` in place."""
     if not isinstance(label, dict):

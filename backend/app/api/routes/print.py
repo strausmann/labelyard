@@ -20,9 +20,8 @@ from app.api.print_errors import print_error_response, print_error_responses
 from app.api.routes.lookup import answered
 from app.auth.dependencies import AuthContext, charge_lookup_fan_out, check_printer_access
 from app.auth.scope_deps import require_print, require_read
-from app.config import get_settings
 from app.db.session import get_session
-from app.integrations.links import qr_payload_for, redact_for
+from app.integrations.links import preview_qr_for, qr_payload_for
 from app.repositories import printer_state as printer_state_repo
 from app.schemas.content_type import ContentType
 from app.schemas.label_data import LabelData
@@ -49,28 +48,6 @@ _lookup_service = AppLookupService()
 
 QR_WITHHELD_HEADER = "X-Labelyard-QR"
 """Set to ``withheld`` when the preview draws a stand-in code instead of the printed one."""
-
-
-def _may_print(auth: AuthContext) -> bool:
-    """Whether ``auth`` could print the item and so read its code from the paper anyway.
-
-    A key or session with ``print`` or ``admin`` scope; an SSO user, who is granted every scope
-    a route asks for (``require_scope``); the Basic bypass unless it is limited to ``read``.
-    """
-    if auth.source == "pangolin-sso":
-        return True
-    if auth.source == "pangolin-bypass":
-        return not get_settings().pangolin_bypass_scope_downgrade
-    return auth.scope in ("print", "admin")
-
-
-def qr_stand_in(payload: str) -> str:
-    """A code of the same byte length as ``payload`` and nothing in it (ADR 0033).
-
-    Lowercase letters are encoded in byte mode like an address, so the stand-in needs the same
-    QR version: the preview keeps the size and the fit of the printed code.
-    """
-    return "x" * len(payload.encode("utf-8"))
 
 
 def _check_default_printer(http: Request, auth: AuthContext) -> None:
@@ -275,14 +252,9 @@ async def render_preview(
         found = await answered(_lookup_service.lookup(body.item.app, body.item.id))
         settings = getattr(http.app.state, "settings_store", None)
         qr_payload = qr_payload_for(body.item.app, body.item.id, found, settings)
-        if qr_payload is not None and not _may_print(_auth):
-            # A caller that cannot print must not read an internal base address from the
-            # image: the web form if there is one, else a stand-in code (header below).
-            shown = redact_for(_auth, body.item.app, qr_payload, settings)
-            if shown is None:
-                withheld = True
-                shown = qr_stand_in(qr_payload)
-            qr_payload = shown
+        # A caller that cannot print must not read an internal base address from the image:
+        # the web form if there is one, else a stand-in code (header below).
+        qr_payload, withheld = preview_qr_for(_auth, body.item.app, qr_payload, settings)
     label_data = LabelData(
         primary_id=body.data.primary_id,
         title=body.data.title,

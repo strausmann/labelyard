@@ -2906,6 +2906,12 @@ export interface components {
             /** Purpose */
             purpose: string | null;
             /**
+             * Qr Withheld
+             * @description New cells only: the picture carries a stand-in code, not the one that prints. The key may not print and the integration has no web address (#247).
+             * @default false
+             */
+            qr_withheld: boolean;
+            /**
              * State
              * @enum {string}
              */

@@ -66,13 +66,14 @@ addresses are only answered to admin callers.
   carries no internal base address of any integration (a manual URL, a Grocy code) is answered
   unchanged. The stored row is never changed; an admin sees it as stored.
 
-- **The preview image is a response too.** `POST /api/v1/render/preview` is open to read scope
-  (`Depends(require_read)`). A caller that may print (`print` or `admin` scope, an SSO user, the
+- **The preview image is a response too.** `POST /api/v1/render/preview` and
+  `POST /api/v1/print/{printer}/sheet/preview` are open to read scope (`Depends(require_read)`).
+  Both draw an item's code through one function, `preview_qr_for`. A caller that may print (`print` or `admin` scope, an SSO user, the
   Basic bypass unless it is limited to `read`) sees the code that prints: it could print the item
   and read the paper anyway. Any other caller gets the code through `redact_for`: the web form
   when there is one; while there is none the image carries a stand-in code of the same byte length
-  (the same QR version, so size and fit stay those of the print) and the answer the header
-  `X-Labelyard-QR: withheld`.
+  (the same QR version, so size and fit stay those of the print), flagged in the answer: the
+  header `X-Labelyard-QR: withheld` on the tape preview, `qr_withheld` on the sheet preview's cell.
 
 Printed paper is out of scope: it is not a response.
 

@@ -41,9 +41,10 @@ from uuid import UUID, uuid4
 from PIL import Image, ImageDraw
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.auth.dependencies import AuthContext
 from app.calibration import service as calibration_service
 from app.config import get_settings
-from app.integrations.links import bound_settings, printed_label
+from app.integrations.links import bound_settings, preview_qr_for, printed_label
 from app.models.job import Job
 from app.models.print_batch import PrintBatch
 from app.models.printer import Printer, is_page_printer
@@ -319,6 +320,25 @@ def id_cell_label(code: str, title: str, scan_payload: str) -> LabelData:
 
 
 # ---------------------------------------------------------------------------- items
+
+
+def _items_for_viewer(
+    items: list[ResolvedItem], viewer: AuthContext
+) -> tuple[list[ResolvedItem], set[int]]:
+    """The items as ``viewer`` may see them drawn, and the indexes whose code is withheld."""
+    settings = bound_settings()
+    shown: list[ResolvedItem] = []
+    withheld: set[int] = set()
+    for index, item in enumerate(items):
+        if item.lookup is None:
+            shown.append(item)  # the caller's own payload
+            continue
+        payload, hidden = preview_qr_for(viewer, item.lookup.app, item.label.qr_payload, settings)
+        if hidden:
+            withheld.add(index)
+        label = item.label.model_copy(update={"qr_payload": payload})
+        shown.append(replace(item, label=label))
+    return shown, withheld
 
 
 @dataclass(frozen=True)
@@ -1103,8 +1123,13 @@ async def preview(
     lookup: AppLookupService,
     renderer: CellRenderer,
     language: str | None,
+    viewer: AuthContext | None = None,
 ) -> SheetPreview:
     """The plan and the pictures of a sheet print, written nowhere.
+
+    ``viewer`` is the caller: one that cannot print sees a looked-up item's code only in its web
+    form, else a stand-in flagged ``qr_withheld`` on the cell (ADR 0033). ``None`` draws the
+    printed code (callers inside the hub).
 
     Order: printer kind, the page bound (a plan has one page per placement, so it is known
     before anything is read or planned), tray, sheets and the plan (only the item count is
@@ -1154,6 +1179,9 @@ async def preview(
                     for row in await repo.cells_of(session, sheet_id)
                 }
     items = await resolve_items(request.items, lookup)
+    withheld: set[int] = set()
+    if viewer is not None:
+        items, withheld = _items_for_viewer(items, viewer)
 
     pages: list[PreviewPage] = []
     taken_here: dict[int, dict[int, tuple[str, str | None]]] = {}  # earlier pages, same sheet
@@ -1205,6 +1233,7 @@ async def preview(
                         truncated=n in drawn.truncated,
                         mapped=n in mapped_cells,
                         hw_margin=n in flagged,
+                        qr_withheld=item_index in withheld,
                     )
                 )
             else:

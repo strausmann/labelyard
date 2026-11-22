@@ -2940,6 +2940,12 @@
             ],
             "title": "Purpose"
           },
+          "qr_withheld": {
+            "default": false,
+            "description": "New cells only: the picture carries a stand-in code, not the one that prints. The key may not print and the integration has no web address (#247).",
+            "title": "Qr Withheld",
+            "type": "boolean"
+          },
           "state": {
             "enum": [
               "used",

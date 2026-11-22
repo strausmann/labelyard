@@ -235,3 +235,18 @@ def test_every_integration_name_is_safe_against_the_real_store() -> None:
         "https://example.invalid/x"
     )
     assert web_link_for("paperless", "https://example.invalid/x", store) is None
+
+
+def test_preview_qr_for_follows_who_may_print() -> None:
+    from app.integrations.links import preview_qr_for
+
+    payload = f"{SNIPE}/hardware/42"
+    assert preview_qr_for(_auth("print"), "snipeit", payload, _settings()) == (payload, False)
+    assert preview_qr_for(_auth("admin"), "snipeit", payload, _settings()) == (payload, False)
+    sso = AuthContext(source="pangolin-sso", scope="read", api_key_id=None, ip="127.0.0.1")
+    assert preview_qr_for(sso, "snipeit", payload, _settings()) == (payload, False)
+    shown, withheld = preview_qr_for(_auth("read"), "snipeit", payload, _settings())
+    assert (shown, withheld) == ("x" * len(payload), True)
+    web = preview_qr_for(_auth("read"), "snipeit", payload, _settings(snipeit=SNIPE_WEB))
+    assert web == (f"{SNIPE_WEB}/hardware/42", False)
+    assert preview_qr_for(_auth("read"), "snipeit", None, _settings()) == (None, False)
