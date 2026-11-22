@@ -80,6 +80,7 @@ from app.sheets.errors import (
     SheetApiError,
     SheetDiscardedError,
     SheetPrinterDisabledError,
+    SheetPurgedError,
     SheetTypeArchivedError,
 )
 from app.sheets.grocy_sheet import is_deferred_sheet
@@ -466,7 +467,8 @@ async def resume_job(
         "``cells_taken`` (with the cell numbers) when a cell is no longer free, 409 "
         "``printer_disabled`` for a disabled printer (a calibration page too), 422 "
         "``tray_unknown`` when the tray was removed or disabled since, and 409 "
-        "``sheet_discarded`` for a discarded sheet; nothing is reserved or created in any of "
+        "``sheet_discarded`` for a discarded sheet, 409 ``sheet_purged`` "
+        "(``error_detail.sheet_code``) for a purged one; nothing is reserved or created in any of "
         "these cases.  A page with the sheet code on the back is re-sent from its payload "
         "(same strip, date and turn) while its sheet is active and still has its code on the "
         "back, else 409 ``sheet_discarded`` or ``id_placement_mismatch``; the job never marks "
@@ -765,7 +767,10 @@ async def _ensure_back_side_sheet(session: AsyncSession, payload: dict[str, Any]
     except ValueError:
         raise _stored_page_invalid() from None
     sheet = await session.get(Sheet, sheet_id)
-    if sheet is None or sheet.state == "discarded":
+    if sheet is None:  # #204: purged; the job keeps its payload
+        code = detail.get("sheet_code") if isinstance(detail, dict) else None
+        raise SheetPurgedError(str(code or "")).to_http()
+    if sheet.state == "discarded":
         raise SheetDiscardedError().to_http()
     if sheet.id_placement != "back_side" and sheet.back_side_state is None:
         raise IdPlacementMismatchError().to_http()

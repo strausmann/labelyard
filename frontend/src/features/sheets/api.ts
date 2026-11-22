@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { ApiError, apiFetch } from "../../api/client";
+import { ApiError, apiFetch, apiFetchWithHeaders, fetchAllPages, nextLink } from "../../api/client";
 import { queuedJobs } from "../../api/errorDetail";
 import { queryString } from "../../api/queryString";
 import type { components } from "../../api/schema.gen";
@@ -50,17 +50,62 @@ export interface SheetFilters {
   free_at_least?: number;
   state?: "active" | "full" | "discarded" | "all";
   q?: string;
+  back_missing?: boolean;
+  hide_used_up?: boolean;
+}
+
+/** `GET /api/v1/sheets` answers at most this many sheets per request, with `Link` to the next page (D31). */
+export const SHEET_PAGE_SIZE = 500;
+/**
+ * The most pages `useSheets` reads: `sheets.max_active` is at most 10000 active sheets, 500 per page. The setting
+ * itself is admin-only, so the bound is its largest value.
+ */
+export const MAX_SHEET_PAGES = Math.ceil(10000 / SHEET_PAGE_SIZE);
+
+/** The first page of a filtered list and what the server says about the rest (the sheets page). */
+export interface SheetPage {
+  rows: SheetSummary[];
+  /** More sheets match than this page holds (the server sent `Link`). */
+  more: boolean;
+  /** With `hide_used_up`: the used-up sheets it left out, over all pages (`X-Used-Up-Hidden`). */
+  usedUpHidden: number;
 }
 
 const post = <T>(path: string, json?: unknown) => apiFetch<T>(path, { method: "POST", json });
 const encode = encodeURIComponent;
 
+/** Every sheet that matches, all pages (the print dialog, the notifications): nothing beyond 500 is lost. */
 export const useSheets = (filters: SheetFilters = {}, enabled = true) =>
   useQuery({
     queryKey: sheetsKey(filters),
-    queryFn: () => apiFetch<SheetSummary[]>(`/api/v1/sheets${queryString({ ...filters })}`),
+    queryFn: () => fetchAllPages<SheetSummary>(`/api/v1/sheets${queryString({ ...filters })}`, MAX_SHEET_PAGES),
     enabled,
   });
+
+/** The first page only, with the server's paging headers (the sheets page: "First 500 shown"). */
+export const useSheetsPage = (filters: SheetFilters = {}) =>
+  useQuery({
+    queryKey: sheetsKey({ ...filters, page: "first" }),
+    queryFn: async (): Promise<SheetPage> => {
+      const { data, headers } = await apiFetchWithHeaders<SheetSummary[]>(`/api/v1/sheets${queryString({ ...filters })}`);
+      const hidden = Number(headers.get("X-Used-Up-Hidden") ?? "0");
+      return { rows: data ?? [], more: nextLink(headers) !== null, usedUpHidden: Number.isFinite(hidden) ? hidden : 0 };
+    },
+  });
+
+export type PurgeRequest = Schemas["PurgeRequest"];
+export type PurgeResult = Schemas["PurgeResult"];
+
+/** `POST /api/v1/sheets/purge` (admin): a dry run unless `dry_run` is false. */
+export function usePurgeSheets() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PurgeRequest) => post<PurgeResult>("/api/v1/sheets/purge", body),
+    onSuccess: (result) => {
+      if (!result.dry_run) refreshAfterWrite(client);
+    },
+  });
+}
 
 export const useSheet = (code: string) =>
   useQuery({

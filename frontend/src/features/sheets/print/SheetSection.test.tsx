@@ -5,7 +5,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderApp } from "../../../test-utils";
-import { mockApi, PAGE_PRINTER, PRINTER_A, SHEET_TYPE, pageStatus } from "../../test-api";
+import { mockApi, PAGE_PRINTER, PRINTER_A, SHEET_TYPE, pageStatus, sheetRead } from "../../test-api";
 import { NEW_9, P, USED_17, body, conflict, expectType, pick, pickType, previewFor, typeBox, reason, routes, sheet } from "./testkit";
 import { PREVIEW, itemView, pressPrint, previews, printCalls, resetBetweenTests } from "./SheetSection.kit";
 import type * as Debounced from "./useDebounced";
@@ -287,5 +287,30 @@ describe("defaults and hints", () => {
   it("the 200 % switch is hidden on a phone while the one page is the tap-size skip view", async () => {
     await itemView(routes(), 1);
     expect(await screen.findByRole("button", { name: "Zoom to 200 %" })).toHaveClass("max-sm:hidden");
+  });
+});
+
+describe("the list of sheets is bounded at 500 (#204)", () => {
+  const OLD = { ...SHEET_TYPE, key: "OLDTYPE", product_codes: ["OLD-1"], vendor: "Old", archived_at: "2026-11-01T00:00:00Z" };
+
+  it("print dialog follows the next link and offers active sheets of every type, archived types with room included", async () => {
+    localStorage.setItem(`lph.sheetType.${P}`, "OLDTYPE");
+    const pages = (_init: RequestInit, url: URL) => {
+      const json = { "Content-Type": "application/json" };
+      if (url.searchParams.get("offset") === "500") {
+        // The archived type's only sheet with room is on the second page.
+        return new Response(JSON.stringify([sheet("OLDX-0001", 17, { type_key: "OLDTYPE", type_label: "Old OLD-1" })]), { status: 200, headers: json });
+      }
+      return new Response(JSON.stringify([sheet("L4736-0001", 17)]), {
+        status: 200,
+        headers: { ...json, Link: '</api/v1/sheets?state=active&limit=500&offset=500>; rel="next"' },
+      });
+    };
+    const { calls } = await itemView(routes({ types: [SHEET_TYPE, OLD], preview: previewFor("OLDX-0001", NEW_9, USED_17), extra: { "GET /api/v1/sheets": pages, "GET /api/v1/sheets/OLDX-0001": sheetRead("OLDX-0001", { used: USED_17 }) } }));
+    await expectType(/OLDTYPE.*archived/);
+    const lists = calls.filter((c) => c.method === "GET" && c.path === "/api/v1/sheets");
+    expect(lists.map((c) => new URLSearchParams(c.search).get("offset"))).toEqual([null, "500"]);
+    // No type filter: the type list needs the active sheets of every type.
+    expect(lists.every((c) => !new URLSearchParams(c.search).has("type") && new URLSearchParams(c.search).get("state") === "active")).toBe(true);
   });
 });

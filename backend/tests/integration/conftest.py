@@ -89,6 +89,40 @@ async def _temp_db_engine(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  #
     await eng.dispose()
 
 
+@pytest_asyncio.fixture
+async def production_engine(monkeypatch: pytest.MonkeyPatch, tmp_path):  # type: ignore[no-untyped-def]
+    """A per-test engine configured like ``app/db/engine.py`` (Task 6a, #204 note 7).
+
+    The autouse ``_temp_db_engine`` builds a plain engine; concurrency tests need the
+    production settings: the pragmas (WAL, ``busy_timeout``, ``foreign_keys``) as its connect
+    listener, ``SERIALIZABLE`` isolation, hidden parameters and the statement counter the sheet
+    write lock checks. It replaces the autouse engine in every module that bound it.
+    """
+    import app.db.session as _session_module
+    from app.repositories.write_lock import install_statement_counter
+
+    url = f"sqlite+aiosqlite:///{tmp_path / 'production_engine.db'}"
+    eng = create_async_engine(
+        url,
+        echo=False,
+        hide_parameters=True,
+        isolation_level="SERIALIZABLE",
+        connect_args={"check_same_thread": False},
+    )
+    event.listen(eng.sync_engine, "connect", _apply_pragmas)
+    install_statement_counter(eng.sync_engine)
+    async with eng.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    sess = async_sessionmaker(bind=eng, class_=AsyncSession, expire_on_commit=False)
+    monkeypatch.setattr(_engine_module, "engine", eng)
+    monkeypatch.setattr(_engine_module, "async_session", sess)
+    monkeypatch.setattr(_main_module, "engine", eng)
+    monkeypatch.setattr(_main_module, "async_session", sess)
+    monkeypatch.setattr(_session_module, "async_session", sess)
+    yield eng
+    await eng.dispose()
+
+
 async def _noop_migrations() -> None:
     """Drop-in replacement for run_migrations() in integration test fixtures.
 

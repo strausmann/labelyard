@@ -502,7 +502,7 @@ export interface paths {
         put?: never;
         /**
          * Retry a failed job
-         * @description Clones a ``failed`` (or ``failed_restart`` / ``cancelled``) job into a new ``queued`` job with a fresh UUID.  The original job is untouched and remains as an immutable history entry.  The new job is handed to the print queue immediately — no restart needed.  Returns 409 when the original job is still in an active state (``queued`` or ``printing``) or its printer is not available, and 422 when the stored payload cannot be re-rendered (e.g. webhook-created jobs).  A Grocy label job that failed before its render (printer offline, no tape) is accepted again on its printer and completes in the background, like the webhook; a Grocy label that could not be built answers 422 and creates no row.  A Grocy label for a sheet that ended before it reached the printer is accepted again the same way: a new job takes a free cell of the sheet type, chosen like a new label; it answers 409 ``printer_disabled``, ``media_kind_mismatch`` or ``sheet_type_archived``, 409 ``printer-identity-mismatch`` for a held printer, and 409 ``job_not_retryable`` when the sheet type was deleted, without creating a row.  Page jobs: a calibration page is re-submitted from its payload, so retry prints the same page again with its original calibration snapshot and date; a fresh check print with the current calibration is a new calibration-page request.  A sheet page is retried onto the same cells of the same sheet as a new job, with a fresh calibration snapshot and the margin ID and feed mark decided again for the printer.  It answers 409 ``job_not_retryable`` for a ``done`` job (or an ID-only job whose ID was printed since), 409 ``cells_unconfirmed`` while a cell of the job waits for confirmation, 409 ``cells_taken`` (with the cell numbers) when a cell is no longer free, 409 ``printer_disabled`` for a disabled printer (a calibration page too), 422 ``tray_unknown`` when the tray was removed or disabled since, and 409 ``sheet_discarded`` for a discarded sheet; nothing is reserved or created in any of these cases.  A page with the sheet code on the back is re-sent from its payload (same strip, date and turn) while its sheet is active and still has its code on the back, else 409 ``sheet_discarded`` or ``id_placement_mismatch``; the job never marks the code as printed.  A tray loading test page is re-sent like a test page.  The new job's payload carries ``retry_of``, the id of the job it repeats; that job may have been cleaned up since, so the id may no longer resolve.
+         * @description Clones a ``failed`` (or ``failed_restart`` / ``cancelled``) job into a new ``queued`` job with a fresh UUID.  The original job is untouched and remains as an immutable history entry.  The new job is handed to the print queue immediately — no restart needed.  Returns 409 when the original job is still in an active state (``queued`` or ``printing``) or its printer is not available, and 422 when the stored payload cannot be re-rendered (e.g. webhook-created jobs).  A Grocy label job that failed before its render (printer offline, no tape) is accepted again on its printer and completes in the background, like the webhook; a Grocy label that could not be built answers 422 and creates no row.  A Grocy label for a sheet that ended before it reached the printer is accepted again the same way: a new job takes a free cell of the sheet type, chosen like a new label; it answers 409 ``printer_disabled``, ``media_kind_mismatch`` or ``sheet_type_archived``, 409 ``printer-identity-mismatch`` for a held printer, and 409 ``job_not_retryable`` when the sheet type was deleted, without creating a row.  Page jobs: a calibration page is re-submitted from its payload, so retry prints the same page again with its original calibration snapshot and date; a fresh check print with the current calibration is a new calibration-page request.  A sheet page is retried onto the same cells of the same sheet as a new job, with a fresh calibration snapshot and the margin ID and feed mark decided again for the printer.  It answers 409 ``job_not_retryable`` for a ``done`` job (or an ID-only job whose ID was printed since), 409 ``cells_unconfirmed`` while a cell of the job waits for confirmation, 409 ``cells_taken`` (with the cell numbers) when a cell is no longer free, 409 ``printer_disabled`` for a disabled printer (a calibration page too), 422 ``tray_unknown`` when the tray was removed or disabled since, and 409 ``sheet_discarded`` for a discarded sheet, 409 ``sheet_purged`` (``error_detail.sheet_code``) for a purged one; nothing is reserved or created in any of these cases.  A page with the sheet code on the back is re-sent from its payload (same strip, date and turn) while its sheet is active and still has its code on the back, else 409 ``sheet_discarded`` or ``id_placement_mismatch``; the job never marks the code as printed.  A tray loading test page is re-sent like a test page.  The new job's payload carries ``retry_of``, the id of the job it repeats; that job may have been cleaned up since, so the id may no longer resolve.
          */
         post: operations["retry_job_api_v1_jobs__job_id__retry_post"];
         delete?: never;
@@ -1316,7 +1316,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List sheets */
+        /**
+         * List sheets
+         * @description At most `limit` sheets (default and largest 500) in the order: sheets with at least `free_at_least` free cells first, then the most free, then by code. When more match, the `Link` header names the next page (`rel="next"`); the body stays a list. Every filter is applied before the page is cut, so a page is never thinned out. `state=full` and `hide_used_up` look at active sheets without a free cell; `back_missing` keeps active sheets whose code on the back is not confirmed yet. Sheets carry no printer restriction (OC-37).
+         */
         get: operations["list_sheets_api_v1_sheets_get"];
         put?: never;
         /**
@@ -1361,6 +1364,26 @@ export interface paths {
         get: operations["next_code_api_v1_sheets_next_code_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheets/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Purge sheets discarded long ago
+         * @description Deletes discarded sheets that were discarded more than `older_than_days` days ago, with their cells, oldest discard first, at most `limit` (default and largest 1000) per call; `more` says further sheets match. `dry_run` defaults to true: the answer lists the codes and nothing is deleted. Active sheets are never touched. A purged code is never issued again, and jobs that name a purged sheet keep their payload (a retry answers 409 `sheet_purged`). Needs admin scope.
+         */
+        post: operations["purge_sheets_api_v1_sheets_purge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3481,6 +3504,44 @@ export interface components {
              * @default about:blank
              */
             type: string;
+        };
+        /**
+         * PurgeRequest
+         * @description ``POST /api/v1/sheets/purge`` (#204, S5): a dry run unless ``dry_run`` is false.
+         */
+        PurgeRequest: {
+            /**
+             * Dry Run
+             * @description List the sheets that would be purged and delete nothing (the default).
+             * @default true
+             */
+            dry_run: boolean;
+            /**
+             * Limit
+             * @description At most this many sheets per call, oldest discard first.
+             * @default 1000
+             */
+            limit: number;
+            /**
+             * Older Than Days
+             * @description Purge sheets discarded more than this many days ago.
+             */
+            older_than_days: number;
+        };
+        /** PurgeResult */
+        PurgeResult: {
+            /**
+             * Codes
+             * @description The purged sheets (or, in a dry run, those that would be), oldest first.
+             */
+            codes: string[];
+            /** Dry Run */
+            dry_run: boolean;
+            /**
+             * More
+             * @description Further sheets match: call again to purge them.
+             */
+            more: boolean;
         };
         /**
          * QlLayoutPreset
@@ -8291,6 +8352,12 @@ export interface operations {
                 state?: "active" | "full" | "discarded" | "all";
                 /** @description Part of the code. */
                 q?: string | null;
+                /** @description Only sheets whose code on the back is not confirmed yet. */
+                back_missing?: boolean;
+                /** @description Leave out active sheets without a free cell. */
+                hide_used_up?: boolean;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -8301,6 +8368,10 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
+                    /** @description The next page, `<…?limit=…&offset=…>; rel="next"` (a relative reference with the other query parameters kept); absent on the last page. */
+                    Link?: string;
+                    /** @description Only with `hide_used_up=true`: how many sheets matching the other filters it left out, over all pages. */
+                    "X-Used-Up-Hidden"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8472,6 +8543,48 @@ export interface operations {
             };
             /** @description Sheet type not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    purge_sheets_api_v1_sheets_purge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgeResult"];
+                };
+            };
+            /** @description Not an admin key. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

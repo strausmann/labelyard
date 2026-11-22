@@ -38,6 +38,7 @@ from app.settings_store.registry import (
     integration_secret_key,
     integration_url_key,
 )
+from app.sheets.limits import MAX_ACTIVE_LIMIT
 
 _log = logging.getLogger(__name__)
 
@@ -91,6 +92,9 @@ def _strip_userinfo(url: str) -> str:
         return ""
 
 
+_SHEET_CAP_KEYS = frozenset({"sheets.max_active", "sheets.max_active_per_type"})
+
+
 def _validate(d: SettingDef, value: Any) -> Any:
     """Return the normalised value or raise; the message never contains the value."""
 
@@ -113,6 +117,8 @@ def _validate(d: SettingDef, value: Any) -> Any:
             raise bad(
                 f"must be between {MIN_CONCURRENT_RENDERS} and {MAX_CONCURRENT_RENDERS_LIMIT}"
             )
+        if d.key in _SHEET_CAP_KEYS and not 1 <= value <= MAX_ACTIVE_LIMIT:
+            raise bad(f"must be between 1 and {MAX_ACTIVE_LIMIT}")
         return value
     if kind == "float":
         if isinstance(value, bool) or not isinstance(value, int | float):

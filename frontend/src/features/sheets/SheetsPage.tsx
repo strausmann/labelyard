@@ -18,7 +18,8 @@ import { useSheetErrorText } from "./errors";
 import { MAX_CODE_SEARCH, parseSheetsSearch, type SheetsSearch } from "./search";
 import { SheetTypeCombobox } from "./SheetTypeCombobox";
 import { typeLabelWithKey, typeTitle } from "./typeLabel";
-import { useDiscardSheet, useSheets, type SheetSummary } from "./api";
+import { useDiscardSheet, useSheetsPage, type SheetSummary } from "./api";
+import { PurgeDialog } from "./PurgeDialog";
 
 const ANY = "__any__";
 const FILTER_DELAY_MS = 200;
@@ -236,6 +237,8 @@ export function SheetsPage() {
   const { t } = useLingui();
   const session = useSession();
   const canWrite = session.scope === "print" || session.scope === "admin";
+  const isAdmin = session.scope === "admin";
+  const [purging, setPurging] = useState(false);
   const search = useSearch({ strict: false }) as SheetsSearch;
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
@@ -250,9 +253,16 @@ export function SheetsPage() {
   const commitQ = useCallback((q: string | undefined) => commit({ q }), [commit]);
   const [q, setQ] = useTypedQuery(search.q, commitQ);
 
-  // "Active" still holds the sheets that are full, and there is no server filter for "has room":
-  // the page hides the used-up sheets itself. Discarded sheets are asked for only when wanted.
-  const list = useSheets({ type: search.type, q: search.q, state: search.discarded ? "all" : "active" });
+  // Every filter runs on the server (#204): the list is bounded at 500, so a filter applied here would thin the page
+  // out. Discarded sheets are asked for only when wanted; the server counts the used-up sheets it hides.
+  const hideUsedUp = search.full !== true;
+  const list = useSheetsPage({
+    type: search.type,
+    q: search.q,
+    state: search.discarded ? "all" : "active",
+    back_missing: search.back_missing ? true : undefined,
+    hide_used_up: hideUsedUp ? true : undefined,
+  });
   // Archived types are listed too: their sheets are still there to be filtered.
   const types = useSheetTypes({ include_archived: true });
   const typeByKey = useMemo(() => new Map((types.data ?? []).map((x) => [x.key, x])), [types.data]);
@@ -262,9 +272,8 @@ export function SheetsPage() {
     if (unknownType) commit({ type: undefined });
   }, [unknownType, commit]);
 
-  const hideUsedUp = search.full !== true;
-  const rows = (list.data ?? []).filter((s) => !(hideUsedUp && isUsedUp(s)) && (!search.back_missing || s.back_side_missing));
-  const hidden = hideUsedUp ? (list.data ?? []).filter(isUsedUp).length : 0;
+  const rows = list.data?.rows ?? [];
+  const hidden = hideUsedUp ? (list.data?.usedUpHidden ?? 0) : 0;
   const narrowed = Boolean(search.type || search.q || search.back_missing);
   const activeFilters = [search.type, search.q, search.full, search.discarded, search.back_missing].filter(Boolean).length;
 
@@ -276,6 +285,11 @@ export function SheetsPage() {
           <Link to="/sheets/archive" className={`${SECONDARY_BUTTON} no-underline`}>
             {t`Sheet archive`}
           </Link>
+          {isAdmin ? (
+            <Button onPress={() => setPurging(true)} className={SECONDARY_BUTTON}>
+              {t`Purge discarded sheets`}
+            </Button>
+          ) : null}
           {canWrite ? (
             <Button onPress={() => setAdding(true)} className={PRIMARY_BUTTON}>
               {t`New sheet`}
@@ -355,6 +369,11 @@ export function SheetsPage() {
               </div>
             </div>
           )}
+          {list.data.more ? (
+            <p role="status" className="text-small text-ink-2">
+              {t`First 500 shown. Narrow the filter to find the others.`}
+            </p>
+          ) : null}
           {hidden > 0 ? (
             <p className="text-small text-ink-2">
               {plural(hidden, { one: "# used-up sheet hidden", other: "# used-up sheets hidden" })}{" "}
@@ -368,6 +387,7 @@ export function SheetsPage() {
 
       {canWrite ? <AddSheetDialog isOpen={adding} onClose={() => setAdding(false)} /> : null}
       <DiscardDialog sheet={discarding} onClose={() => setDiscarding(null)} />
+      {isAdmin ? <PurgeDialog isOpen={purging} onClose={() => setPurging(false)} /> : null}
     </div>
   );
 }

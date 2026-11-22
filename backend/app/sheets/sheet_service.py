@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -29,6 +29,7 @@ from app.repositories import sheet_types as types_repo
 from app.repositories import sheets as repo
 from app.repositories.write_lock import write_transaction
 from app.services.event_bus import EventBus
+from app.sheets import limits
 from app.sheets.errors import (
     CellOutOfRangeError,
     CellsNotMarkedByHandError,
@@ -39,6 +40,7 @@ from app.sheets.errors import (
     NoUnconfirmedCellsError,
     SheetBusyError,
     SheetDiscardedError,
+    SheetLimitReachedError,
     SheetNotFoundError,
     SheetTypeArchivedError,
     SheetTypeNotFoundError,
@@ -261,6 +263,10 @@ class NewSheetBatch:
         self._types: dict[str, SheetType] = {}
         self._versions: dict[tuple[UUID, int | None], SheetTypeVersion] = {}
         self._counters: dict[str, SheetIdCounter] = {}
+        # Active sheets, read once per batch under the caller's write lock (#204): the hub's and
+        # each type's, plus the sheets this batch added (nothing is flushed until ``flush``).
+        self._active_hub: int | None = None
+        self._active_by_type: dict[UUID, int] = {}
 
     async def _type(self, type_key: str) -> SheetType:
         t = self._types.get(type_key)
@@ -300,6 +306,24 @@ class NewSheetBatch:
         row.next_value = value + 1
         return format_code(prefix, value)
 
+    async def _check_caps(self, t: SheetType) -> None:
+        """Refuse a sheet over ``sheets.max_active`` or ``sheets.max_active_per_type`` (#204).
+
+        Runs inside the caller's write transaction, after the write lock: two creates at the
+        cap decide one after the other, on what the first committed.
+        """
+        cap = limits.caps()
+        if self._active_hub is None:
+            self._active_hub = await repo.count_active(self._session)
+        if t.id not in self._active_by_type:
+            self._active_by_type[t.id] = await repo.count_active(self._session, t.id)
+        if self._active_hub >= cap.max_active:
+            raise SheetLimitReachedError(cap.max_active, "hub")
+        if self._active_by_type[t.id] >= cap.max_active_per_type:
+            raise SheetLimitReachedError(cap.max_active_per_type, "type")
+        self._active_hub += 1
+        self._active_by_type[t.id] += 1
+
     async def add(
         self,
         *,
@@ -315,6 +339,7 @@ class NewSheetBatch:
         t = await self._type(type_key)
         v = await self._version(t, version)
         _check_range(list(marks), _total(v))
+        await self._check_caps(t)
         sheet = Sheet(
             code=await self._next_code(t.prefix),
             type_id=t.id,
@@ -608,6 +633,13 @@ async def discard_sheet(
     return sheet
 
 
+@dataclass
+class SheetListPage:
+    rows: list[SheetListRow]
+    has_more: bool
+    used_up_hidden: int | None  # set when ``hide_used_up`` is: how many it left out
+
+
 async def list_sheets(
     session: AsyncSession,
     *,
@@ -615,10 +647,17 @@ async def list_sheets(
     free_at_least: int | None = None,
     state: Literal["active", "full", "discarded", "all"] = "active",
     q: str | None = None,
-) -> list[SheetListRow]:
-    """Sheets ordered OC-34: those with ``free >= free_at_least`` first, then most free, code."""
+    back_missing: bool = False,
+    hide_used_up: bool = False,
+    limit: int = limits.LIST_PAGE_MAX,
+    offset: int = 0,
+) -> SheetListPage:
+    """One page of sheets ordered OC-34: those with ``free >= free_at_least`` first, then most
+    free, then code. Filters and order run in SQL, so a page is never thinned out (#204)."""
     if state not in _STATE_FILTERS:
         raise InvalidFieldError("state", "unknown filter")
+    if not 1 <= limit <= limits.LIST_PAGE_MAX or offset < 0:
+        raise InvalidFieldError("limit", "out of range")
     type_id: UUID | None = None
     if type_key is not None:
         t = await types_repo.get_by_key(session, type_key)
@@ -626,24 +665,58 @@ async def list_sheets(
             raise SheetTypeNotFoundError()
         type_id = t.id
     sheet_state = {"active": "active", "full": "active", "discarded": "discarded"}.get(state)
-    raw = await repo.list_with_counts(session, type_id=type_id, sheet_state=sheet_state)
+    f = repo.SheetListFilter(
+        type_id=type_id,
+        sheet_state=sheet_state,
+        full=state == "full",
+        q=q or None,
+        back_missing=back_missing,
+        hide_used_up=hide_used_up,
+    )
+    raw, has_more = await repo.list_page(
+        session, f, free_at_least=free_at_least or 0, limit=limit, offset=offset
+    )
     rows = [
         SheetListRow(sheet=s, type=t, version=v, total=_total(v), used=u, reserved=r, unconfirmed=c)
         for s, t, v, u, r, c in raw
     ]
-    if state == "full":
-        rows = [r for r in rows if r.free == 0]
-    if q:
-        needle = q.lower()
-        rows = [r for r in rows if needle in r.sheet.code.lower()]
-    want = free_at_least or 0
+    hidden = await repo.count_used_up(session, f) if hide_used_up else None
+    return SheetListPage(rows=rows, has_more=has_more, used_up_hidden=hidden)
 
-    def order(row: SheetListRow) -> tuple[int, int, int, str]:
-        # (length, code): a five-digit code comes after the four-digit ones (264-05).
-        code = row.sheet.code
-        return (0 if row.free >= want else 1, -row.free, len(code), code)
 
-    return sorted(rows, key=order)
+@dataclass
+class PurgeOutcome:
+    codes: list[str]
+    more: bool
+
+
+async def purge_discarded(
+    session: AsyncSession,
+    *,
+    older_than_days: int,
+    limit: int,
+    dry_run: bool,
+) -> PurgeOutcome:
+    """Delete up to ``limit`` sheets discarded more than ``older_than_days`` ago (#204, S5).
+
+    Oldest ``discarded_at`` first, with their cells, in one write transaction; ``more`` says
+    further sheets match. A dry run lists the same codes and deletes nothing. The prefix
+    counters are not touched, so a purged code is never issued again. Jobs that name a purged
+    sheet keep their payload.
+    """
+    if not 1 <= limit <= limits.PURGE_LIMIT_MAX:
+        raise InvalidFieldError("limit", "out of range")
+    cutoff = _now() - timedelta(days=older_than_days)
+    if dry_run:
+        found, more = await repo.purge_candidates(session, discarded_before=cutoff, limit=limit)
+        return PurgeOutcome(codes=[code for _sid, code in found], more=more)
+    async with write_transaction(session):
+        found, more = await repo.purge_candidates(session, discarded_before=cutoff, limit=limit)
+        await repo.delete_sheets(session, [sid for sid, _code in found])
+        await session.commit()
+    if found:
+        logger.info("%d discarded sheets purged", len(found))
+    return PurgeOutcome(codes=[code for _sid, code in found], more=more)
 
 
 async def find_cells(session: AsyncSession, *, source: str, ref: str) -> list[CellHit]:

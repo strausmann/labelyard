@@ -22,20 +22,30 @@ vi.setConfig({ testTimeout: 10_000 });
 afterEach(() => vi.unstubAllGlobals());
 
 /**
- * The list the way the server answers it: `state=active` has no discarded sheets, `all` has every
- * one. It reads the request's own query, so a page that forgets to send the filter fails here.
+ * The list the way the server answers it (#204: every filter runs there): `state=active` has no discarded sheets,
+ * `all` has every one, `back_missing` and `hide_used_up` narrow it, and `X-Used-Up-Hidden` counts what the latter
+ * left out. It reads the request's own query, so a page that forgets to send a filter fails here.
  */
-function sheetsRoute(rows: ReturnType<typeof sheetSummary>[], calls: () => Call[]) {
+function sheetsRoute(rows: ReturnType<typeof sheetSummary>[], calls: () => Call[], link?: string) {
   return () => {
-    const state = new URLSearchParams(calls().at(-1)!.search).get("state");
-    return rows.filter((s) => (state === "all" ? true : state === "discarded" ? s.state === "discarded" : s.state === "active"));
+    const params = new URLSearchParams(calls().at(-1)!.search);
+    const state = params.get("state");
+    const matching = rows
+      .filter((s) => (state === "all" ? true : state === "discarded" ? s.state === "discarded" : s.state === "active"))
+      .filter((s) => params.get("back_missing") !== "true" || s.back_side_missing);
+    const usedUp = (s: (typeof rows)[number]) => s.state === "active" && s.free === 0;
+    const hide = params.get("hide_used_up") === "true";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (hide) headers["X-Used-Up-Hidden"] = String(matching.filter(usedUp).length);
+    if (link) headers.Link = link;
+    return new Response(JSON.stringify(hide ? matching.filter((s) => !usedUp(s)) : matching), { status: 200, headers });
   };
 }
 
-function setup(rows = ALL, extra: Record<string, unknown> = {}) {
+function setup(rows = ALL, extra: Record<string, unknown> = {}, link?: string) {
   let calls: Call[] = [];
   const api = mockApi({
-    "GET /api/v1/sheets": sheetsRoute(rows, () => calls),
+    "GET /api/v1/sheets": sheetsRoute(rows, () => calls, link),
     "GET /api/v1/sheet-types": [SHEET_TYPE],
     ...extra,
   });
@@ -68,15 +78,54 @@ describe("the sheet list", () => {
     await renderApp({ path: "/sheets", session: PRINT_SESSION });
     await screen.findByRole("link", { name: "L4736-0001" });
     expect(screen.queryByRole("link", { name: "L4736-0002" })).toBeNull();
-    // The server cannot filter "full" out of "active": the page does, so it sends no such parameter.
+    // The server hides the used-up sheets (#204): a filter applied on the page would thin out a bounded list.
     const first = sheetCalls(calls)[0]!;
     expect(new URLSearchParams(first.search).get("state")).toBe("active");
+    expect(new URLSearchParams(first.search).get("hide_used_up")).toBe("true");
     expect(new URLSearchParams(first.search).has("free_at_least")).toBe(false);
 
     await userEvent.click(screen.getByRole("switch", { name: "Hide used-up sheets" }));
     const full = await screen.findByRole("link", { name: "L4736-0002" });
     expect(within(full.closest("[role=row]") as HTMLElement).getByText("used up")).toBeVisible();
     expect(within(rowOf("L4736-0001")).queryByText("used up")).toBeNull();
+  });
+
+  it("sheets page sends back_missing and hide_used_up to the server", async () => {
+    const { calls } = setup();
+    await renderApp({ path: "/sheets?back_missing=true", session: PRINT_SESSION });
+    await waitFor(() => expect(sheetCalls(calls).length).toBeGreaterThan(0));
+    const params = new URLSearchParams(sheetCalls(calls).at(-1)!.search);
+    expect(params.get("back_missing")).toBe("true");
+    expect(params.get("hide_used_up")).toBe("true");
+
+    await userEvent.click(await screen.findByRole("switch", { name: "Hide used-up sheets" }));
+    await waitFor(() => expect(new URLSearchParams(sheetCalls(calls).at(-1)!.search).has("hide_used_up")).toBe(false));
+  });
+
+  it("sheets page shows the hidden count from the header", async () => {
+    let calls: Call[] = [];
+    const api = mockApi({
+      // One row on the page, but the server says 42 used-up sheets were left out over all pages.
+      "GET /api/v1/sheets": () => new Response(JSON.stringify([FRESH]), { status: 200, headers: { "Content-Type": "application/json", "X-Used-Up-Hidden": "42" } }),
+      "GET /api/v1/sheet-types": [SHEET_TYPE],
+    });
+    calls = api.calls;
+    await renderApp({ path: "/sheets", session: PRINT_SESSION });
+    expect(await screen.findByText("42 used-up sheets hidden")).toBeVisible();
+    expect(sheetCalls(calls)).toHaveLength(1);
+  });
+
+  it("sheets page says first 500 shown when a next link exists", async () => {
+    setup(ALL, {}, '</api/v1/sheets?state=active&limit=500&offset=500>; rel="next"');
+    await renderApp({ path: "/sheets", session: PRINT_SESSION });
+    expect(await screen.findByText("First 500 shown. Narrow the filter to find the others.")).toBeVisible();
+  });
+
+  it("says nothing about the first 500 without a next link", async () => {
+    setup();
+    await renderApp({ path: "/sheets", session: PRINT_SESSION });
+    await screen.findByRole("link", { name: "L4736-0001" });
+    expect(screen.queryByText(/First 500 shown/)).toBeNull();
   });
 
   it("says how many used-up sheets are hidden", async () => {

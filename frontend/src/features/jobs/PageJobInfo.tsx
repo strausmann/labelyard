@@ -5,6 +5,7 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
+import { ApiError } from "../../api/client";
 import { useSheet } from "../sheets/api";
 import { PANEL, SECTION_HEADING } from "../ui";
 import type { Job } from "./api";
@@ -61,9 +62,24 @@ export function PageJobInfo({ job, cancelRequested, printer }: { job: Job; cance
   const typeLabel = useTypeLabel(page?.kind === "calibration_page" ? page.typeKey : null);
   const trayLabel = useTrayLabel(job.printer_id, page?.kind === "test_page" || page?.kind === "tray_loading_page" ? page.tray : null);
   const code = page?.kind === "sheet_page" || page?.kind === "sheet_back_page" ? page.sheetCode : null;
-  const sheet = useSheet(code !== null && SETTLED_BY_HAND.has(job.state) ? code : "");
+  // Read for every sheet page: the cells to settle after a stop, and whether the sheet still exists (#204: purged).
+  const sheet = useSheet(code ?? "");
   if (!page) return null;
-  const unconfirmed = (sheet.data?.cells ?? []).filter((c) => c.state === "unconfirmed" && c.job_id === job.id).map((c) => c.cell);
+  const purged = sheet.error instanceof ApiError && sheet.error.status === 404 && sheet.error.code === "sheet_not_found";
+  const sheetLink = code ? (
+    purged ? (
+      <span>
+        <span className="code font-bold">{code}</span> <span className="text-ink-2">{t`(sheet purged)`}</span>
+      </span>
+    ) : (
+      <Link to="/sheets/$code" params={{ code }} className="code font-bold text-link underline underline-offset-2">
+        {code}
+      </Link>
+    )
+  ) : (
+    "—"
+  );
+  const unconfirmed = (SETTLED_BY_HAND.has(job.state) ? (sheet.data?.cells ?? []) : []).filter((c) => c.state === "unconfirmed" && c.job_id === job.id).map((c) => c.cell);
   const discarded = sheet.data?.state === "discarded";
   const calibration = page.kind === "calibration_page";
   const testPage = page.kind === "test_page" || page.kind === "tray_loading_page";
@@ -99,35 +115,19 @@ export function PageJobInfo({ job, cancelRequested, printer }: { job: Job; cance
             <Row label={t`Paper size`}>{page.media ?? "—"}</Row>
           </>
         ) : backPage ? (
-          <Row label={t`Sheet`}>
-            {code ? (
-              <Link to="/sheets/$code" params={{ code }} className="code font-bold text-link underline underline-offset-2">
-                {code}
-              </Link>
-            ) : (
-              "—"
-            )}
-          </Row>
+          <Row label={t`Sheet`}>{sheetLink}</Row>
         ) : calibration ? (
           <Row label={t`Sheet type`}>{page.typeKey ? `${typeLabel ?? page.typeKey}${page.version === null ? "" : ` v${page.version}`}` : "—"}</Row>
         ) : (
           <>
-            <Row label={t`Sheet`}>
-              {code ? (
-                <Link to="/sheets/$code" params={{ code }} className="code font-bold text-link underline underline-offset-2">
-                  {code}
-                </Link>
-              ) : (
-                "—"
-              )}
-            </Row>
+            <Row label={t`Sheet`}>{sheetLink}</Row>
             <Row label={t`Labels`}>{page.cellCount}</Row>
             <Row label={t`Cells`}>{page.cells.length > 0 ? <CellNumbers cells={page.cells} /> : "—"}</Row>
             {page.idCell !== null && <Row label={t`Sheet code in cell`}><span className="code">{page.idCell}</span></Row>}
           </>
         )}
       </dl>
-      {unconfirmed.length > 0 && code && (
+      {unconfirmed.length > 0 && code && !purged && (
         <div className="rounded-r2 border border-bad bg-sunken p-3">
           <p className="font-bold">{t`Not confirmed`}</p>
           <p><CellNumbers cells={unconfirmed} /></p>

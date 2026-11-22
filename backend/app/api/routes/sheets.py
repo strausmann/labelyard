@@ -14,11 +14,12 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path, Query, Request, status
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.identity_hold import ensure_sheet_not_held
+from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped, usable_printer
 from app.auth.dependencies import AuthContext
 from app.auth.scope_deps import require_admin, require_print, require_read
@@ -34,6 +35,8 @@ from app.schemas.sheets import (
     MarkRequest,
     NextCode,
     PageJobQueued,
+    PurgeRequest,
+    PurgeResult,
     ResolveAllRequest,
     ResolveRequest,
     SheetBackPrint,
@@ -47,6 +50,7 @@ from app.sheets import exchange, print_service
 from app.sheets import sheet_service as ss
 from app.sheets import type_service as ts
 from app.sheets.geometry import hmm_to_mm
+from app.sheets.limits import LIST_PAGE_MAX
 from app.sheets.reservation import NewSheetIn
 from app.sheets.sheet_service import MarkedCell
 
@@ -163,8 +167,42 @@ def _created(detail: ss.SheetDetail, job_id: UUID | None) -> SheetCreated:
     return SheetCreated(**dict(_read(detail)), job_id=job_id)
 
 
-@router.get("/api/v1/sheets", response_model=list[SheetSummary], summary="List sheets")
+_LIST_HEADERS: dict[str, Any] = {
+    "Link": {
+        "description": (
+            'The next page, `<…?limit=…&offset=…>; rel="next"` (a relative reference with the '
+            "other query parameters kept); absent on the last page."
+        ),
+        "schema": {"type": "string"},
+    },
+    "X-Used-Up-Hidden": {
+        "description": (
+            "Only with `hide_used_up=true`: how many sheets matching the other filters it left "
+            "out, over all pages."
+        ),
+        "schema": {"type": "integer"},
+    },
+}
+
+
+@router.get(
+    "/api/v1/sheets",
+    response_model=list[SheetSummary],
+    summary="List sheets",
+    description=(
+        "At most `limit` sheets (default and largest 500) in the order: sheets with at least "
+        "`free_at_least` free cells first, then the most free, then by code. When more match, "
+        'the `Link` header names the next page (`rel="next"`); the body stays a list. Every '
+        "filter is applied before the page is cut, so a page is never thinned out. `state=full` "
+        "and `hide_used_up` look at active sheets without a free cell; `back_missing` keeps "
+        "active sheets whose code on the back is not confirmed yet. Sheets carry no printer "
+        "restriction (OC-37)."
+    ),
+    responses={200: {"headers": _LIST_HEADERS}},
+)
 async def list_sheets(
+    request: Request,
+    response: Response,
     session: SessionDep,
     _auth: ReadDep,
     type_key: Annotated[
@@ -173,12 +211,53 @@ async def list_sheets(
     free_at_least: Annotated[int | None, Query(ge=0, le=400)] = None,
     state: Annotated[Literal["active", "full", "discarded", "all"], Query()] = "active",
     q: Annotated[str | None, Query(max_length=24, description="Part of the code.")] = None,
+    back_missing: Annotated[
+        bool, Query(description="Only sheets whose code on the back is not confirmed yet.")
+    ] = False,
+    hide_used_up: Annotated[
+        bool, Query(description="Leave out active sheets without a free cell.")
+    ] = False,
+    limit: Annotated[int, Query(ge=1, le=LIST_PAGE_MAX)] = LIST_PAGE_MAX,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> list[SheetSummary]:
     with mapped():
-        rows = await ss.list_sheets(
-            session, type_key=type_key, free_at_least=free_at_least, state=state, q=q
+        page = await ss.list_sheets(
+            session,
+            type_key=type_key,
+            free_at_least=free_at_least,
+            state=state,
+            q=q,
+            back_missing=back_missing,
+            hide_used_up=hide_used_up,
+            limit=limit,
+            offset=offset,
         )
-    return [_summary(r) for r in rows]
+    response.headers.update(next_link(request, limit=limit, offset=offset, has_more=page.has_more))
+    if page.used_up_hidden is not None:
+        response.headers["X-Used-Up-Hidden"] = str(page.used_up_hidden)
+    return [_summary(r) for r in page.rows]
+
+
+@router.post(
+    "/api/v1/sheets/purge",
+    response_model=PurgeResult,
+    summary="Purge sheets discarded long ago",
+    description=(
+        "Deletes discarded sheets that were discarded more than `older_than_days` days ago, with "
+        "their cells, oldest discard first, at most `limit` (default and largest 1000) per call; "
+        "`more` says further sheets match. `dry_run` defaults to true: the answer lists the codes "
+        "and nothing is deleted. Active sheets are never touched. A purged code is never issued "
+        "again, and jobs that name a purged sheet keep their payload (a retry answers 409 "
+        "`sheet_purged`). Needs admin scope."
+    ),
+    responses={403: {"description": "Not an admin key."}},
+)
+async def purge_sheets(body: PurgeRequest, session: SessionDep, _auth: AdminDep) -> PurgeResult:
+    with mapped():
+        out = await ss.purge_discarded(
+            session, older_than_days=body.older_than_days, limit=body.limit, dry_run=body.dry_run
+        )
+    return PurgeResult(codes=out.codes, dry_run=body.dry_run, more=out.more)
 
 
 @router.get(

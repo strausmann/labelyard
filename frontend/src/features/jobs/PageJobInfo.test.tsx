@@ -397,3 +397,19 @@ describe("the code on the back and the tray loading test (#350)", () => {
     await screen.findByRole("heading", { level: 1, name: "Einlegetest Fach · bypass" });
   });
 });
+
+describe("a sheet that was purged (#204)", () => {
+  it("job detail shows sheet purged when the sheet is gone", async () => {
+    mockApi(routes("done", {}, { [`GET /api/v1/sheets/${CODE}`]: () => respond(404, apiErrorBody("sheet_not_found", "Sheet not found.")) }));
+    await renderApp({ path: `/jobs/${ID}` });
+    expect(await screen.findByText("(sheet purged)")).toBeVisible();
+    expect(screen.queryByRole("link", { name: CODE })).toBeNull();
+  });
+
+  it("an existing sheet stays a link", async () => {
+    mockApi(routes("done", {}, { [`GET /api/v1/sheets/${CODE}`]: sheetRead(CODE) }));
+    await renderApp({ path: `/jobs/${ID}` });
+    expect(await screen.findByRole("link", { name: CODE })).toBeVisible();
+    expect(screen.queryByText("(sheet purged)")).toBeNull();
+  });
+});

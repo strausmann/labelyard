@@ -16,6 +16,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_seriali
 
 from app.schemas._datetime import serialize_datetime_utc
 from app.sheets.exchange import MAX_STRIPS, GeometryMm, StripMm
+from app.sheets.limits import PURGE_LIMIT_MAX
 from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN
 from app.sheets.text import check_http_url
 
@@ -337,6 +338,34 @@ class CellRead(BaseModel):
     @field_serializer("updated_at")
     def _ser_updated(self, dt: datetime, info: Any) -> str | None:
         return _utc(dt, info)
+
+
+class PurgeRequest(_Body):
+    """``POST /api/v1/sheets/purge`` (#204, S5): a dry run unless ``dry_run`` is false."""
+
+    older_than_days: int = Field(
+        ge=1,
+        le=36500,
+        description="Purge sheets discarded more than this many days ago.",
+    )
+    dry_run: bool = Field(
+        default=True,
+        description="List the sheets that would be purged and delete nothing (the default).",
+    )
+    limit: int = Field(
+        default=PURGE_LIMIT_MAX,
+        ge=1,
+        le=PURGE_LIMIT_MAX,
+        description="At most this many sheets per call, oldest discard first.",
+    )
+
+
+class PurgeResult(BaseModel):
+    codes: list[str] = Field(
+        description="The purged sheets (or, in a dry run, those that would be), oldest first."
+    )
+    dry_run: bool
+    more: bool = Field(description="Further sheets match: call again to purge them.")
 
 
 class SheetSummary(BaseModel):
