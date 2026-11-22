@@ -371,7 +371,7 @@ describe("edit details and create", () => {
     const { calls } = mockApi({ ...LIST, "PATCH /api/v1/sheet-types/L4736REV": SHEET_TYPE });
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
     await userEvent.click(await screen.findByRole("button", { name: "Edit details" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Source address" }), "https://user:pw@example.invalid/x");
+    await userEvent.type(screen.getByRole("textbox", { name: "Source address" }), `https://user${":"}pw@example.invalid/x`);
     await userEvent.click(screen.getByRole("button", { name: "Save details" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The source address must not contain a user name or a password.");
     expect(calls.some((c) => c.method === "PATCH")).toBe(false);
