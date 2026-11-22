@@ -131,3 +131,11 @@ def test_fullwidth_latin_mixed_with_cyrillic_is_refused() -> None:
     host = "ａа.example.invalid"  # fullwidth Latin a + Cyrillic a  # noqa: RUF001
     with pytest.raises(ValueError, match="mix"):
         check_http_url(f"https://{host}/")
+
+
+@pytest.mark.parametrize("url", ["http://%D0%B5xample.invalid/", "http://ex%41mple.invalid/"])
+def test_percent_in_the_host_is_refused(url: str) -> None:
+    """A browser decodes ``%D0%B5`` to a Cyrillic letter; the mixed-script check must not see a
+    different host than the browser does, so no host may carry a ``%`` at all."""
+    with pytest.raises(ValueError, match="host"):
+        check_http_url(url)

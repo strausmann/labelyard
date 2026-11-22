@@ -27,7 +27,7 @@ from __future__ import annotations
 import contextlib
 import re
 import unicodedata
-from urllib.parse import unquote, urlparse, urlsplit
+from urllib.parse import urlparse, urlsplit
 
 _BIDI_CONTROLS = frozenset({0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A)})
 #: Invisible format characters removed on write: zero-width space, word joiner, BOM, tags.
@@ -133,12 +133,10 @@ def check_http_url(value: str) -> str:
         raise ValueError("the host is not valid") from None
     if not host:
         raise ValueError("the URL has no host")
-    decoded = unquote(host)  # ``ex%0aample`` is a host with a line break in it
-    if any(
-        ord(ch) < 32 or ord(ch) == 0x7F or unicodedata.category(ch) in ("Cc", "Cf")
-        for ch in decoded
-    ):
-        raise ValueError("the host is not valid")
+    # A host never needs a percent escape. A browser decodes it (``%D0%B5`` is a Cyrillic letter,
+    # ``%0a`` a line break), so the checks below would judge another host than the one opened.
+    if "%" in host:
+        raise ValueError("the host is not valid: no percent escapes")
     _check_host(host)
     return value
 
