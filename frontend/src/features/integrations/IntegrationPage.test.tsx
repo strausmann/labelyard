@@ -207,6 +207,7 @@ describe("link to the app itself", () => {
     const link = await page().findByRole("link", { name: /Open Snipe-IT/ });
     expect(link).toHaveAttribute("href", "https://assets.example.invalid");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.parentElement).toHaveTextContent("assets.example.invalid"); // the host stands next to the link (#204)
   });
 
   it("is left out when the deep link is not a web link in a known shape", async () => {

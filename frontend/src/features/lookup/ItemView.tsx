@@ -31,6 +31,7 @@ import { PrinterPicker, usePrinterChoice } from "./PrinterPicker";
 import { SheetSection } from "../sheets/print/SheetSection";
 import { notePrintError } from "../printers/coverRefusals";
 import { unsupportedRoll } from "../printers/roll";
+import { linkHost } from "../archive/search";
 
 const lookupRoute = getRouteApi("/lookup/$app/$id");
 
@@ -156,9 +157,12 @@ function ItemDetail({ item }: { item: LookupResult }) {
             <span>{appName}</span>
             <code className="text-ink">{item.id}</code>
             {href && (
-              <a href={href} target="_blank" rel="noopener noreferrer" className="text-link underline underline-offset-2">
-                {t`Open in ${appName}`}
-              </a>
+              <>
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-link underline underline-offset-2">
+                  {t`Open in ${appName}`}
+                </a>
+                {linkHost(href) ? <span className="font-mono text-small text-ink-2 [overflow-wrap:anywhere]">{linkHost(href)}</span> : null}
+              </>
             )}
           </p>
         </div>

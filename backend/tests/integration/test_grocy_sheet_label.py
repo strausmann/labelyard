@@ -351,7 +351,9 @@ async def test_response_does_not_wait_for_the_reservation(
         await _until(lambda: _used(code, 6))
 
 
-async def test_two_labels_at_once_take_different_cells(_tape_backend: MockPrinterBackend) -> None:
+async def test_two_labels_at_once_take_different_cells(
+    _tape_backend: MockPrinterBackend, production_engine
+) -> None:
     seeded = await _seed_base()
     old = await _sheet(used=47)
     async with running(_tape_backend, seeded=seeded) as rig:
@@ -365,7 +367,7 @@ async def test_two_labels_at_once_take_different_cells(_tape_backend: MockPrinte
 
 
 async def test_two_labels_without_a_sheet_open_one_sheet(
-    _tape_backend: MockPrinterBackend, monkeypatch: pytest.MonkeyPatch
+    _tape_backend: MockPrinterBackend, monkeypatch: pytest.MonkeyPatch, production_engine
 ) -> None:
     """Without the per-type lock both tasks meet at the barrier, both choose a new sheet and two
     sheets open. With it, the first times out, reserves and leaves; the second then chooses the

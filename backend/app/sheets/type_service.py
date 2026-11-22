@@ -153,11 +153,19 @@ CHANGE_NOTE_MAX = 500
 MULTILINE_FIELDS = frozenset({"description", "notes", "change_note"})
 
 
-def clean_text(field: str, value: str, max_len: int) -> str:
-    """``sanitise_text`` with the error mapped to a 422 that names the field."""
+def clean_text(field: str, value: str, max_len: int, *, required: bool = False) -> str:
+    """``sanitise_text`` with the error mapped to a 422 that names the field.
+
+    ``required``: a text that is empty after cleaning (only invisible characters, say) is
+    refused as ``must not be empty``, not stored as an empty string.
+    """
     try:
-        return sanitise_text(value, max_len=max_len, multiline=field in MULTILINE_FIELDS)
-    except ValueError:
+        return sanitise_text(
+            value, max_len=max_len, multiline=field in MULTILINE_FIELDS, required=required
+        )
+    except ValueError as exc:
+        if str(exc) == "empty":
+            raise InvalidFieldError(field, "must not be empty") from None
         raise TextTooLongError(field) from None
 
 
@@ -288,7 +296,7 @@ async def create_type_locked(
     if not KEY_PATTERN.fullmatch(fields.key):
         raise InvalidFieldError("key", "invalid format")
     _check_prefix(fields.prefix)
-    validate_geometry(normalise_shape(geometry))
+    validate_geometry(normalise_shape(geometry), on_write=True)
     if await repo.get_by_key(session, fields.key) is not None:
         raise TypeExistsError()
     if await repo.get_by_prefix(session, fields.prefix) is not None:
@@ -328,7 +336,7 @@ async def create_type(
     if not KEY_PATTERN.fullmatch(fields.key):
         raise InvalidFieldError("key", "invalid format")
     _check_prefix(fields.prefix)
-    validate_geometry(normalise_shape(geometry))
+    validate_geometry(normalise_shape(geometry), on_write=True)
     _clean_fields(fields)
     _clean_change_note(change_note)
     async with write_transaction(session):
@@ -406,7 +414,7 @@ async def add_version_locked(
     change_note = _clean_change_note(change_note) or ""
     if not change_note:
         raise InvalidFieldError("change_note", "must not be empty")
-    validate_geometry(normalise_shape(geometry))
+    validate_geometry(normalise_shape(geometry), on_write=True)
     t = await get_type(session, key)
     latest = await current_version(session, t.id)
     if latest.geometry_hash == geometry_hash(geometry):
@@ -420,7 +428,7 @@ async def add_version_locked(
 async def add_version(
     session: AsyncSession, key: str, geometry: Geometry, *, actor: str, change_note: str
 ) -> SheetTypeVersion:
-    validate_geometry(normalise_shape(geometry))
+    validate_geometry(normalise_shape(geometry), on_write=True)
     _clean_change_note(change_note)
     async with write_transaction(session):
         v = await add_version_locked(session, key, geometry, actor=actor, change_note=change_note)

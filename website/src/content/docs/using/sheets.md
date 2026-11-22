@@ -50,6 +50,8 @@ Choose **Print onto a sheet**, pick the sheet (or scan its code) and the cells. 
 
 If another device used cells of the same sheet while you were looking, the hub tells you and asks you to check the new plan before it prints.
 
+**The job of a cell.** In the API a cell names the job that reserved or printed it (`job_id`). That is a pointer, not a grant: `GET /api/v1/jobs/{id}` answers `404` for a key that may not use the job's printer (`allowed_printer_ids`), and for a job another plain key submitted, exactly as for an unknown job. A key that may read the sheet but not the printer sees the number of the job and nothing of its content.
+
 ## Layouts
 
 A layout decides what a label shows: a QR code, a code, a title and a detail line, in combinations from "code only" to "QR code, code, title and detail". Layouts that need a field the item does not have are refused before printing, with the missing field named. On a sheet type with QR codes switched off, a QR layout prints its text only (see [Sheet types](#sheet-types)).

@@ -157,6 +157,27 @@ describe("type detail", () => {
     expect(screen.getByText("javascript:alert(1)")).toBeVisible();
   });
 
+  it("stored source link shows its host", async () => {
+    mockApi({ ...LIST, "GET /api/v1/sheet-types/L4736REV": { ...DETAIL, source_name: "Vendor datasheet", source_url: "https://example.invalid:8443/sheet.pdf" } });
+    const first = await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    const link = await screen.findByRole("link", { name: "Vendor datasheet" });
+    expect(link.parentElement).toHaveTextContent("example.invalid:8443");
+    first.unmount();
+
+    // A look-alike host is shown the way the browser reads it: punycode, never the picture of a known name.
+    mockApi({ ...LIST, "GET /api/v1/sheet-types/L4736REV": { ...DETAIL, source_name: "Vendor datasheet", source_url: "https://\u0430pple.example.invalid/x" } });
+    await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    const shown = await screen.findByRole("link", { name: "Vendor datasheet" });
+    expect(shown.parentElement).toHaveTextContent("xn--pple-43d.example.invalid");
+  });
+
+  it("does not link a stored address with user info", async () => {
+    mockApi({ ...LIST, "GET /api/v1/sheet-types/L4736REV": { ...DETAIL, source_name: "Vendor datasheet", source_url: "https://user:secret@example.invalid/x" } });
+    await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    expect(await screen.findByText(/Vendor datasheet/)).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Vendor datasheet" })).toBeNull();
+  });
+
   it("offers delete only for a custom type without sheets", async () => {
     mockApi({ ...LIST, "GET /api/v1/sheet-types/L4736REV": DETAIL, "GET /api/v1/sheet-types/my-custom": { ...CUSTOM, versions: [VERSION] } });
     const first = await renderApp({ path: "/sheets/archive?type=L4736REV" });
@@ -344,6 +365,16 @@ describe("edit details and create", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save details" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({ vendor: "Other Labels" });
+  });
+
+  it("says why a source address with user info is refused, and does not send it", async () => {
+    const { calls } = mockApi({ ...LIST, "PATCH /api/v1/sheet-types/L4736REV": SHEET_TYPE });
+    await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Source address" }), "https://user:pw@example.invalid/x");
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The source address must not contain a user name or a password.");
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
   });
 
   it("does not let the prefix change once sheets exist", async () => {

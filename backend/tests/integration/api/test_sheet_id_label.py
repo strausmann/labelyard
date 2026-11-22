@@ -516,7 +516,7 @@ async def test_margin_check_counts_the_space_the_feed_mark_takes() -> None:
 
 
 async def test_creating_a_cell_sheet_holds_no_connection_while_the_service_works(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, production_engine
 ) -> None:
     """Codex P2 (same class as R10-1): the route kept the connection that resolved the printer
     while ``create_sheet_with_id_label`` opened its own sessions."""
@@ -552,7 +552,7 @@ async def test_creating_a_cell_sheet_holds_no_connection_while_the_service_works
 
 
 async def test_no_connection_is_held_while_the_id_job_is_submitted(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, production_engine
 ) -> None:
     """Issue #210: the cell-sheet creation kept its service session while the ID job was
     submitted. Eight concurrent creations inside the submit hold no connection."""

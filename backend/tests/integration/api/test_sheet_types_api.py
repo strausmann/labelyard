@@ -1006,3 +1006,71 @@ async def test_changed_shipped_design_exports_v2_and_imports_back(api_client_wit
     again = (await client.get("/api/v1/sheet-types/acme-3490/export", headers=admin)).json()
     assert again["format_version"] == 2
     assert again["type"]["backing_design"] == doc["type"]["backing_design"]
+
+
+async def test_corner_radius_over_half_is_422(api_client_with_seed, admin):
+    """#204 note 4: 21.2 mm is the shorter side, so 10.6 mm is the largest radius."""
+    over = deepcopy(GEOMETRY)
+    over["corner_radius"] = 10.61
+    created = await api_client_with_seed.post(
+        "/api/v1/sheet-types", json=_body(geometry=over), headers=admin
+    )
+    assert created.status_code == 422, created.text
+    detail = _err(created)
+    assert detail["error_code"] == "corner_radius_too_large"
+    assert detail["error_detail"]["field"] == "corner_radius"
+
+    ok = deepcopy(GEOMETRY)
+    ok["corner_radius"] = 10.6
+    assert (
+        await api_client_with_seed.post(
+            "/api/v1/sheet-types", json=_body(geometry=ok), headers=admin
+        )
+    ).status_code == 201
+
+    version = await api_client_with_seed.post(
+        "/api/v1/sheet-types/acme-t1/versions",
+        json={"geometry": over, "change_note": "rounder"},
+        headers=admin,
+    )
+    assert version.status_code == 422
+    assert _err(version)["error_code"] == "corner_radius_too_large"
+
+
+async def _store_radius(key: str, hmm: int) -> None:
+    from app.models.sheet import SheetTypeVersion
+    from sqlalchemy import update
+
+    async with _factory()() as s:
+        await s.execute(update(SheetTypeVersion).values(corner_radius=hmm))
+        await s.commit()
+
+
+async def test_stored_oversized_radius_keeps_every_read_working(api_client_with_seed, admin):
+    """A type stored before the bound (radius 20 mm on a 21.2 mm label) is still read: list,
+    detail, version, archive and an edit of a text field answer 200."""
+    await _create(api_client_with_seed, admin)
+    await _store_radius("acme-t1", 2000)
+    c = api_client_with_seed
+
+    listed = await c.get("/api/v1/sheet-types", headers=admin)
+    assert listed.status_code == 200, listed.text
+    assert any(t["key"] == "acme-t1" for t in listed.json())
+    detail = await c.get("/api/v1/sheet-types/acme-t1", headers=admin)
+    assert detail.status_code == 200, detail.text
+    assert (await c.get("/api/v1/sheet-types/acme-t1/versions/1", headers=admin)).status_code == 200
+    patched = await c.patch("/api/v1/sheet-types/acme-t1", json={"verified": True}, headers=admin)
+    assert patched.status_code == 200, patched.text
+    assert (await c.post("/api/v1/sheet-types/acme-t1/archive", headers=admin)).status_code == 200
+
+
+async def test_create_with_an_oversized_radius_commits_nothing(api_client_with_seed, admin):
+    over = deepcopy(GEOMETRY)
+    over["corner_radius"] = 15.0
+    refused = await api_client_with_seed.post(
+        "/api/v1/sheet-types", json=_body(geometry=over), headers=admin
+    )
+    assert refused.status_code == 422
+    assert _err(refused)["error_code"] == "corner_radius_too_large"
+    gone = await api_client_with_seed.get("/api/v1/sheet-types/acme-t1", headers=admin)
+    assert gone.status_code == 404

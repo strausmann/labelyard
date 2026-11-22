@@ -18,6 +18,7 @@ import { useRecent, type RecentItem, type RecentKind } from "../lookup/recent";
 import { PANEL, SECONDARY_BUTTON, SECTION_HEADING } from "../ui";
 import { useIntegrationStates, useIsAdmin } from "./api";
 import { useKnownBase } from "./useKnownBase";
+import { linkHost } from "../archive/search";
 
 const integrationRoute = getRouteApi("/integrations/$app");
 
@@ -74,9 +75,12 @@ function Start({ app }: { app: LookupApp }) {
           <h1 className="text-title font-bold">{appName}</h1>
           <StatusBadge state={configured ? "ok" : "idle"} label={configured ? t`Configured` : t`Not set up`} />
           {configured && base && (
-            <a href={base} target="_blank" rel="noopener noreferrer" className={SECONDARY_BUTTON}>
-              {t`Open ${appName}`}&nbsp;<span aria-hidden="true">↗</span>
-            </a>
+            <>
+              <a href={base} target="_blank" rel="noopener noreferrer" className={SECONDARY_BUTTON}>
+                {t`Open ${appName}`}&nbsp;<span aria-hidden="true">↗</span>
+              </a>
+              {linkHost(base) ? <span className="font-mono text-small text-ink-2 [overflow-wrap:anywhere]">{linkHost(base)}</span> : null}
+            </>
           )}
         </header>
       </div>

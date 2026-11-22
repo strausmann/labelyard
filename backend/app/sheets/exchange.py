@@ -314,7 +314,7 @@ def parse_import(raw: bytes) -> ExportDoc:
         raise InvalidImportError(_error_paths(exc)) from None
     try:
         geometry = geometry_from_doc(doc.version.geometry)
-        validate_geometry(geometry)  # stated page size must match
+        validate_geometry(geometry, on_write=True)  # stated page size must match
     except InvalidGeometryError as exc:
         field = (exc.detail or {}).get("field", "geometry")
         raise InvalidImportError([f"version.geometry.{field}"]) from None
@@ -413,6 +413,9 @@ async def import_type(
             added = await ts.add_version_locked(
                 session, existing_key, geometry, actor=actor, change_note=note
             )
+            # Nobody checked the imported numbers against paper: the type is no longer verified
+            # (#204 note 5). The sheet-type log entry for this arrives with the log (Task 18).
+            existing.verified = False
             await session.commit()
             return ImportResult("version_added", existing_key, added.version)
         if new_key is None:  # refused above; kept as a real check for the type narrowing

@@ -711,7 +711,7 @@ class _SubmitProbe:
 
 
 async def test_no_connection_is_held_while_page_jobs_are_submitted(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, production_engine
 ) -> None:
     """Issue #210 (the class of R10-1): ``_queue_pages`` kept the service session, and with it a
     pooled connection, while ``submit_page_job`` opened its own. While eight concurrent prints

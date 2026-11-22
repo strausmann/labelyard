@@ -386,7 +386,9 @@ async def test_undo_puts_the_state_back_without_another_back_job() -> None:
         assert (await rig.sheet(code))["back_side_state"] is None
 
 
-async def test_two_simultaneous_margin_reprints_queue_one(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_two_simultaneous_margin_reprints_queue_one(
+    monkeypatch: pytest.MonkeyPatch, production_engine
+) -> None:
     """M4: the reprint lock spans the in-flight check and the stored job row. The queue is
     replaced by one that stores a ``queued`` row after a pause, so the first page is still in
     flight when the second request checks; without the lock both would pass the check."""

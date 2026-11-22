@@ -494,6 +494,10 @@ msgid "{version} ready"
 msgstr "{version} bereit"
 
 #: src/features/archive/errors.ts
+msgid "{what} can be at most half the shorter side of a label."
+msgstr "{what} darf höchstens halb so groß sein wie die kürzere Seite eines Etiketts."
+
+#: src/features/archive/errors.ts
 msgid "{what} can have at most two decimals."
 msgstr "{what} darf höchstens zwei Nachkommastellen haben."
 
@@ -5997,6 +6001,10 @@ msgstr "Die SNMP-Community hat höchstens 64 Zeichen."
 #: src/features/archive/errors.ts
 msgid "The source address"
 msgstr "Die Quelladresse"
+
+#: src/features/archive/TypeForm.tsx
+msgid "The source address must not contain a user name or a password."
+msgstr "Die Quelladresse darf keinen Benutzernamen und kein Passwort enthalten."
 
 #: src/features/archive/TypeForm.tsx
 msgid "The source address must start with http:// or https://."

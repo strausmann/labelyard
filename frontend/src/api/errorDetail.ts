@@ -117,9 +117,9 @@ export function invalidImport(error: unknown): { errors: string[] } | null {
   return d && isStrings(d.errors) ? { errors: d.errors } : null;
 }
 
-/** `422 invalid_geometry`: which field is wrong and the server's reason keyword. */
+/** `422 invalid_geometry` (and its `corner_radius_too_large` variant): which field is wrong and the server's reason. */
 export function invalidGeometry(error: unknown): { field: string; reason: string } | null {
-  const d = detailOf(error, "invalid_geometry");
+  const d = detailOf(error, "invalid_geometry") ?? detailOf(error, "corner_radius_too_large");
   return d && typeof d.field === "string" && typeof d.reason === "string" ? { field: d.field, reason: d.reason } : null;
 }
 
