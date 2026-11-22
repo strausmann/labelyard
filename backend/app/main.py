@@ -173,6 +173,7 @@ from app.settings_store import SettingsStore
 from app.sheets import limits as sheet_limits
 from app.sheets.back_side import render_sheet_back_page, render_tray_loading_page
 from app.sheets.grocy_sheet import GrocySheetLabels
+from app.sheets.naming import reserve_static_segments
 from app.sheets.outcome import SheetCellsOutcome, sweep_orphan_reservations
 from app.sheets.sheet_page import render_sheet_page
 from app.sheets.sweep import SheetReservationSweep
@@ -763,6 +764,10 @@ def create_app() -> _LifespanManager:
     app.include_router(capabilities_router)
     app.include_router(info_routes.router)
     app.include_router(notices_routes.router)
+    # A type key equal to a fixed path segment under /api/v1/sheet-types/ would be shadowed by that
+    # route. Derived from every registered route (not only one router), so a route added later
+    # reserves its segment too; the floor in ``naming`` covers callers without routes.
+    reserve_static_segments("/api/v1/sheet-types", [getattr(r, "path", "") for r in app.routes])
 
     # #164: inside the security headers and the access log, around every router.
     install_body_limit(app)

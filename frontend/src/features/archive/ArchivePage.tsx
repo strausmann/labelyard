@@ -12,7 +12,7 @@ import { formatMm } from "../sheets/cellState";
 import { typeTitle } from "../sheets/typeLabel";
 import { SelectField, SwitchField, TextInput } from "../settings/controls";
 import { PANEL, SECONDARY_BUTTON } from "../ui";
-import { useSheetTypes, type SheetTypeRead } from "./api";
+import { useSheetTypeFacets, useSheetTypes, type SheetTypeRead } from "./api";
 import { ImportDialog } from "./ImportDialog";
 import { MAX_QUERY, parseDecimal, type ArchiveSearch } from "./search";
 import { TypeBadges, TypeDetail } from "./TypeDetail";
@@ -120,9 +120,16 @@ export function SheetArchivePage() {
     h: search.h,
     include_archived: search.archived,
   });
-  // The vendors to choose from come from the unfiltered list, so choosing one does not hide the others.
-  const all = useSheetTypes({ include_archived: search.archived });
-  const vendors = [...new Set((all.data ?? []).map((x) => x.vendor).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
+  // The vendors to choose from are counted under every filter except the vendor,
+  // so choosing one does not hide the others (and a long list is not fetched twice).
+  const facets = useSheetTypeFacets({
+    page: search.page,
+    q: search.q,
+    w: search.w,
+    h: search.h,
+    include_archived: search.archived,
+  });
+  const vendors = (facets.data?.vendors ?? []).map((f) => f.value);
   if (search.vendor && !vendors.includes(search.vendor)) vendors.push(search.vendor);
 
   const filtered = Boolean(search.q || search.page || search.vendor || search.w || search.h);
@@ -187,7 +194,10 @@ export function SheetArchivePage() {
                   value={search.vendor ?? ANY}
                   options={[{ id: ANY, label: t`Any vendor` }, ...vendors.map((v) => ({ id: v, label: v }))]}
                   onChange={(id) => commit({ vendor: id === ANY ? undefined : id })}
+                  isDisabled={facets.isPending}
+                  placeholder={facets.isPending ? t`Loading vendors…` : undefined}
                 />
+                {facets.isError ? <p className="text-small text-ink-2">{t`The vendors could not be loaded.`}</p> : null}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <TextInput label={t`Label width (mm)`} value={typed.w} onChange={typed.setW} inputMode="decimal" />

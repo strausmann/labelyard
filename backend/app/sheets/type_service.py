@@ -35,6 +35,7 @@ from app.sheets.errors import (
     SheetTypeVersionNotFoundError,
     TextTooLongError,
     TypeExistsError,
+    TypeKeyReservedError,
 )
 from app.sheets.geometry import (
     Geometry,
@@ -43,7 +44,7 @@ from app.sheets.geometry import (
     normalise_shape,
     validate_geometry,
 )
-from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN, default_allow_qr
+from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN, RESERVED_TYPE_KEYS, default_allow_qr
 from app.sheets.text import check_http_url, log_value, sanitise_text
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,8 @@ async def create_type_locked(
     change_note = _clean_change_note(change_note)
     if not KEY_PATTERN.fullmatch(fields.key):
         raise InvalidFieldError("key", "invalid format")
+    if fields.key in RESERVED_TYPE_KEYS:
+        raise TypeKeyReservedError()
     _check_prefix(fields.prefix)
     validate_geometry(normalise_shape(geometry), on_write=True)
     if await repo.get_by_key(session, fields.key) is not None:
@@ -335,6 +338,8 @@ async def create_type(
     # Cheap input checks first so a bad request does not take the write lock.
     if not KEY_PATTERN.fullmatch(fields.key):
         raise InvalidFieldError("key", "invalid format")
+    if fields.key in RESERVED_TYPE_KEYS:
+        raise TypeKeyReservedError()
     _check_prefix(fields.prefix)
     validate_geometry(normalise_shape(geometry), on_write=True)
     _clean_fields(fields)
@@ -471,7 +476,7 @@ async def delete_type(session: AsyncSession, key: str, *, actor: str) -> None:  
     logger.info("sheet type %s deleted", log_value(key))
 
 
-async def list_types(
+async def _filtered(
     session: AsyncSession,
     *,
     page: str | None,
@@ -480,15 +485,20 @@ async def list_types(
     w: float | None,
     h: float | None,
     include_archived: bool,
-) -> list[SheetType]:
+) -> list[tuple[SheetType, SheetTypeVersion]]:
+    # The vendor is compared case-folded here: SQLite's lower() only folds ASCII, so
+    # "Ärger" would never match "ärger" in SQL.
     rows = await repo.list_with_current_version(
-        session, vendor=vendor, include_archived=include_archived
+        session, vendor=None, include_archived=include_archived
     )
+    vendor_key = vendor.casefold() if vendor is not None else None
     needle = q.lower() if q else None
     w_hmm = None if w is None else mm_to_hmm_rounded(w)
     h_hmm = None if h is None else mm_to_hmm_rounded(h)
-    out: list[SheetType] = []
+    out: list[tuple[SheetType, SheetTypeVersion]] = []
     for t, v in rows:
+        if vendor_key is not None and (t.vendor or "").casefold() != vendor_key:
+            continue
         if page is not None and v.page_size != page:
             continue
         if w_hmm is not None and abs(v.label_w - w_hmm) > _SIZE_TOLERANCE_HMM:
@@ -499,5 +509,87 @@ async def list_types(
             haystack = [t.key, t.vendor or "", t.description or "", *t.product_codes]
             if not any(needle in part.lower() for part in haystack):
                 continue
-        out.append(t)
+        out.append((t, v))
     return out
+
+
+@dataclass(frozen=True)
+class TypePage:
+    """The types of one page (all of them without a ``limit``) and whether more follow."""
+
+    types: list[SheetType]
+    has_more: bool
+
+
+async def list_types(
+    session: AsyncSession,
+    *,
+    page: str | None,
+    vendor: str | None,
+    q: str | None,
+    w: float | None,
+    h: float | None,
+    include_archived: bool,
+) -> list[SheetType]:
+    """Every matching type in key order."""
+    rows = await _filtered(
+        session, page=page, vendor=vendor, q=q, w=w, h=h, include_archived=include_archived
+    )
+    return [t for t, _ in rows]
+
+
+async def list_types_page(
+    session: AsyncSession,
+    *,
+    page: str | None,
+    vendor: str | None,
+    q: str | None,
+    w: float | None,
+    h: float | None,
+    include_archived: bool,
+    limit: int | None = None,
+    offset: int = 0,
+) -> TypePage:
+    """Types in key order. Without ``limit`` every match comes back (the historic behaviour)."""
+    rows = await _filtered(
+        session, page=page, vendor=vendor, q=q, w=w, h=h, include_archived=include_archived
+    )
+    types = [t for t, _ in rows]
+    if limit is None:
+        return TypePage(types, False)
+    return TypePage(types[offset : offset + limit], len(types) > offset + limit)
+
+
+@dataclass(frozen=True)
+class TypeFacets:
+    vendors: list[tuple[str, int]]
+    page_sizes: list[tuple[str, int]]
+
+
+async def type_facets(
+    session: AsyncSession,
+    *,
+    page: str | None,
+    q: str | None,
+    w: float | None,
+    h: float | None,
+    include_archived: bool,
+) -> TypeFacets:
+    """Vendor and page-size counts under the list's filters, **without** the vendor filter.
+
+    Choosing a vendor must not hide the other vendors, so the vendor is never applied here.
+    """
+    rows = await _filtered(
+        session, page=page, vendor=None, q=q, w=w, h=h, include_archived=include_archived
+    )
+    vendors: dict[str, tuple[str, int]] = {}  # lower-case -> (first spelling seen, count)
+    sizes: dict[str, int] = {}
+    for t, v in rows:
+        if t.vendor:
+            spelling, n = vendors.get(t.vendor.casefold(), (t.vendor, 0))
+            vendors[t.vendor.casefold()] = (spelling, n + 1)
+        sizes[v.page_size] = sizes.get(v.page_size, 0) + 1
+    return TypeFacets(
+        vendors=[vendors[k] for k in sorted(vendors)],
+        page_sizes=sorted(sizes.items()),
+    )

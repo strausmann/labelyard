@@ -32,7 +32,14 @@ const EXPORT_DOC = {
   version: { version: 1, geometry: GEOMETRY_L4736 },
 };
 
-const LIST = { "GET /api/v1/sheet-types": [SHEET_TYPE, CUSTOM], "GET /api/v1/sheet-types/L4736REV": DETAIL };
+const FACETS = {
+  vendors: [
+    { value: "Example Labels", count: 1 },
+    { value: "Other Labels", count: 3 },
+  ],
+  page_sizes: [{ value: "A4", count: 4 }],
+};
+const LIST = { "GET /api/v1/sheet-types": [SHEET_TYPE, CUSTOM], "GET /api/v1/sheet-types/facets": FACETS, "GET /api/v1/sheet-types/L4736REV": DETAIL };
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -603,6 +610,43 @@ describe("filters, as a person uses them", () => {
     await userEvent.click(screen.getByRole("button", { name: /Vendor/ }));
     await userEvent.click(await screen.findByRole("option", { name: "Example Labels" }));
     await waitFor(() => expect(typeCalls(calls).some((c) => c.search === "?vendor=Example+Labels")).toBe(true));
+  });
+
+  it("vendor options come from the facet query", async () => {
+    mockApi({
+      ...LIST,
+      // The list itself knows only one vendor; the facets know three.
+      "GET /api/v1/sheet-types/facets": { ...FACETS, vendors: [...FACETS.vendors, { value: "Third Labels", count: 2 }] },
+    });
+    await renderApp({ path: "/sheets/archive" });
+    await screen.findByRole("link", { name: /L4736REV/ });
+    await userEvent.click(screen.getByRole("button", { name: /Vendor/ }));
+    for (const name of ["Example Labels", "Other Labels", "Third Labels"]) {
+      expect(await screen.findByRole("option", { name })).toBeVisible();
+    }
+  });
+
+  it("choosing a vendor keeps the other vendors in the list", async () => {
+    const { calls } = mockApi(LIST);
+    await renderApp({ path: "/sheets/archive?q=lab&page=A4" });
+    await screen.findByRole("link", { name: /L4736REV/ });
+    await userEvent.click(screen.getByRole("button", { name: /Vendor/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Example Labels" }));
+    await waitFor(() => expect(typeCalls(calls).some((c) => c.search.includes("vendor=Example+Labels"))).toBe(true));
+    // The facets are asked with the other filters and never with the vendor.
+    const facetCalls = calls.filter((c) => c.path === "/api/v1/sheet-types/facets");
+    expect(facetCalls.length).toBeGreaterThan(0);
+    expect(facetCalls.every((c) => !new URLSearchParams(c.search).has("vendor"))).toBe(true);
+    expect(facetCalls.every((c) => c.search === "?page=A4&q=lab")).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: /Vendor/ }));
+    expect(await screen.findByRole("option", { name: "Other Labels" })).toBeVisible();
+  });
+
+  it("says so when the vendors cannot be loaded, and the list still works", async () => {
+    mockApi({ ...LIST, "GET /api/v1/sheet-types/facets": () => respond(500, { detail: "boom" }) });
+    await renderApp({ path: "/sheets/archive" });
+    await screen.findByRole("link", { name: /L4736REV/ });
+    expect(await screen.findByText("The vendors could not be loaded.")).toBeVisible();
   });
 
   it("typing a label size (with a decimal comma) asks the server for it", async () => {

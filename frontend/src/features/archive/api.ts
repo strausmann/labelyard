@@ -46,6 +46,19 @@ export const useSheetTypes = (filters: TypeFilters = {}) =>
     queryFn: () => apiFetch<SheetTypeRead[]>(`/api/v1/sheet-types${queryString({ ...filters })}`),
   });
 
+export type SheetTypeFacets = Schemas["SheetTypeFacets"];
+export type TypeFacetFilters = Omit<TypeFilters, "vendor">;
+
+/**
+ * Vendor and page-size counts under every filter except the vendor, so choosing a vendor
+ * keeps the other vendors in the list. Lives under the list key: a type write refreshes it.
+ */
+export const useSheetTypeFacets = (filters: TypeFacetFilters = {}) =>
+  useQuery({
+    queryKey: [...typesListKey, "facets", filters] as const,
+    queryFn: () => apiFetch<SheetTypeFacets>(`/api/v1/sheet-types/facets${queryString({ ...filters })}`),
+  });
+
 export const useSheetType = (key: string, enabled = true) =>
   useQuery({ queryKey: typeKey(key), queryFn: () => apiFetch<SheetTypeDetail>(typePath(key)), enabled });
 

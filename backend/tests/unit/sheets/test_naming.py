@@ -60,3 +60,9 @@ def test_default_allow_qr() -> None:
 def test_default_allow_qr_threshold_is_10_mm(label_w: int, label_h: int, expected: bool) -> None:
     g = replace(L4731, label_w=label_w, label_h=label_h)
     assert default_allow_qr(g) is expected
+
+
+def test_reserved_type_keys_hold_the_floor_without_any_route_imported() -> None:
+    from app.sheets.naming import RESERVED_TYPE_KEYS
+
+    assert {"facets", "import"} <= RESERVED_TYPE_KEYS

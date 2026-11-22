@@ -68,6 +68,14 @@ class TypeExistsError(SheetApiError):
     message = "A sheet type with this key already exists."
 
 
+class TypeKeyReservedError(SheetApiError):
+    """The key is a static path segment under ``/api/v1/sheet-types/`` (``facets``, …)."""
+
+    status = 422
+    error_code = "type_key_reserved"
+    message = "This sheet type key is reserved by the API; choose another key."
+
+
 class PrefixTakenError(SheetApiError):
     status = 409
     error_code = "prefix_taken"

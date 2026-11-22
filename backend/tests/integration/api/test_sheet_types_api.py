@@ -534,6 +534,7 @@ async def test_openapi_lists_sheet_type_routes(api_client_with_seed):
         ("get", "/api/v1/sheet-types"),
         ("post", "/api/v1/sheet-types"),
         ("post", "/api/v1/sheet-types/import"),
+        ("get", "/api/v1/sheet-types/facets"),
         ("get", "/api/v1/sheet-types/{key}"),
         ("patch", "/api/v1/sheet-types/{key}"),
         ("delete", "/api/v1/sheet-types/{key}"),

@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.bounded_body import read_bounded
+from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext
 from app.auth.scope_deps import require_admin, require_read
@@ -25,10 +26,12 @@ from app.models.backing_design import BackingDesign
 from app.models.sheet import SheetType, SheetTypeVersion
 from app.schemas.sheets import (
     BackingDesignRead,
+    FacetCount,
     GeometryMm,
     ImportResponse,
     SheetTypeCreate,
     SheetTypeDetail,
+    SheetTypeFacets,
     SheetTypePatch,
     SheetTypeRead,
     VersionCreate,
@@ -140,8 +143,28 @@ async def _type_read(
     return read, [_version_read(v, count) for v, count in versions]
 
 
-@router.get("", response_model=list[SheetTypeRead], summary="List sheet types")
+@router.get(
+    "",
+    response_model=list[SheetTypeRead],
+    summary="List sheet types",
+    description=(
+        "Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is "
+        'paged; the `Link` header names the next page (`rel="next"`), the body stays a list.'
+    ),
+    responses={
+        200: {
+            "headers": {
+                "Link": {
+                    "description": 'The next page, `rel="next"`; absent on the last page.',
+                    "schema": {"type": "string"},
+                }
+            }
+        }
+    },
+)
 async def list_sheet_types(
+    request: Request,
+    response: Response,
     session: SessionDep,
     _auth: ReadDep,
     page: Annotated[Literal["A4", "Letter"] | None, Query()] = None,
@@ -150,9 +173,11 @@ async def list_sheet_types(
     w: Annotated[float | None, Query(ge=0, le=1000, description="Label width, ±0.5 mm.")] = None,
     h: Annotated[float | None, Query(ge=0, le=1000, description="Label height, ±0.5 mm.")] = None,
     include_archived: bool = False,
+    limit: Annotated[int | None, Query(ge=1, le=200)] = None,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> list[SheetTypeRead]:
     with mapped():
-        types = await ts.list_types(
+        found = await ts.list_types_page(
             session,
             page=page,
             vendor=vendor,
@@ -160,10 +185,46 @@ async def list_sheet_types(
             w=w,
             h=h,
             include_archived=include_archived,
+            limit=limit,
+            offset=offset,
         )
+        types = found.types
         by_type = await ts.list_versions_with_sheet_counts_many(session, [t.id for t in types])
         designs = await _designs(session)
-        return [(await _type_read(session, t, by_type[t.id], designs))[0] for t in types]
+        body = [(await _type_read(session, t, by_type[t.id], designs))[0] for t in types]
+    if limit is not None:
+        response.headers.update(
+            next_link(request, limit=limit, offset=offset, has_more=found.has_more)
+        )
+    return body
+
+
+@router.get(
+    "/facets",
+    response_model=SheetTypeFacets,
+    summary="Vendor and page-size counts for the type filters",
+    description=(
+        "Counted under the list's filters except `vendor`, so choosing a vendor keeps the other "
+        "vendors available. Archived types are counted only with `include_archived`."
+    ),
+)
+async def sheet_type_facets(
+    session: SessionDep,
+    _auth: ReadDep,
+    page: Annotated[Literal["A4", "Letter"] | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=100, description="Key, codes, description.")] = None,
+    w: Annotated[float | None, Query(ge=0, le=1000, description="Label width, ±0.5 mm.")] = None,
+    h: Annotated[float | None, Query(ge=0, le=1000, description="Label height, ±0.5 mm.")] = None,
+    include_archived: bool = False,
+) -> SheetTypeFacets:
+    with mapped():
+        facets = await ts.type_facets(
+            session, page=page, q=q, w=w, h=h, include_archived=include_archived
+        )
+    return SheetTypeFacets(
+        vendors=[FacetCount(value=v, count=n) for v, n in facets.vendors],
+        page_sizes=[FacetCount(value=v, count=n) for v, n in facets.page_sizes],
+    )
 
 
 @router.post(

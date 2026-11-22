@@ -2638,6 +2638,10 @@ msgstr "Benachrichtigungen werden geladen…"
 msgid "Loading test"
 msgstr "Einlegetest"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Loading vendors…"
+msgstr "Hersteller werden geladen …"
+
 #: src/app/router.tsx
 #: src/features/about/DependencyLicences.tsx
 #: src/features/archive/ArchivePage.tsx
@@ -6083,6 +6087,10 @@ msgstr "Die Werte sind unten eingetragen. Noch ist nichts gespeichert."
 #: src/features/archive/errors.ts
 msgid "The vendor"
 msgstr "Der Herstellername"
+
+#: src/features/archive/ArchivePage.tsx
+msgid "The vendors could not be loaded."
+msgstr "Die Hersteller konnten nicht geladen werden."
 
 #: src/features/archive/errors.ts
 msgid "The vertical pitch"

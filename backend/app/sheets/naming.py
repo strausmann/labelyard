@@ -10,6 +10,25 @@ import re
 from app.sheets.geometry import Geometry
 
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")
+
+# Keys a type must not have, because a fixed path segment under /api/v1/sheet-types/ would shadow
+# its detail route. The floor below holds without any route imported (service-level callers, unit
+# tests); ``create_app()`` adds the segments of every registered route through
+# ``reserve_static_segments``, so a later route (the catalogue of Task 8c) reserves its own.
+RESERVED_TYPE_KEYS: set[str] = {"facets", "import"}
+
+
+def reserve_static_segments(prefix: str, paths: list[str]) -> None:
+    """Reserve the first segment after ``prefix`` of every route path that is not a parameter."""
+    lead = prefix.rstrip("/") + "/"
+    for path in paths:
+        if not path.startswith(lead):
+            continue
+        segment = path[len(lead) :].split("/", 1)[0]
+        if segment and not segment.startswith("{"):
+            RESERVED_TYPE_KEYS.add(segment)
+
+
 PREFIX_PATTERN = re.compile(r"^[A-Z][A-Z0-9]{1,9}$")
 _PACK_SUFFIX = re.compile(r"-\d+$")
 _REV_SUFFIX = re.compile(r"REV$")
