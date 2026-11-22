@@ -89,6 +89,8 @@ export function useEntryText(): (entry: Pick<Notification, "textKey" | "values">
         const code = values.code ?? "";
         return t`${code} dimensions updated (verified)`;
       }
+      case "sheet_type.catalog_step_failed":
+        return t`Sheet types could not be linked to the catalog. The hub tries again on its next start.`;
       case "sheet_type.verified": {
         const code = values.code ?? "";
         return t`${code} marked as verified`;

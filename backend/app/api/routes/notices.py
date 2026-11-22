@@ -46,7 +46,8 @@ def _parse(records: list[Any]) -> list[SheetTypeNotice]:
     summary="List the hub's recent notices",
 )
 async def list_notices(_auth: ReadDep, db: SessionDep) -> list[SheetTypeNotice]:
-    """Notices of the last 30 days, newest first (sheet types marked verified or updated)."""
+    """Notices of the last 30 days, newest first (sheet types marked verified or updated, a
+    failed catalog step)."""
     row = await db.get(AppSetting, NOTICES_KEY)
     if row is None or row.value_json is None:
         return []

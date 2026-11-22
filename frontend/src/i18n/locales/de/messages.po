@@ -3047,6 +3047,10 @@ msgstr "Kein Bogen passt."
 msgid "No sheet type matches."
 msgstr "Kein Bogentyp passt."
 
+#: src/features/archive/NoTypesInstalled.tsx
+msgid "No sheet types are installed yet. <0>Add one from the catalog in the sheet archive</0>."
+msgstr "Es sind noch keine Bogentypen installiert. <0>Füge einen aus dem Katalog im Bogenarchiv hinzu</0>."
+
 #: src/features/sheets/SheetsPage.tsx
 msgid "No sheets yet."
 msgstr "Noch keine Bögen."
@@ -4615,6 +4619,10 @@ msgstr "Bogentyp"
 #: src/features/archive/ArchivePage.tsx
 msgid "Sheet types"
 msgstr "Bogentypen"
+
+#: src/features/notifications/useEntryText.ts
+msgid "Sheet types could not be linked to the catalog. The hub tries again on its next start."
+msgstr "Die Bogentypen konnten nicht mit dem Katalog verknüpft werden. Der Hub versucht es beim nächsten Start erneut."
 
 #: src/features/archive/TypeDetail.tsx
 #: src/features/overview/SheetTiles.tsx

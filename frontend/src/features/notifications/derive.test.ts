@@ -405,6 +405,19 @@ describe("deriveNotices", () => {
     expect(entry).toMatchObject({ textKey: "sheet_type.updated", values: { code: "L4731REV" } });
   });
 
+  it("a failed catalog step is a warning that opens the archive and names no type (#335)", () => {
+    const [entry] = deriveNotices([notice("", { id: "catalog-migration-failed", kind: "catalog_migration_failed", code: "" })]);
+    expect(entry).toEqual({
+      id: "catalog-migration-failed",
+      severity: "warning",
+      kind: "sheet_type",
+      textKey: "sheet_type.catalog_step_failed",
+      values: {},
+      at: minutesAgo(10),
+      target: { to: "/sheets/archive", params: {} },
+    });
+  });
+
   it("notices are merged newest first and never cut by the job cap", () => {
     const jobs = Array.from({ length: 120 }, (_, i) => mkJob(`aaaaaaaa-0000-4000-8000-${String(i).padStart(12, "0")}`, "done", { updated_at: minutesAgo(60 + i) }));
     const derived = run({ jobs, printers: [A] });

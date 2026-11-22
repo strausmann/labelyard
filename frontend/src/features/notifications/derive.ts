@@ -230,15 +230,29 @@ export const newestFirst = (a: Notification, b: Notification) => time(b.at) - ti
  * `code` is the one the hub stored when it wrote the notice (the type's own product code), not derived here.
  */
 export function deriveNotices(notices: readonly SheetTypeNotice[]): Notification[] {
-  return notices.map((n) => ({
-    id: n.id,
-    severity: "info",
-    kind: "sheet_type",
-    textKey: n.kind === "sheet_type_updated" ? "sheet_type.updated" : "sheet_type.verified",
-    values: { code: n.code },
-    at: n.at,
-    target: { to: "/sheets/archive", params: {}, search: { type: n.key } },
-  }));
+  return notices.map((n): Notification =>
+    n.kind === "catalog_migration_failed"
+      ? {
+          // The one-time catalog step failed (#335): the installed types have no catalog link yet; the hub retries on
+          // its next start. It names no type, so it opens the archive as a whole.
+          id: n.id,
+          severity: "warning",
+          kind: "sheet_type",
+          textKey: "sheet_type.catalog_step_failed",
+          values: {},
+          at: n.at,
+          target: { to: "/sheets/archive", params: {} },
+        }
+      : {
+          id: n.id,
+          severity: "info",
+          kind: "sheet_type",
+          textKey: n.kind === "sheet_type_updated" ? "sheet_type.updated" : "sheet_type.verified",
+          values: { code: n.code },
+          at: n.at,
+          target: { to: "/sheets/archive", params: {}, search: { type: n.key } },
+        },
+  );
 }
 
 /**

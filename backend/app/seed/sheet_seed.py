@@ -3,6 +3,12 @@
 
 """Seed the sheet type archive from the shipped file (spec 9.5, OC-14).
 
+Since 1.8.0 the hub does not run the seeder on start: sheet types ship as a catalog (ADR 0028,
+``app.catalog``). The catalog startup step (``app.catalog.upgrade``) runs only the pending
+``adopt``/``corrections`` of this file (``apply_pending_fixes``) on an installation that has not
+applied them; the rest of this module describes the 1.7.x seeder, kept for that step and to
+build a 1.7.x database in tests.
+
 The seeder keeps no state of its own. Every start compares the seed keys and geometry hashes
 with the database (one query per table) and acts only where the database is untouched:
 
@@ -226,7 +232,38 @@ async def _load_known(session: AsyncSession) -> _Known:
     )
 
 
+async def apply_pending_fixes(session: AsyncSession, report: SeedReport) -> None:
+    """Run the ``adopt``/``corrections`` of the seed an installation has not applied yet.
+
+    The first half of the catalog startup step (ADR 0028, ``app.catalog.upgrade``): an
+    installation that never ran this seed revision gets the fixes the maintainer already decided
+    on. Nothing is inserted and no other version is added. The caller holds the write lock and
+    owns the transaction; an entry that fails raises, so the whole step is rolled back.
+    """
+    seed = load_seed()
+    known = await _load_known(session)
+    adopted = await _setting_map(session, ADOPTED_KEY)
+    corrected = await _setting_map(session, CORRECTED_KEY)
+    for doc in seed.docs:
+        key = doc.type.key
+        if key not in known.types:
+            continue  # a type 1.8.0 no longer inserts: it comes from the catalog
+        adoption = seed.adopt.get(key)
+        if adoption is not None and adopted.get(key, 0) < adoption.revision:
+            await _adopt_one(session, doc, adoption, known, report)
+            continue
+        correction = seed.corrections.get(key)
+        if correction is not None and corrected.get(key, 0) < correction.revision:
+            await _correct_one(session, doc, correction, known, report)
+
+
 async def run_sheet_seed(session_factory: async_sessionmaker[AsyncSession]) -> SeedReport:
+    """The 1.7.x seeder: inserts the shipped types, designs and links (not run since 1.8.0).
+
+    The hub no longer calls it on start (ADR 0028); the catalog startup step runs only its
+    pending fixes (``apply_pending_fixes``). It stays to build the database of a 1.7.x
+    installation in tests and the demo hub.
+    """
     seed = load_seed()
     report = SeedReport()
     async with session_factory() as session, write_transaction(session):
@@ -313,16 +350,25 @@ def _iso(moment: datetime) -> str:
     return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+NoticeKind = Literal["sheet_type_verified", "sheet_type_updated", "catalog_migration_failed"]
+
+
 async def _append_notice(
     session: AsyncSession,
     *,
-    kind: Literal["sheet_type_verified", "sheet_type_updated"],
+    kind: NoticeKind,
     key: str,
     code: str,
     revision: int,
     now: datetime,
+    notice_id: str | None = None,
 ) -> None:
-    """Append one notice and drop the ones older than ``NOTICE_MAX_AGE`` in the same write."""
+    """Append one notice and drop the ones older than ``NOTICE_MAX_AGE`` in the same write.
+
+    A notice with the id of one already stored replaces it, so a condition reported on every
+    start (``catalog_migration_failed``) stays one entry.
+    """
+    record_id = notice_id or f"sheet-type-verified:{key}:{revision}"
     row = await session.get(AppSetting, NOTICES_KEY)
     records: list[Any] = []
     if row is not None and row.value_json is not None:
@@ -332,10 +378,14 @@ async def _append_notice(
             loaded = []
         records = loaded if isinstance(loaded, list) else []
     cutoff = now - NOTICE_MAX_AGE
-    kept = [r for r in records if _notice_is_recent(r, cutoff)]
+    kept = [
+        r
+        for r in records
+        if _notice_is_recent(r, cutoff) and not (isinstance(r, dict) and r.get("id") == record_id)
+    ]
     kept.append(
         {
-            "id": f"sheet-type-verified:{key}:{revision}",
+            "id": record_id,
             "kind": kind,
             "key": key,
             "code": code,

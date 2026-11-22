@@ -165,6 +165,14 @@ describe("NotificationCentre: the panel", () => {
     expect(router.state.location.search).toMatchObject({ type: "avery-zweckform-6121" });
   });
 
+  it("a failed catalog step says so and opens the sheet archive (#335)", async () => {
+    mockApi({ ...routes(), ...notices({ ...noticeRecord("", "", "catalog_migration_failed"), id: "catalog-migration-failed" }) });
+    await renderApp({ path: "/printers", info: SHEETS_ON });
+    await userEvent.click(await bell());
+    const link = await screen.findByRole("link", { name: /Sheet types could not be linked to the catalog\. The hub tries again on its next start\./ });
+    expect(link).toHaveAttribute("href", "/sheets/archive");
+  });
+
   it("the updated notice reads \"6121 dimensions updated (verified)\"", async () => {
     mockApi({
       ...routes(),

@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Startup robustness of the lifespan (#264 seed, #265 producer start).
+"""Startup robustness of the lifespan (#264 seed, #335 catalog step, #265 producer start).
 
-A failing seed must not block startup; a failing ``PrinterRuntime.start`` must still stop the
-producers it already started.
+A failing catalog step must not block startup; a failing ``PrinterRuntime.start`` must still
+stop the producers it already started.
 """
 
 from __future__ import annotations
@@ -24,21 +24,21 @@ from httpx import ASGITransport, AsyncClient
 from tests.helpers.fake_ipp_printer import FAKE_URI, FakeIppPrinter
 
 
-async def test_failing_sheet_seed_does_not_block_startup(
+async def test_failing_catalog_step_does_not_block_startup(
     client: AsyncClient, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """264-09: a seed that raises is logged once; the hub starts and answers ``/healthz``."""
+    """264-09, #335: a catalog step that raises is logged once; the hub answers ``/healthz``."""
 
     async def _boom(_factory: Any) -> None:
-        raise RuntimeError("seed failed")
+        raise RuntimeError("catalog step failed")
 
     with (
-        patch("app.seed.sheet_seed.run_sheet_seed", _boom),
+        patch("app.catalog.upgrade.run_catalog_migration", _boom),
         caplog.at_level(logging.ERROR, logger="app.main"),
     ):
         response = await client.get("/healthz")  # the first request starts the lifespan
     assert response.status_code == 200
-    failures = [r for r in caplog.records if "Sheet type seeding failed" in r.getMessage()]
+    failures = [r for r in caplog.records if "Sheet type catalog step failed" in r.getMessage()]
     assert len(failures) == 1
 
 
@@ -198,3 +198,28 @@ async def test_hub_starts_with_a_malformed_stored_port(
     assert bad
     # A bad stored row is routine: a warning without a traceback, not an unexpected error.
     assert all(r.levelno == logging.WARNING and r.exc_info is None for r in bad)
+
+
+async def test_restart_does_not_bring_back_a_deleted_type() -> None:
+    """#335: the 1.7.x seed of the test harness runs before the first start only; a later start
+    (the marker is set) leaves a deleted type deleted, as a real 1.8.0 hub does."""
+    import app.db.engine as eng
+    from app.catalog import upgrade
+    from app.models.sheet import SheetType, SheetTypeVersion
+    from sqlalchemy import delete, func, select
+    from sqlmodel import col
+
+    await upgrade.run_catalog_migration(eng.async_session)  # first start (harness seeds)
+    async with eng.async_session() as s:
+        t = (
+            await s.execute(select(SheetType).where(col(SheetType.key) == "avery-7160"))
+        ).scalar_one()
+        await s.execute(delete(SheetTypeVersion).where(col(SheetTypeVersion.type_id) == t.id))
+        await s.execute(delete(SheetType).where(col(SheetType.id) == t.id))
+        await s.commit()
+    await upgrade.run_catalog_migration(eng.async_session)  # restart
+    async with eng.async_session() as s:
+        count = await s.scalar(
+            select(func.count()).select_from(SheetType).where(col(SheetType.key) == "avery-7160")
+        )
+    assert count == 0
