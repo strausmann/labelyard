@@ -24,6 +24,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 from urllib.parse import unquote, urlsplit
 
@@ -182,37 +183,60 @@ def _host_forms(host: str) -> set[str]:
     return {f for f in forms if f}
 
 
-def _markers(settings: SettingsLike) -> tuple[list[str], list[re.Pattern[str]]]:
-    """What betrays an internal base: the base itself, and its host in any spelling.
+@dataclass(frozen=True)
+class _Context:
+    """Everything redaction reads from the settings, read once per job answer (ADR 0033).
+
+    ``bases[name]`` is ``(internal base, web address)``; ``marker_bases`` and ``marker_hosts``
+    betray an internal base (see :func:`_build_context`). Building it reads the settings, encodes
+    IDNA and compiles patterns, so it is built once per :func:`redact_job_payload` call and
+    reused for every code of the job, not once per code.
+    """
+
+    bases: dict[str, tuple[str, str]]
+    marker_bases: tuple[str, ...]
+    marker_hosts: tuple[re.Pattern[str], ...]
+
+
+#: What may follow an internal host for it to count: a port, a path, query or fragment, a
+#: query separator, punctuation that ends a URL in text, whitespace, or the end.
+_HOST_END = r"(?=[:/?#\\&,;\"')\s]|$)"
+
+
+def _build_context(settings: SettingsLike) -> _Context:
+    """Read the bases once and derive what betrays them: the base itself, and its host in any
+    spelling.
 
     The host counts wherever it follows ``//`` or ``@`` (user info), with or without a port, a
     trailing dot or the brackets of an IPv6 address. It is left out when the integration's web
     address uses the same host, and the base altogether when it is the web address itself: it
     is public then.
     """
-    bases: list[str] = []
-    hosts: list[re.Pattern[str]] = []
-    for name in INTEGRATIONS:
-        base = _internal_base(name, settings)
+    bases = {
+        name: (_internal_base(name, settings), _web_base(name, settings)) for name in INTEGRATIONS
+    }
+    marker_bases: list[str] = []
+    marker_hosts: list[re.Pattern[str]] = []
+    for base, web in bases.values():
         if not base:
             continue
-        web = _web_base(name, settings)
         if web and web.casefold() == base.casefold():
             continue  # the operator declared this base public: it is its own web address
-        bases.append(base.casefold())
+        marker_bases.append(base.casefold())
         host = urlsplit(base).hostname or ""
         web_host = (urlsplit(web).hostname or "") if web else ""
         if not host or (web_host and _host_forms(web_host) & _host_forms(host)):
             continue
         for form in _host_forms(host):
             # An IPv6 host stands in brackets in a URL (``urlsplit`` drops them).
-            hosts.append(re.compile(r"(?://|@)\[?" + re.escape(form) + r"\]?\.?(?=[:/?#\\]|$)"))
-    return bases, hosts
+            marker_hosts.append(
+                re.compile(r"(?://|@)\[?" + re.escape(form) + r"\]?\.?" + _HOST_END)
+            )
+    return _Context(bases, tuple(marker_bases), tuple(marker_hosts))
 
 
-def _names_internal(text: str, settings: SettingsLike) -> bool:
+def _names_internal(text: str, ctx: _Context) -> bool:
     """Whether ``text`` (also percent-decoded, twice) names an internal base or host."""
-    bases, hosts = _markers(settings)
     seen = {text}
     current = text
     for _ in range(2):
@@ -220,14 +244,14 @@ def _names_internal(text: str, settings: SettingsLike) -> bool:
         seen.add(current)
     for variant in seen:
         folded = variant.casefold()
-        if any(b in folded for b in bases) or any(h.search(folded) for h in hosts):
+        if any(b in folded for b in ctx.marker_bases):
+            return True
+        if any(h.search(folded) for h in ctx.marker_hosts):
             return True
     return False
 
 
-def _longest_prefix(
-    payload: str, names: list[str], settings: SettingsLike
-) -> tuple[str, str, str] | None:
+def _longest_prefix(payload: str, names: list[str], ctx: _Context) -> tuple[str, str, str] | None:
     """``(kind, name, rest)`` of the longest base ``payload`` lies under (``web`` or ``internal``).
 
     The longer prefix wins: an internal base under the web host (``https://h/api`` below
@@ -235,10 +259,8 @@ def _longest_prefix(
     """
     best: tuple[int, str, str, str] | None = None
     for name in names:
-        for kind, base in (
-            ("web", _web_base(name, settings)),
-            ("internal", _internal_base(name, settings)),
-        ):
+        internal, web = ctx.bases.get(name, ("", ""))
+        for kind, base in (("web", web), ("internal", internal)):
             rest = _remainder(payload, base) if base else None
             if rest is not None:
                 length = len(_strip_one_slash(base))
@@ -268,17 +290,24 @@ def redact_for(
       integration's base (the longer prefix wins), and otherwise stays.
 
     In both cases a result that still names an internal base or host anywhere after its public
-    prefix (another case, user info, a percent-encoded query, IDNA) is ``None``.
+    prefix (another case, user info, a percent-encoded query, IDNA) is ``None``. One code: the
+    settings are read for this call; a job answer uses :func:`redact_job_payload`, which reads
+    them once for all its codes.
     """
     if auth.scope == "admin" or payload is None:
         return payload
     if settings is None:
         return None  # nothing to compare against: fail closed
+    return _redact(app, payload, _build_context(settings))
+
+
+def _redact(app: str | None, payload: str, ctx: _Context) -> str | None:
+    """:func:`redact_for` for a caller that is not an admin, with the settings already read."""
     strict = app in _lookup_apps()
     if strict and app == "grocy" and is_grocycode(payload):
         return payload
     names = [app] if strict and app is not None else list(INTEGRATIONS)
-    match = _longest_prefix(payload, names, settings)
+    match = _longest_prefix(payload, names, ctx)
     if match is None:
         if strict:
             return None  # not under any current address of its own integration
@@ -288,11 +317,11 @@ def redact_for(
         if kind == "web":
             candidate, checked = payload, rest  # already public: never rebased again
         else:
-            web = _web_base(name, settings)
+            web = ctx.bases[name][1]
             if not web:
                 return None
             candidate, checked = web + rest, rest
-    if _names_internal(checked, settings):
+    if _names_internal(checked, ctx):
         return None
     return candidate
 
@@ -339,23 +368,28 @@ def preview_qr_for(
     return shown, False
 
 
-def _redact_label(auth: AuthContext, label: Any, settings: SettingsLike | None) -> None:
-    """Redact ``label["qr_payload"]`` and every ``label["items"][i]["qr_payload"]`` in place."""
+def _redact_label(label: Any, ctx: _Context | None) -> None:
+    """Redact ``label["qr_payload"]`` and every ``label["items"][i]["qr_payload"]`` in place.
+
+    ``ctx`` ``None`` (no settings) answers every code as ``None``: fail closed.
+    """
     if not isinstance(label, dict):
         return
     app = label.get("source_app")
     app = app if isinstance(app, str) else None
+
+    def one(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        return None if ctx is None else _redact(app, value, ctx)
+
     if "qr_payload" in label:
-        value = label["qr_payload"]
-        text = value if isinstance(value, str) else None
-        label["qr_payload"] = redact_for(auth, app, text, settings)
+        label["qr_payload"] = one(label["qr_payload"])
     items = label.get("items")
     if isinstance(items, list):
         for row in items:
             if isinstance(row, dict) and "qr_payload" in row:
-                value = row["qr_payload"]
-                text = value if isinstance(value, str) else None
-                row["qr_payload"] = redact_for(auth, app, text, settings)
+                row["qr_payload"] = one(row["qr_payload"])
 
 
 def redact_job_payload(
@@ -370,15 +404,16 @@ def redact_job_payload(
     out = copy.deepcopy(payload)
     if auth.scope == "admin":
         return out
-    _redact_label(auth, out.get("label_data"), settings)
+    ctx = None if settings is None else _build_context(settings)  # once for every code
+    _redact_label(out.get("label_data"), ctx)
     detail = out.get("detail")
     if isinstance(detail, dict):
         cells = detail.get("cells")
         if isinstance(cells, list):
             for cell in cells:
                 if isinstance(cell, dict):
-                    _redact_label(auth, cell.get("label_data"), settings)
+                    _redact_label(cell.get("label_data"), ctx)
         id_cell = detail.get("id_cell")
         if isinstance(id_cell, dict):
-            _redact_label(auth, id_cell.get("label_data"), settings)
+            _redact_label(id_cell.get("label_data"), ctx)
     return out

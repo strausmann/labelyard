@@ -384,3 +384,43 @@ def test_a_bracketed_ipv6_host_is_found() -> None:
     reader = _auth("read")
     assert redact_for(reader, "manual", "http://[fd00::1]:9090/hardware/1", settings) is None
     assert redact_for(reader, "manual", "http://u@[FD00::1]/x", settings) is None
+
+
+# -- fix round 2 ------------------------------------------------------------------------
+
+
+def test_redacting_a_job_builds_the_markers_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A job with 400 cells and listing rows: the settings are read into markers once per job,
+    not once per code (a read key's job list must not stall the event loop)."""
+    from app.integrations import links
+
+    calls = 0
+    original = links._build_context
+
+    def counting(settings: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return original(settings)
+
+    monkeypatch.setattr(links, "_build_context", counting)
+    cell = {"label_data": {"source_app": "snipeit", "qr_payload": f"{SNIPE}/hardware/1"}}
+    payload = {
+        "label_data": {
+            "source_app": "manual",
+            "qr_payload": f"{SNIPE}/locations/1",
+            "items": [{"item": str(i), "qr_payload": f"{GROCY}/product/{i}"} for i in range(50)],
+        },
+        "detail": {"cells": [dict(cell, cell=i) for i in range(400)], "id_cell": cell},
+    }
+    out = redact_job_payload(_auth("read"), payload, _settings(snipeit=SNIPE_WEB))
+    assert out["detail"]["cells"][399]["label_data"]["qr_payload"] == f"{SNIPE_WEB}/hardware/1"
+    assert calls == 1
+    calls = 0
+    redact_for(_auth("read"), "snipeit", f"{SNIPE}/hardware/1", _settings())
+    assert calls == 1  # the single-code API builds its own context
+
+
+@pytest.mark.parametrize("after", ["&y=1", ",", ";", '"', "'", ")", " next"])
+def test_internal_host_followed_by_a_separator_is_found(after: str) -> None:
+    payload = f"https://ok.example.invalid/?u=https://snipe.internal.example.invalid{after}"
+    assert redact_for(_auth("read"), "manual", payload, _settings()) is None
