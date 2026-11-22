@@ -34,7 +34,8 @@ const SERVER_FIELD: Record<string, FieldName> = {
 function hasUserInfo(value: string): boolean {
   try {
     const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && (url.username !== "" || url.password !== "");
+    const isHttp = url.protocol === "http:" || url.protocol === "https:";
+    return isHttp && Boolean(url.username || url.password);
   } catch {
     return false;
   }

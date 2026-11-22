@@ -58,7 +58,7 @@ export function httpUrl(value: string | null | undefined): string | null {
   try {
     const url = new URL(value);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.username !== "" || url.password !== "" ? null : url.href;
+    return url.username || url.password ? null : url.href;
   } catch {
     return null;
   }
