@@ -1335,6 +1335,24 @@
         "title": "ExportDoc",
         "type": "object"
       },
+      "FacetCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "count"
+        ],
+        "title": "FacetCount",
+        "type": "object"
+      },
       "FitRequest": {
         "properties": {
           "readings": {
@@ -6347,6 +6365,31 @@
           "versions"
         ],
         "title": "SheetTypeDetail",
+        "type": "object"
+      },
+      "SheetTypeFacets": {
+        "properties": {
+          "page_sizes": {
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "title": "Page Sizes",
+            "type": "array"
+          },
+          "vendors": {
+            "description": "Sorted case-insensitively.",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            },
+            "title": "Vendors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vendors",
+          "page_sizes"
+        ],
+        "title": "SheetTypeFacets",
         "type": "object"
       },
       "SheetTypeNotice": {
@@ -12233,6 +12276,7 @@
     },
     "/api/v1/sheet-types": {
       "get": {
+        "description": "Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is paged; the `Link` header names the next page (`rel=\"next\"`), the body stays a list.",
         "operationId": "list_sheet_types_api_v1_sheet_types_get",
         "parameters": [
           {
@@ -12340,6 +12384,36 @@
               "title": "Include Archived",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -12355,7 +12429,15 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "headers": {
+              "Link": {
+                "description": "The next page, `rel=\"next\"`; absent on the last page.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "422": {
             "content": {
@@ -12418,6 +12500,134 @@
           }
         ],
         "summary": "Create a sheet type with version 1",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/facets": {
+      "get": {
+        "description": "Counted under the list's filters except `vendor`, so choosing a vendor keeps the other vendors available. Archived types are counted only with `include_archived`.",
+        "operationId": "sheet_type_facets_api_v1_sheet_types_facets_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "A4",
+                    "Letter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "description": "Key, codes, description.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Key, codes, description.",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Label width, ±0.5 mm.",
+            "in": "query",
+            "name": "w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Label width, ±0.5 mm.",
+              "title": "W"
+            }
+          },
+          {
+            "description": "Label height, ±0.5 mm.",
+            "in": "query",
+            "name": "h",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Label height, ±0.5 mm.",
+              "title": "H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Archived",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetTypeFacets"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Vendor and page-size counts for the type filters",
         "tags": [
           "sheet-types"
         ]
