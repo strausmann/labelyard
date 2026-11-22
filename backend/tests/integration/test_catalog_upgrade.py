@@ -321,6 +321,7 @@ async def test_failed_catalog_step_leaves_a_notice_and_retries(upgraded: Build) 
     retried = await run_catalog_migration(factory)
     assert retried.ran and not retried.failed and retried.stamped
     assert await _marker(factory) is not None
+    assert await _notices(factory) == []  # the success takes the failure notice away
 
 
 async def test_failing_correction_rolls_the_whole_step_back(

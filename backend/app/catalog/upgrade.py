@@ -21,8 +21,9 @@ image. In one transaction it
 4. sets the marker.
 
 A failure rolls all of it back, leaves one notice for the notification centre and is tried
-again on the next start. Nothing is inserted: an installation from before 1.7.0 that missed a
-later seed type or backing design gets it from the catalog.
+again on the next start; the run that succeeds removes that notice in its transaction.
+Nothing is inserted: an installation from before 1.7.0 that missed a later seed type or backing
+design gets it from the catalog.
 """
 
 from __future__ import annotations
@@ -164,6 +165,7 @@ async def _migrate(session: AsyncSession, report: CatalogMigrationReport) -> Non
     await sheet_seed.apply_pending_fixes(session, seed_report)
     report.adopted, report.corrected = seed_report.adopted, seed_report.corrected
     await _stamp(session, report)
+    await _clear_failure_notice(session)
     session.add(
         AppSetting(
             key=MIGRATED_KEY,
@@ -171,6 +173,22 @@ async def _migrate(session: AsyncSession, report: CatalogMigrationReport) -> Non
         )
     )
     await session.flush()
+
+
+async def _clear_failure_notice(session: AsyncSession) -> None:
+    """Drop the notice of an earlier failed run: the step has now succeeded."""
+    row = await session.get(AppSetting, sheet_seed.NOTICES_KEY)
+    if row is None or row.value_json is None:
+        return
+    try:
+        records = json.loads(row.value_json)
+    except ValueError:
+        return
+    if not isinstance(records, list):
+        return
+    kept = [r for r in records if not (isinstance(r, dict) and r.get("id") == FAILED_NOTICE_ID)]
+    if len(kept) != len(records):
+        await sheet_seed._write_setting(session, sheet_seed.NOTICES_KEY, kept)
 
 
 async def _leave_failure_notice(session_factory: async_sessionmaker[AsyncSession]) -> None:

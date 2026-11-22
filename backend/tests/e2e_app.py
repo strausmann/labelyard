@@ -592,7 +592,8 @@ async def _seed_page_printer_and_sheets(uri: str) -> None:
         # Last, so every list keeps the first three printers where they were.
         await service.create_printer(PrinterCreatePayload.model_validate(E2E_POLLED_TAPE_PRINTER))
 
-    # Idempotent; the lifespan runs it again afterwards.
+    # The 1.7.x seeder: 1.8.0 inserts no types on start (ADR 0028), so the demo hub starts as an
+    # upgraded installation; the lifespan's catalog step then gives these types their provenance.
     await run_sheet_seed(async_session)
 
     def marks(numbers: range, purpose: Any) -> list[MarkedCell]:

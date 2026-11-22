@@ -198,3 +198,28 @@ async def test_hub_starts_with_a_malformed_stored_port(
     assert bad
     # A bad stored row is routine: a warning without a traceback, not an unexpected error.
     assert all(r.levelno == logging.WARNING and r.exc_info is None for r in bad)
+
+
+async def test_restart_does_not_bring_back_a_deleted_type() -> None:
+    """#335: the 1.7.x seed of the test harness runs before the first start only; a later start
+    (the marker is set) leaves a deleted type deleted, as a real 1.8.0 hub does."""
+    import app.db.engine as eng
+    from app.catalog import upgrade
+    from app.models.sheet import SheetType, SheetTypeVersion
+    from sqlalchemy import delete, func, select
+    from sqlmodel import col
+
+    await upgrade.run_catalog_migration(eng.async_session)  # first start (harness seeds)
+    async with eng.async_session() as s:
+        t = (
+            await s.execute(select(SheetType).where(col(SheetType.key) == "avery-7160"))
+        ).scalar_one()
+        await s.execute(delete(SheetTypeVersion).where(col(SheetTypeVersion.type_id) == t.id))
+        await s.execute(delete(SheetType).where(col(SheetType.id) == t.id))
+        await s.commit()
+    await upgrade.run_catalog_migration(eng.async_session)  # restart
+    async with eng.async_session() as s:
+        count = await s.scalar(
+            select(func.count()).select_from(SheetType).where(col(SheetType.key) == "avery-7160")
+        )
+    assert count == 0

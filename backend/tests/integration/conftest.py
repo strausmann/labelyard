@@ -23,6 +23,7 @@ from app.auth.scope_deps import require_admin, require_print, require_read
 from app.config import get_settings
 from app.db.engine import _apply_pragmas
 from app.main import create_app
+from app.models.app_setting import AppSetting
 from app.printer_backends import BackendRegistry
 from app.printer_models.registry import ModelRegistry
 from httpx import ASGITransport, AsyncClient
@@ -97,7 +98,8 @@ def _as_an_upgraded_installation(
 
     1.8.0 inserts no sheet types on start; the tests here were written against the 39 seeded
     types. The startup step therefore runs the 1.7.x seeder first, so the lifespan sees what an
-    upgraded installation holds and stamps it. ``@pytest.mark.fresh_install`` turns this off.
+    upgraded installation holds and stamps it, once: when ``internal.catalog.migrated`` is set the
+    seeder does not run again. ``@pytest.mark.fresh_install`` turns this off.
     """
     if request.node.get_closest_marker("fresh_install") is not None:
         return
@@ -109,7 +111,12 @@ def _as_an_upgraded_installation(
     async def _seed_then_migrate(
         factory: async_sessionmaker[AsyncSession],
     ) -> upgrade.CatalogMigrationReport:
-        await run_sheet_seed(factory)
+        # Only before the first start: after the step ran, the database is a 1.8.0 one, and a
+        # restart must not bring back a type a test deleted.
+        async with factory() as session:
+            migrated = await session.get(AppSetting, upgrade.MIGRATED_KEY)
+        if migrated is None:
+            await run_sheet_seed(factory)
         return await real(factory)
 
     monkeypatch.setattr(upgrade, "run_catalog_migration", _seed_then_migrate)
