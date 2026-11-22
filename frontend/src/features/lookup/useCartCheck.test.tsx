@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockApi, respond } from "../test-api";
 import { PREVIEW_DEBOUNCE_MS } from "./api";
 import type { CartItem } from "./cart";
+import { useSaveSettings } from "../settings/api";
+import { settingsList } from "../test-api";
 import { useCartCheck } from "./useCartCheck";
 
 const item = (n: number): CartItem => ({ app: "snipeit", id: String(n), name: `Item ${n}`, content_type: "qr_two_lines", copies: 1 });
@@ -152,5 +154,65 @@ describe("useCartCheck", () => {
     await settle();
     // Chunk two and three of the old cart (items 51 to 120) were never sent.
     expect(sent(calls).flat().map(Number).filter((n) => n > 50)).toEqual([]);
+  });
+
+  // Codex review of #425: a longer public web address can push a code over the label's capacity, but the verdicts
+  // kept for the cart were still "fine" and nothing asked again.
+  describe("after a public web address is saved (#247)", () => {
+    const longer = { "integrations.snipeit.web_url": "https://assets.example.com/a/rather/long/path" };
+
+    function withSave() {
+      let tooLong = false;
+      const route = {
+        "POST /api/v1/render/check": (init: RequestInit) => ({
+          results: (JSON.parse(String(init.body)) as Body).items.map((_, index) => (tooLong ? { index, ok: false, error_code: "qr_too_long" } : { index, ok: true })),
+        }),
+        "PUT /api/v1/settings": () => settingsList(),
+      };
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+      return { route, client, wrapper, flip: () => (tooLong = true) };
+    }
+
+    it("a mounted cart checks again and flags the item the longer address pushed over", async () => {
+      const { route, wrapper, flip } = withSave();
+      const { calls } = mockApi(route);
+      const view = renderHook(() => ({ check: useCartCheck(cart(2), 62, { orientation: "across", layout_preset: "compact" }), save: useSaveSettings() }), { wrapper });
+      await waitFor(() => expect(view.result.current.check.flags.size).toBe(2));
+      expect([...view.result.current.check.flags.values()].every((v) => v.ok)).toBe(true);
+
+      flip();
+      await act(async () => view.result.current.save.mutate(longer));
+      await waitFor(() => expect([...view.result.current.check.flags.values()].every((v) => !v.ok)).toBe(true));
+      expect(sent(calls)).toEqual([["1", "2"], ["1", "2"]]);
+    });
+
+    it("coming back to the cart after the save checks every item again", async () => {
+      const { route, wrapper, flip } = withSave();
+      const { calls } = mockApi(route);
+      const layout = { orientation: "across", layout_preset: "compact" } as const;
+      const first = renderHook(() => useCartCheck(cart(2), 62, layout), { wrapper });
+      await waitFor(() => expect(first.result.current.flags.size).toBe(2));
+      first.unmount();
+
+      flip();
+      const saver = renderHook(() => useSaveSettings(), { wrapper });
+      await act(async () => saver.result.current.mutate(longer));
+      await waitFor(() => expect(saver.result.current.isSuccess).toBe(true));
+
+      const again = renderHook(() => useCartCheck(cart(2), 62, layout), { wrapper });
+      await waitFor(() => expect([...again.result.current.flags.values()].every((v) => !v.ok)).toBe(true));
+      expect(sent(calls)).toEqual([["1", "2"], ["1", "2"]]);
+    });
+
+    it("saving another setting keeps the verdicts", async () => {
+      const { route, wrapper } = withSave();
+      const { calls } = mockApi(route);
+      const view = renderHook(() => ({ check: useCartCheck(cart(2), 62, { orientation: "across", layout_preset: "compact" }), save: useSaveSettings() }), { wrapper });
+      await waitFor(() => expect(view.result.current.check.flags.size).toBe(2));
+      await act(async () => view.result.current.save.mutate({ "integrations.snipeit.timeout": 9 }));
+      await settle();
+      expect(sent(calls)).toHaveLength(1);
+    });
   });
 });

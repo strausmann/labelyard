@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch } from "../../api/client";
 import type { components } from "../../api/schema.gen";
@@ -47,6 +47,14 @@ async function checkAll(
 const NONE: ReadonlyMap<string, RenderCheckResult> = new Map();
 export const CHECK_KEY = "render-check";
 
+/**
+ * Counts the saves of a public web address (#247). The code a print carries follows that address, so a verdict
+ * ("fits the label") given under the old one says nothing about the new one: the count is part of every verdict's
+ * key and of the check's query key, and a save bumps it (`useSaveSettings`).
+ */
+export const WEB_ADDRESS_VERSION_KEY = ["web-address-version"] as const;
+export const bumpWebAddressVersion = (client: QueryClient) => client.setQueryData<number>(WEB_ADDRESS_VERSION_KEY, (n) => (n ?? 0) + 1);
+
 /** The verdicts one check run fetched, by verdict key: what the query caches. */
 type Verdicts = Record<string, RenderCheckResult>;
 
@@ -67,7 +75,9 @@ export function useCartCheck(
   // Mutated as answers arrive, never replaced: a render reads what the finished requests left.
   const [kept] = useState(() => new Map<string, RenderCheckResult>());
   const layoutKey = JSON.stringify(layout ?? null);
-  const verdictKey = (item: CartItem) => `${tapeMm}|${layoutKey}|${item.app}:${item.id}:${item.content_type}`;
+  // Subscribed, so a cart that is open while the address is saved checks again.
+  const version = useQuery({ queryKey: WEB_ADDRESS_VERSION_KEY, queryFn: () => 0, initialData: 0, staleTime: Infinity }).data;
+  const verdictKey = (item: CartItem) => `${tapeMm}|${layoutKey}|v${version}|${item.app}:${item.id}:${item.content_type}`;
   // The query cache outlives this component: verdicts fetched before (on an earlier visit of the cart, also for a
   // smaller cart) are taken from it, so coming back neither loses them nor asks for them again (Codex review, #399).
   for (const [, data] of client.getQueriesData<Verdicts>({ queryKey: [CHECK_KEY, tapeMm, layoutKey] })) {
@@ -79,7 +89,7 @@ export function useCartCheck(
   const active = tapeMm !== null && items.length > 0;
   const missing = active ? items.filter((i) => !kept.has(verdictKey(i))) : [];
   const query = useQuery({
-    queryKey: [CHECK_KEY, tapeMm, layoutKey, missing.map((i) => [i.app, i.id, i.content_type])],
+    queryKey: [CHECK_KEY, tapeMm, layoutKey, version, missing.map((i) => [i.app, i.id, i.content_type])],
     // Only runs once the debounce has caught up, so `missing`, `tapeMm` and `layout` are what the key says. Returns
     // the verdicts it fetched, so the cache holds them for the next visit of the cart.
     queryFn: async ({ signal }) => {

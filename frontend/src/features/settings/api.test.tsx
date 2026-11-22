@@ -28,13 +28,14 @@ function setup() {
 }
 
 describe("saving a public web address (#247)", () => {
-  it("makes the lookup, the preview and the cart check of that integration stale", async () => {
-    const { hook, stale } = setup();
+  it("makes the lookup and the preview of that integration stale and bumps the cart's version", async () => {
+    const { client, hook, stale } = setup();
     await act(async () => hook.result.current.mutate({ "integrations.snipeit.web_url": "https://assets.example.com" }));
     await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
     expect(stale(["lookup", "snipeit", "42"])).toBe(true);
     expect(stale(["preview", "snipeit", "42", "Drill", "qr_two_lines", 12, "null", "null"])).toBe(true);
-    expect(stale(["render-check", 12, "x", []])).toBe(true);
+    // The cart's verdicts follow a counter the save bumps (useCartCheck.test covers what that does to a cart).
+    expect(client.getQueryData(["web-address-version"])).toBe(1);
     // Another integration's items are untouched.
     expect(stale(["lookup", "grocy", "42"])).toBe(false);
     expect(stale(["preview", "grocy", "42", "Drill", "qr_two_lines", 12, "null", "null"])).toBe(false);
@@ -50,11 +51,12 @@ describe("saving a public web address (#247)", () => {
   });
 
   it("leaves them alone when another setting is saved", async () => {
-    const { hook, stale } = setup();
+    const { client, hook, stale } = setup();
     await act(async () => hook.result.current.mutate({ "integrations.snipeit.timeout": 9 }));
     await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
     expect(stale(["lookup", "snipeit", "42"])).toBe(false);
     expect(stale(["preview", "snipeit", "42", "Drill", "qr_two_lines", 12, "null", "null"])).toBe(false);
+    expect(client.getQueryData(["web-address-version"])).toBeUndefined();
   });
 });
 
