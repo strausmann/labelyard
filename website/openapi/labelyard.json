@@ -1600,7 +1600,7 @@
                 "type": "null"
               }
             ],
-            "description": "The battery's page in Grocy's web UI",
+            "description": "The battery's page under Grocy's web address (``integrations.grocy.web_url``); null without one",
             "title": "Url"
           }
         },
@@ -1683,7 +1683,7 @@
                 "type": "null"
               }
             ],
-            "description": "The chore's page in Grocy's web UI",
+            "description": "The chore's page under Grocy's web address (``integrations.grocy.web_url``); null without one",
             "title": "Url"
           }
         },
@@ -2940,6 +2940,12 @@
             ],
             "title": "Purpose"
           },
+          "qr_withheld": {
+            "default": false,
+            "description": "New cells only: the picture carries a stand-in code, not the one that prints. The key may not print and the integration has no web address (#247).",
+            "title": "Qr Withheld",
+            "type": "boolean"
+          },
           "state": {
             "enum": [
               "used",
@@ -2968,6 +2974,30 @@
           "hw_margin"
         ],
         "title": "PreviewCell",
+        "type": "object"
+      },
+      "PreviewItem": {
+        "additionalProperties": false,
+        "description": "The integration item a preview draws (#247): the server computes its QR payload.",
+        "properties": {
+          "app": {
+            "description": "The integration (``snipeit``, ``grocy``, …)",
+            "maxLength": 32,
+            "title": "App",
+            "type": "string"
+          },
+          "id": {
+            "description": "The item, as for the lookup",
+            "maxLength": 120,
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "id"
+        ],
+        "title": "PreviewItem",
         "type": "object"
       },
       "PreviewPage": {
@@ -7871,6 +7901,16 @@
           "data": {
             "$ref": "#/components/schemas/RawLabelData"
           },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreviewItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "layout_preset": {
             "anyOf": [
               {
@@ -10045,7 +10085,7 @@
     },
     "/api/v1/lookup/{app}/{entity_id}": {
       "get": {
-        "description": "Looks up an entity from the given integration app by its identifier.  ``app`` must be one of ``snipeit``, ``grocy``, or ``spoolman`` — an unsupported value returns 422.  Returns 404 ProblemDetail when the entity does not exist in the integration's backend.  The ``url`` field is the deep-link to the entity in the integration's own web UI, suitable for embedding in a QR code or label.",
+        "description": "Looks up an entity from the given integration app by its identifier.  ``app`` must be one of ``snipeit``, ``grocy``, or ``spoolman`` — an unsupported value returns 422.  Returns 404 ProblemDetail when the entity does not exist in the integration's backend.  The ``url`` field is the deep-link to the entity under the integration's public web address (``integrations.<app>.web_url``); it is ``null`` while no web address is set.",
         "operationId": "lookup_api_v1_lookup__app___entity_id__get",
         "parameters": [
           {
@@ -11832,7 +11872,7 @@
     },
     "/api/v1/render/preview": {
       "post": {
-        "description": "Render a label using the LayoutEngine and return the result as a PNG image (no printer interaction, no job created).  Useful for UI preview and debugging.  Renders through the same engine call as a print job, so ``orientation`` and ``layout_preset`` give the exact image the job would print (an ``along`` image is the landscape band before the printer backend rotates it).  Returns 422 when ``data`` is missing fields required by ``content_type`` or the QR payload does not fit the fixed QR code (``qr_payload_too_long``).  Returns 409 when ``tape_mm`` is not a supported tape width or the orientation is not available for it.",
+        "description": "Render a label using the LayoutEngine and return the result as a PNG image (no printer interaction, no job created).  Useful for UI preview and debugging.  Renders through the same engine call as a print job, so ``orientation`` and ``layout_preset`` give the exact image the job would print (an ``along`` image is the landscape band before the printer backend rotates it).  Returns 422 when ``data`` is missing fields required by ``content_type`` or the QR payload does not fit the fixed QR code (``qr_payload_too_long``).  Returns 409 when ``tape_mm`` is not a supported tape width or the orientation is not available for it.  With ``item`` the server looks the item up (the same lookup, errors and rate limit as ``GET /api/v1/lookup/{app}/{id}``: 404, 422, 502, 503) and draws the QR payload a print of the item carries; a ``data.qr_payload`` sent with it is ignored.  A caller that cannot print (read scope) gets that code only under the integration's web address; while there is none, the image carries a stand-in code of the same size and the answer the header ``X-Labelyard-QR: withheld``.  Without ``item`` the label is drawn from ``data`` as sent.",
         "operationId": "render_preview_api_v1_render_preview_post",
         "requestBody": {
           "content": {
@@ -11849,13 +11889,33 @@
             "content": {
               "image/png": {}
             },
-            "description": "PNG label bitmap"
+            "description": "PNG label bitmap",
+            "headers": {
+              "X-Labelyard-QR": {
+                "description": "``withheld``: a stand-in QR (read scope, no web address)",
+                "schema": {
+                  "enum": [
+                    "withheld"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "``item`` names an item the integration does not have"
           },
           "409": {
             "description": "Unsupported tape width or orientation"
           },
           "422": {
             "description": "Data missing required fields, or QR payload too long"
+          },
+          "502": {
+            "description": "``item``: the integration failed or could not be reached"
+          },
+          "503": {
+            "description": "``item``: the integration is not configured"
           }
         },
         "security": [

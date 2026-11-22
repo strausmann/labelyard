@@ -31,7 +31,9 @@ test.describe("lookup", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/asset/42");
     await expect(page.getByRole("heading", { level: 1, name: "Snipe-IT item" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open in Snipe-IT" })).toHaveAttribute("href", "https://example.invalid/snipeit/42");
+    // #247: no web address is set for Snipe-IT here, so the hub answers no link (and none to an
+    // internal address).
+    await expect(page.getByRole("link", { name: "Open in Snipe-IT" })).toHaveCount(0);
     const preview = page.getByRole("img", { name: "Label preview" });
     await expect(preview).toBeVisible();
     // The preview is a real picture from the layout engine, not a broken image.

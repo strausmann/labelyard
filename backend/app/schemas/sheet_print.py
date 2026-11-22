@@ -187,6 +187,13 @@ class PreviewCell(BaseModel):
     hw_margin: bool = Field(
         description="New cells only: may be cut off by this printer's hardware margins."
     )
+    qr_withheld: bool = Field(
+        default=False,
+        description=(
+            "New cells only: the picture carries a stand-in code, not the one that prints. The "
+            "key may not print and the integration has no web address (#247)."
+        ),
+    )
 
 
 class PreviewPage(BaseModel):

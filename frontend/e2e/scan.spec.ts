@@ -236,7 +236,8 @@ test.describe.serial("scan", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Remote AAA" })).toBeVisible();
     await expect(page.getByText("Warranty ends 2027")).toBeVisible();
     await expect(page.getByText("Charge cycles")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Open in Grocy/ })).toHaveAttribute("href", "https://grocy.example.invalid/battery/4");
+    // #247: Grocy has no web address here, so the battery read answers no link.
+    await expect(page.getByRole("link", { name: /Open in Grocy/ })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Scan again" })).toBeVisible();
     expect(await noSideScroll(page)).toBe(true);
     await shot(page, "task-10b-scan-grocy-battery.png");

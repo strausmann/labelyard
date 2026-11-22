@@ -99,6 +99,14 @@ Basisadresse von Snipe-IT.
 
 Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
 
+### `LABELYARD_SNIPEIT_WEB_URL`
+
+Standard: leer
+
+Öffentliche Adresse von Snipe-IT, die Menschen öffnen, zum Beispiel `https://snipeit.example.com`. Links in der Weboberfläche und die QR-Codes, die für Snipe-IT-Einträge gedruckt werden, nutzen sie; leer: kein Link, gedruckte Codes behalten die Basisadresse. http oder https, ohne Benutzername und Passwort, ohne Abfrage und Fragment.
+
+Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
+
 ### `LABELYARD_SNIPEIT_API_KEY`
 
 Standard: leer
@@ -125,6 +133,14 @@ Basisadresse von Grocy.
 
 Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
 
+### `LABELYARD_GROCY_WEB_URL`
+
+Standard: leer
+
+Öffentliche Adresse von Grocy, die Menschen öffnen, zum Beispiel `https://grocy.example.com`. Links in der Weboberfläche und die QR-Codes, die für Grocy-Einträge gedruckt werden, nutzen sie; leer: kein Link, gedruckte Codes behalten die Basisadresse. http oder https, ohne Benutzername und Passwort, ohne Abfrage und Fragment.
+
+Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
+
 ### `LABELYARD_GROCY_API_KEY`
 
 Standard: leer
@@ -148,6 +164,14 @@ Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sper
 Standard: leer
 
 Basisadresse von Spoolman. Spoolman braucht keinen Schlüssel.
+
+Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
+
+### `LABELYARD_SPOOLMAN_WEB_URL`
+
+Standard: leer
+
+Öffentliche Adresse von Spoolman, die Menschen öffnen, zum Beispiel `https://spoolman.example.com`. Links in der Weboberfläche und die QR-Codes, die für Spoolman-Einträge gedruckt werden, nutzen sie; leer: kein Link, gedruckte Codes behalten die Basisadresse. http oder https, ohne Benutzername und Passwort, ohne Abfrage und Fragment.
 
 Auch in der Weboberfläche einstellbar; ein hier gesetzter Wert gewinnt und sperrt das Feld dort.
 

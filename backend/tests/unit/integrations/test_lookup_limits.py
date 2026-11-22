@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 import pytest
-from app.api.routes.lookup import _answered
+from app.api.routes.lookup import answered as _answered
 from app.integrations.grocy.plugin import GrocyPlugin
 from app.integrations.live_config import (
     MAX_LOOKUP_RESPONSE_BYTES,

@@ -140,6 +140,7 @@ from app.db.lifespan import (
     verify_alembic_at_head,
 )
 from app.db.session import get_session
+from app.integrations import links as integration_links
 from app.integrations.registry import IntegrationRegistry
 from app.observability.access_log import install_access_log
 from app.observability.log_buffer import install_log_buffer
@@ -354,6 +355,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _bind = getattr(_plugin, "bind", None)
         if callable(_bind):
             _bind(settings_store)
+    # #247, ADR 0033: the print paths read the integrations' web addresses from the store.
+    _previous_link_settings = integration_links.bind_settings(settings_store)
     # #405: the deadline over the lookups of one fan-out request follows the setting live.
     lookup_gate.bind_batch_deadline(
         lambda: float(settings_store.get("integrations.lookup_batch_deadline_s"))
@@ -463,6 +466,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # plugin instances rather than reusing stale ones whose httpx pools have
         # already been closed.
         IntegrationRegistry.clear()
+        integration_links.bind_settings(_previous_link_settings)
 
 
 class _LifespanManager:

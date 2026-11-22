@@ -24,9 +24,18 @@ class SettingDef:
 
 
 def _integration(
-    name: str, *, secret: str | None, secret_env: str | None, timeout: float = 5.0
+    name: str,
+    *,
+    secret: str | None,
+    secret_env: str | None,
+    timeout: float = 5.0,
+    web: bool = False,
 ) -> list[SettingDef]:
     defs = [SettingDef(f"integrations.{name}.url", "url", "", f"{name}_url")]
+    if web:
+        # #247, ADR 0033: the address people open and scan; lookup links and printed codes use
+        # it. Only the integrations whose items are looked up and printed have one.
+        defs.append(SettingDef(f"integrations.{name}.web_url", "url", "", f"{name}_web_url"))
     if secret is not None:
         defs.append(SettingDef(f"integrations.{name}.{secret}", "secret", "", secret_env))
     defs.append(SettingDef(f"integrations.{name}.timeout", "float", timeout, f"{name}_timeout"))
@@ -119,10 +128,10 @@ _DEFS: list[SettingDef] = [
     SettingDef("general.time_zone", "str", "UTC", None),
     # D4: shown read-only, always taken from the environment.
     SettingDef("general.public_url", "url", "", "public_url"),
-    *_integration("snipeit", secret="api_key", secret_env="snipeit_api_key"),
-    *_integration("grocy", secret="api_key", secret_env="grocy_api_key"),
+    *_integration("snipeit", secret="api_key", secret_env="snipeit_api_key", web=True),
+    *_integration("grocy", secret="api_key", secret_env="grocy_api_key", web=True),
     *_grocy_label(),
-    *_integration("spoolman", secret=None, secret_env=None),
+    *_integration("spoolman", secret=None, secret_env=None, web=True),
     *_spoolman_label(),
     *_integration("paperless", secret="token", secret_env="paperless_token"),
     # #405: one deadline over the lookups of a batch, sheet print or render check.

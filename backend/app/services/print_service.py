@@ -26,6 +26,7 @@ from uuid import UUID, uuid4
 
 from PIL import Image
 
+from app.integrations.links import bound_settings, printed_label
 from app.models.job import Job, JobState
 from app.printer_backends.exceptions import (
     ConflictingOrientationError,
@@ -643,13 +644,15 @@ class PrintService:
         if self._lookup_service is None:
             msg = "lookup_service is required for lookup-based PrintRequest"
             raise RuntimeError(msg)
-        return cast(
+        found = cast(
             LabelData,
             await self._lookup_service.lookup(
                 request.lookup.app,
                 request.lookup.identifier,
             ),
         )
+        # ADR 0033: the printed code follows the integration's web address once it is set.
+        return printed_label(request.lookup.app, request.lookup.identifier, found, bound_settings())
 
     async def submit_batch_job(
         self,

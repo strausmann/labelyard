@@ -46,10 +46,11 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 
 from app.auth.dependencies import AuthContext
 from app.auth.scope_deps import require_read
+from app.integrations.links import web_link_for
 from app.schemas.grocy_object import GrocyBatteryResult, GrocyChoreResult
 from app.schemas.label_data import LabelData
 from app.schemas.lookup import LookupResult
@@ -74,7 +75,7 @@ _ERROR_RESPONSES: dict[int | str, dict[str, object]] = {
 }
 
 
-async def _answered[T](call: Awaitable[T]) -> T:
+async def answered[T](call: Awaitable[T]) -> T:
     """Awaits a lookup; an unknown app is 422 and a failed lookup 502, like the batch print.
 
     The messages are fixed: the exception text can carry the integration's address or its
@@ -100,12 +101,25 @@ async def _answered[T](call: Awaitable[T]) -> T:
         ) from exc
 
 
+def _public_link(app: str, internal_url: str | None, request: Request) -> str | None:
+    """The link a lookup answers: under the web address, ``None`` without one (ADR 0033).
+
+    Every ``url`` a lookup route answers goes through here; the plugins build it from the
+    internal base address (guard: ``tests/integration/api/test_lookup_links_guard.py``).
+    """
+    return web_link_for(app, internal_url, getattr(request.app.state, "settings_store", None))
+
+
 # Shared type alias for the app path parameter
 AppLiteral = Literal["snipeit", "grocy", "spoolman"]
 
 
 def _label_data_to_result(app: AppLiteral, entity_id: str, data: LabelData) -> LookupResult:
-    """Project ``LabelData`` (internal) into ``LookupResult`` (API)."""
+    """Project ``LabelData`` (internal) into ``LookupResult`` (API).
+
+    ``url`` is the item's page under the integration's web address, ``None`` without one: the
+    payload the plugin built carries the internal base address (#247, ADR 0033).
+    """
     extra: dict[str, object] = {}
     if data.secondary:
         extra["secondary"] = list(data.secondary)
@@ -116,7 +130,7 @@ def _label_data_to_result(app: AppLiteral, entity_id: str, data: LabelData) -> L
         app=app,
         id=entity_id,
         name=data.title,
-        url=data.qr_payload,
+        url=None,  # set by the route from the web address (``_public_link``)
         extra=extra,
     )
 
@@ -132,19 +146,22 @@ def _label_data_to_result(app: AppLiteral, entity_id: str, data: LabelData) -> L
         "unsupported value returns 422.  "
         "Returns 404 ProblemDetail when the entity does not exist in the "
         "integration's backend.  "
-        "The ``url`` field is the deep-link to the entity in the integration's "
-        "own web UI, suitable for embedding in a QR code or label."
+        "The ``url`` field is the deep-link to the entity under the integration's "
+        "public web address (``integrations.<app>.web_url``); it is ``null`` while no web "
+        "address is set."
     ),
 )
 async def lookup(
     app: AppLiteral,
     entity_id: Annotated[str, Path(max_length=LOOKUP_IDENTIFIER_MAX)],
+    request: Request,
     _auth: ReadAuthDep,
 ) -> LookupResult:
     """Resolve ``entity_id`` via the integration named ``app``."""
     # AppLookupNotFoundError propagates to the global handler → 404 ProblemDetail.
-    data = await _answered(_lookup_service.lookup(app, entity_id))
-    return _label_data_to_result(app, entity_id, data)
+    data = await answered(_lookup_service.lookup(app, entity_id))
+    result = _label_data_to_result(app, entity_id, data)
+    return result.model_copy(update={"url": _public_link(app, data.qr_payload, request)})
 
 
 @router.get(
@@ -159,8 +176,11 @@ async def lookup(
         "502 when it fails."
     ),
 )
-async def grocy_battery(battery_id: GrocyIdPath, _auth: ReadAuthDep) -> GrocyBatteryResult:
-    return await _answered(_lookup_service.grocy_battery(battery_id))
+async def grocy_battery(
+    battery_id: GrocyIdPath, request: Request, _auth: ReadAuthDep
+) -> GrocyBatteryResult:
+    found = await answered(_lookup_service.grocy_battery(battery_id))
+    return found.model_copy(update={"url": _public_link("grocy", found.url, request)})
 
 
 @router.get(
@@ -174,5 +194,8 @@ async def grocy_battery(battery_id: GrocyIdPath, _auth: ReadAuthDep) -> GrocyBat
         "404 when Grocy has no such chore, 503 when Grocy is not set up, 502 when it fails."
     ),
 )
-async def grocy_chore(chore_id: GrocyIdPath, _auth: ReadAuthDep) -> GrocyChoreResult:
-    return await _answered(_lookup_service.grocy_chore(chore_id))
+async def grocy_chore(
+    chore_id: GrocyIdPath, request: Request, _auth: ReadAuthDep
+) -> GrocyChoreResult:
+    found = await answered(_lookup_service.grocy_chore(chore_id))
+    return found.model_copy(update={"url": _public_link("grocy", found.url, request)})

@@ -99,6 +99,14 @@ Snipe-IT base address.
 
 Also set in the web UI; a value set here wins and locks the field there.
 
+### `LABELYARD_SNIPEIT_WEB_URL`
+
+Default: empty
+
+Public address of Snipe-IT that people open, for example `https://snipeit.example.com`. Links in the web UI and the QR codes printed for Snipe-IT items use it; empty: no link, and printed codes keep the base address. http or https, no user name or password, no query or fragment.
+
+Also set in the web UI; a value set here wins and locks the field there.
+
 ### `LABELYARD_SNIPEIT_API_KEY`
 
 Default: empty
@@ -125,6 +133,14 @@ Grocy base address.
 
 Also set in the web UI; a value set here wins and locks the field there.
 
+### `LABELYARD_GROCY_WEB_URL`
+
+Default: empty
+
+Public address of Grocy that people open, for example `https://grocy.example.com`. Links in the web UI and the QR codes printed for Grocy items use it; empty: no link, and printed codes keep the base address. http or https, no user name or password, no query or fragment.
+
+Also set in the web UI; a value set here wins and locks the field there.
+
 ### `LABELYARD_GROCY_API_KEY`
 
 Default: empty
@@ -148,6 +164,14 @@ Also set in the web UI; a value set here wins and locks the field there.
 Default: empty
 
 Spoolman base address. Spoolman needs no key.
+
+Also set in the web UI; a value set here wins and locks the field there.
+
+### `LABELYARD_SPOOLMAN_WEB_URL`
+
+Default: empty
+
+Public address of Spoolman that people open, for example `https://spoolman.example.com`. Links in the web UI and the QR codes printed for Spoolman items use it; empty: no link, and printed codes keep the base address. http or https, no user name or password, no query or fragment.
 
 Also set in the web UI; a value set here wins and locks the field there.
 

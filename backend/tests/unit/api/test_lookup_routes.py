@@ -72,7 +72,8 @@ async def test_lookup_known_app_and_entity_returns_200_lookup_result() -> None:
     assert body["app"] == "snipeit"
     assert body["id"] == "ASSET-001"
     assert body["name"] == "ThinkPad X1 Carbon"
-    assert body["url"] == "https://snipeit.example.com/hardware/42"
+    # #247, ADR 0033: no web address is set, so there is no link to show.
+    assert body["url"] is None
     # secondary lines are projected into extra["secondary"]
     assert body["extra"]["secondary"] == ["S/N: ABC123"]
 
@@ -141,7 +142,7 @@ def test_grocy_battery_route_returns_the_dto() -> None:
         "id": "4",
         "name": "Remote AAA",
         "description": None,
-        "url": "https://grocy.example.invalid/battery/4",
+        "url": None,  # #247: no web address set, so no link
         "last_charged": None,
         "next_estimated_charge": None,
         "charge_cycles": 3,
@@ -156,7 +157,7 @@ def test_grocy_chore_route_returns_the_dto() -> None:
         r = TestClient(_build_app()).get("/api/v1/lookup/grocy/chores/7")
     assert r.status_code == 200
     assert r.json()["assigned_to"] == "Anna B."
-    assert r.json()["url"].endswith("/chore/7")
+    assert r.json()["url"] is None  # #247: no web address set, so no link
 
 
 _LEAKY = "ConnectError to https://grocy.internal.example.invalid:9283/api/batteries/4 key=hunter2"

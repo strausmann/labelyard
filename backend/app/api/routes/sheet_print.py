@@ -147,6 +147,7 @@ async def preview_sheet_print(
                 lookup=lookup,
                 renderer=DEFAULT_CELL_RENDERER,
                 language=None if language is None else str(language),
+                viewer=auth,  # ADR 0033: read keys see no internal address in the picture
             )
     except print_service.TooManyPreviewsError:
         raise HTTPException(

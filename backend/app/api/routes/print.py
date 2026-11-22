@@ -13,18 +13,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.print_errors import print_error_response, print_error_responses
+from app.api.routes.lookup import answered
 from app.auth.dependencies import AuthContext, charge_lookup_fan_out, check_printer_access
 from app.auth.scope_deps import require_print, require_read
 from app.db.session import get_session
+from app.integrations.links import preview_qr_for, qr_payload_for
 from app.repositories import printer_state as printer_state_repo
 from app.schemas.content_type import ContentType
 from app.schemas.label_data import LabelData
 from app.schemas.label_layout import LabelOrientation, QlLayoutPreset
-from app.schemas.print_request import PrintRequest, RawLabelData
+from app.schemas.print_request import LOOKUP_IDENTIFIER_MAX, PrintRequest, RawLabelData
 from app.schemas.print_response import PrintJobResponse
 from app.schemas.render_check import RenderCheckRequest, RenderCheckResponse
 from app.services.layout_engine import LayoutEngine
@@ -42,6 +44,10 @@ render_router = APIRouter(prefix="/api/v1")
 
 # Stateless (reads the settings at construction), like the lookup routes' instance.
 _lookup_service = AppLookupService()
+
+
+QR_WITHHELD_HEADER = "X-Labelyard-QR"
+"""Set to ``withheld`` when the preview draws a stand-in code instead of the printed one."""
 
 
 def _check_default_printer(http: Request, auth: AuthContext) -> None:
@@ -154,6 +160,14 @@ async def resume_printer(
     return _PrinterResumeResponse(printer_id=printer_id, state="active")
 
 
+class PreviewItem(BaseModel):
+    """The integration item a preview draws (#247): the server computes its QR payload."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    app: str = Field(max_length=32, description="The integration (``snipeit``, ``grocy``, …)")
+    id: str = Field(max_length=LOOKUP_IDENTIFIER_MAX, description="The item, as for the lookup")
+
+
 class _PreviewRequest(BaseModel):
     """Request body for POST /render/preview.
 
@@ -168,6 +182,9 @@ class _PreviewRequest(BaseModel):
     The preview never applies a printer's stored default: send it explicitly."""
     layout_preset: QlLayoutPreset | None = None
     """QL 62 mm across-width preset; omitted: ``compact``."""
+    item: PreviewItem | None = None
+    """An integration item (#247, ADR 0033): the server looks it up and draws the QR payload a
+    print of it carries; ``data.qr_payload`` is then ignored. Omitted: ``data`` as sent."""
 
 
 @render_router.post(
@@ -184,13 +201,32 @@ class _PreviewRequest(BaseModel):
         "Returns 422 when ``data`` is missing fields required by ``content_type`` or the "
         "QR payload does not fit the fixed QR code (``qr_payload_too_long``).  "
         "Returns 409 when ``tape_mm`` is not a supported tape width or the orientation is "
-        "not available for it."
+        "not available for it.  "
+        "With ``item`` the server looks the item up (the same lookup, errors and rate limit as "
+        "``GET /api/v1/lookup/{app}/{id}``: 404, 422, 502, 503) and draws the QR payload a print "
+        "of the item carries; a ``data.qr_payload`` sent with it is ignored.  A caller that "
+        "cannot print (read scope) gets that code only under the integration's web address; "
+        "while there is none, the image carries a stand-in code of the same size and the "
+        "answer the header ``X-Labelyard-QR: withheld``.  Without ``item`` the label is drawn "
+        "from ``data`` as sent."
     ),
     response_class=Response,
     responses={
-        200: {"content": {"image/png": {}}, "description": "PNG label bitmap"},
+        200: {
+            "content": {"image/png": {}},
+            "description": "PNG label bitmap",
+            "headers": {
+                QR_WITHHELD_HEADER: {
+                    "description": "``withheld``: a stand-in QR (read scope, no web address)",
+                    "schema": {"type": "string", "enum": ["withheld"]},
+                }
+            },
+        },
+        404: {"description": "``item`` names an item the integration does not have"},
         409: {"description": "Unsupported tape width or orientation"},
         422: {"description": "Data missing required fields, or QR payload too long"},
+        502: {"description": "``item``: the integration failed or could not be reached"},
+        503: {"description": "``item``: the integration is not configured"},
     },
 )
 async def render_preview(
@@ -208,10 +244,21 @@ async def render_preview(
     Returns 422 (content_type_data_mismatch) when data is missing fields for content_type.
     """
     engine = LayoutEngine()
+    qr_payload = body.data.qr_payload
+    withheld = False
+    if body.item is not None:
+        # ADR 0033: the code a print of this item carries, never one the client chose. One
+        # lookup, paid by the request's own token like GET /api/v1/lookup/{app}/{id}.
+        found = await answered(_lookup_service.lookup(body.item.app, body.item.id))
+        settings = getattr(http.app.state, "settings_store", None)
+        qr_payload = qr_payload_for(body.item.app, body.item.id, found, settings)
+        # A caller that cannot print must not read an internal base address from the image:
+        # the web form if there is one, else a stand-in code (header below).
+        qr_payload, withheld = preview_qr_for(_auth, body.item.app, qr_payload, settings)
     label_data = LabelData(
         primary_id=body.data.primary_id,
         title=body.data.title,
-        qr_payload=body.data.qr_payload,
+        qr_payload=qr_payload,
         source_app="preview",
         secondary=body.data.secondary,
         items=body.data.items,
@@ -243,7 +290,8 @@ async def render_preview(
         # The shared table (#378): fixed texts, structured detail in ``error_detail``.
         return print_error_response(exc, http)
 
-    return Response(content=png_bytes, media_type="image/png")
+    headers = {QR_WITHHELD_HEADER: "withheld"} if withheld else None
+    return Response(content=png_bytes, media_type="image/png", headers=headers)
 
 
 @render_router.post(
