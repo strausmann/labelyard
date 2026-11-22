@@ -62,8 +62,6 @@ function Start({ app }: { app: LookupApp }) {
   const appName = useAppName()(app);
   const admin = useIsAdmin();
   const configured = useIntegrationStates().find((i) => i.app === app)?.configured ?? false;
-  const cart = useCart();
-  const inCart = cart.items.length;
   const base = useKnownBase(app);
 
   return (
@@ -79,11 +77,6 @@ function Start({ app }: { app: LookupApp }) {
             <a href={base} target="_blank" rel="noopener noreferrer" className={SECONDARY_BUTTON}>
               {t`Open ${appName}`}&nbsp;<span aria-hidden="true">↗</span>
             </a>
-          )}
-          {inCart > 0 && (
-            <Link to="/cart" className="press ml-auto inline-flex h-11 items-center text-link underline underline-offset-2">
-              {t`Cart (${inCart})`}
-            </Link>
           )}
         </header>
       </div>
@@ -188,7 +181,7 @@ function Recent({ app }: { app: LookupApp }) {
         </ul>
       )}
       <p role="status" className="min-h-5 text-small text-ink">
-        {added !== null && t`Added to the cart: ${added}`}
+        {added !== null && t`Added to the cart: ${added} — open it with the cart button at the top`}
       </p>
       <p className="text-small text-ink-2">{t`Kept only in this browser. Print adds the label to the cart.`}</p>
     </section>

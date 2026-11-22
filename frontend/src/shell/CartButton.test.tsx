@@ -47,6 +47,16 @@ describe("CartButton: the cart icon in the top bar", () => {
     expect(within(link).queryByText(/\d/)).toBeNull();
   });
 
+  // Guard (#407): with the page links gone this button is the only way to the cart and the only place the count is read.
+  it("cart button announces the count", async () => {
+    store([line("7", 1), line("8", 1), line("9", 1)]);
+    reloadCart();
+    mockApi(routes);
+    await renderApp({ path: "/printers" });
+    const link = within(header()).getByRole("link", { name: "Cart, 3 items" });
+    expect(link).toHaveAttribute("href", "/cart");
+  });
+
   it("an empty cart is named Cart, empty", async () => {
     mockApi(routes);
     await renderApp({ path: "/printers" });

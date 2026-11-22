@@ -146,8 +146,29 @@ describe("recently opened", () => {
     expect(JSON.parse(localStorage.getItem(CART_KEY) ?? "[]")).toEqual([
       { app: "snipeit", id: "HH-AK0042", name: "Tool chest", content_type: "qr_two_lines", copies: 1 },
     ]);
-    expect(await screen.findByText("Added to the cart: Tool chest")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Cart (1)" })).toBeVisible();
+    expect(await screen.findByText(/Added to the cart: Tool chest/)).toBeVisible();
+  });
+
+  // #407: the top-bar cart button is the only way to the cart; the page carries no second link.
+  it("integration page has no cart text link", async () => {
+    recordRecent("snipeit", { id: "HH-AK0042", name: "Tool chest" });
+    mockApi({});
+    await renderApp({ path: "/integrations/snipeit" });
+    await userEvent.click(screen.getByRole("button", { name: "Print Tool chest" }));
+    await screen.findByText(/Added to the cart: Tool chest/);
+    const main = screen.getByRole("main");
+    expect(within(main).queryByRole("link", { name: /^Cart/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "Cart, 1 item" })).toHaveAttribute("href", "/cart");
+  });
+
+  it("added confirmation points to the cart button", async () => {
+    recordRecent("snipeit", { id: "HH-AK0042", name: "Tool chest" });
+    mockApi({});
+    await renderApp({ path: "/integrations/snipeit" });
+    await userEvent.click(screen.getByRole("button", { name: "Print Tool chest" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Added to the cart: Tool chest — open it with the cart button at the top",
+    );
   });
 
   // A recent entry carries no swatch data and the page has no printer: it starts on the default (#346).
