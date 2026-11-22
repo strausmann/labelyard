@@ -314,7 +314,7 @@ def parse_import(raw: bytes) -> ExportDoc:
         raise InvalidImportError(_error_paths(exc)) from None
     try:
         geometry = geometry_from_doc(doc.version.geometry)
-        validate_geometry(geometry)  # stated page size must match
+        validate_geometry(geometry, on_write=True)  # stated page size must match
     except InvalidGeometryError as exc:
         field = (exc.detail or {}).get("field", "geometry")
         raise InvalidImportError([f"version.geometry.{field}"]) from None

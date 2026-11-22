@@ -367,6 +367,16 @@ describe("edit details and create", () => {
     expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({ vendor: "Other Labels" });
   });
 
+  it("says why a source address with user info is refused, and does not send it", async () => {
+    const { calls } = mockApi({ ...LIST, "PATCH /api/v1/sheet-types/L4736REV": SHEET_TYPE });
+    await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await userEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Source address" }), "https://user:secret@example.invalid/x");
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The source address must not contain a user name or a password.");
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+  });
+
   it("does not let the prefix change once sheets exist", async () => {
     mockApi(LIST);
     await renderApp({ path: "/sheets/archive?type=L4736REV" });

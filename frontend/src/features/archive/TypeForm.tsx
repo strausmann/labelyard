@@ -30,6 +30,15 @@ const SERVER_FIELD: Record<string, FieldName> = {
   corner_radius: "cornerRadius",
 };
 // The server's caps (spec 15), checked here so a person is told before the request.
+/** An http(s) address that carries a user name or password: `httpUrl` refuses it, and the person is told why. */
+function hasUserInfo(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && (url.username !== "" || url.password !== "");
+  } catch {
+    return false;
+  }
+}
 const MAX = { vendor: 200, description: 200, sourceName: 200, sourceUrl: 500, notes: 2000, changeNote: 500, codes: 50, code: 40 };
 
 export type FormMode = { kind: "create" } | { kind: "details"; type: SheetTypeDetail } | { kind: "geometry"; type: SheetTypeDetail };
@@ -155,7 +164,11 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
     const list = splitCodes(codes);
     if (list.length > MAX.codes) return t`At most ${MAX.codes} product codes.`;
     if (list.some((c) => c.length > MAX.code)) return t`A product code is at most ${MAX.code} characters.`;
-    if (sourceUrl.trim() !== "" && !httpUrl(sourceUrl.trim())) return t`The source address must start with http:// or https://.`;
+    if (sourceUrl.trim() !== "" && !httpUrl(sourceUrl.trim())) {
+      return hasUserInfo(sourceUrl.trim())
+        ? t`The source address must not contain a user name or a password.`
+        : t`The source address must start with http:// or https://.`;
+    }
     return (
       tooLong(t`Vendor`, vendor, MAX.vendor) ??
       tooLong(t`Description`, description, MAX.description) ??

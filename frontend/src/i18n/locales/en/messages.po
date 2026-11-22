@@ -6003,6 +6003,10 @@ msgid "The source address"
 msgstr "The source address"
 
 #: src/features/archive/TypeForm.tsx
+msgid "The source address must not contain a user name or a password."
+msgstr "The source address must not contain a user name or a password."
+
+#: src/features/archive/TypeForm.tsx
 msgid "The source address must start with http:// or https://."
 msgstr "The source address must start with http:// or https://."
 

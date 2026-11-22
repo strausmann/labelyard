@@ -27,7 +27,7 @@ from __future__ import annotations
 import contextlib
 import re
 import unicodedata
-from urllib.parse import urlparse, urlsplit
+from urllib.parse import unquote, urlparse, urlsplit
 
 _BIDI_CONTROLS = frozenset({0x061C, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A)})
 #: Invisible format characters removed on write: zero-width space, word joiner, BOM, tags.
@@ -59,6 +59,9 @@ def sanitise_text(
     if len(value) > _INPUT_FACTOR * max_len:  # before any work on the text
         raise ValueError(f"longer than {max_len} characters")
     text = value.translate(_LINE_SEPARATORS).replace("\r\n", "\n").replace("\r", "\n")
+    # Invisible characters go before whitespace runs are collapsed: one between two spaces must
+    # not leave the run in two pieces and two spaces behind.
+    text = "".join(ch for ch in text if ord(ch) not in _DROPPED)
     text = text.replace("\t", " ") if multiline else _WHITESPACE_RUN.sub(_collapse_breaks, text)
     cleaned = "".join(ch for ch in text if _keep(ch)).strip()
     cleaned = unicodedata.normalize("NFC", cleaned)  # last: after every removal
@@ -78,9 +81,9 @@ def _label_scripts(label: str) -> set[str]:
     for ch in label:
         if not ch.isalpha():
             continue
-        name = unicodedata.name(ch, "")
+        words = unicodedata.name(ch, "").split()  # "FULLWIDTH LATIN SMALL LETTER A" counts
         for script in _SCRIPTS:
-            if name.startswith(script):
+            if script in words:
                 found.add(script)
     return found
 
@@ -117,6 +120,8 @@ def check_http_url(value: str) -> str:
     """
     if any(ch.isspace() or ord(ch) < 32 for ch in value):
         raise ValueError("control characters are not allowed")
+    if any(unicodedata.category(ch) == "Cf" for ch in value):
+        raise ValueError("invisible format characters are not allowed")
     parsed = urlparse(value)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ValueError("only http and https URLs are allowed")
@@ -128,6 +133,12 @@ def check_http_url(value: str) -> str:
         raise ValueError("the host is not valid") from None
     if not host:
         raise ValueError("the URL has no host")
+    decoded = unquote(host)  # ``ex%0aample`` is a host with a line break in it
+    if any(
+        ord(ch) < 32 or ord(ch) == 0x7F or unicodedata.category(ch) in ("Cc", "Cf")
+        for ch in decoded
+    ):
+        raise ValueError("the host is not valid")
     _check_host(host)
     return value
 

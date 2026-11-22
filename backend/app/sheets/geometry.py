@@ -90,8 +90,13 @@ def max_corner_radius(g: Geometry) -> int:
     return min(g.label_w, g.label_h) // 2
 
 
-def validate_geometry(g: Geometry) -> list[str]:
-    """Raise ``InvalidGeometryError`` on a rule failure; return hint codes otherwise."""
+def validate_geometry(g: Geometry, *, on_write: bool = False) -> list[str]:
+    """Raise ``InvalidGeometryError`` on a rule failure; return hint codes otherwise.
+
+    ``on_write``: the input is new (create, new version, import). Only then is the corner radius
+    bounded (#204): a version stored before the bound is validated for its hints on every read,
+    and a read must never fail on what the hub itself accepted earlier.
+    """
     if g.page_size not in PAGE_SIZES:
         raise InvalidGeometryError("page_size", "must be A4 or Letter")
     if g.page_w != PAGE_SIZES[g.page_size][0]:
@@ -106,7 +111,7 @@ def validate_geometry(g: Geometry) -> list[str]:
     for name in ("margin_top", "margin_left"):
         if getattr(g, name) < 0:
             raise InvalidGeometryError(name, "must not be negative")
-    if g.corner_radius is not None and g.corner_radius > max_corner_radius(g):
+    if on_write and g.corner_radius is not None and g.corner_radius > max_corner_radius(g):
         raise CornerRadiusTooLargeError(max_corner_radius(g))
     if g.cols < 1:
         raise InvalidGeometryError("cols", "must be at least 1")

@@ -83,3 +83,10 @@ def test_clean_text_maps_a_required_empty_field_to_422() -> None:
         clean_text("name", "\u200b\u2060", 20, required=True)
     assert ei.value.detail == {"field": "name", "reason": "must not be empty"}
     assert clean_text("name", "\u200b", 20) == ""
+
+
+def test_invisible_characters_do_not_split_a_whitespace_run() -> None:
+    """A zero-width character between two parts of one run must not leave two spaces."""
+    assert sanitise_text("a \n​ b", max_len=20) == "a b"
+    assert sanitise_text("a\t⁠\n﻿b", max_len=20) == "a b"
+    assert sanitise_text("a \n​ b", max_len=20, multiline=True) == "a \n b"

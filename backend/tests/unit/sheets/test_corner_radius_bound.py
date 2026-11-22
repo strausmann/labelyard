@@ -23,13 +23,13 @@ def test_the_bound_is_half_the_shorter_side() -> None:
 
 
 def test_radius_up_to_half_is_valid() -> None:
-    assert validate_geometry(replace(G, corner_radius=500)) is not None
-    assert validate_geometry(replace(G, corner_radius=0)) is not None
+    assert validate_geometry(replace(G, corner_radius=500), on_write=True) is not None
+    assert validate_geometry(replace(G, corner_radius=0), on_write=True) is not None
 
 
 def test_radius_over_half_is_refused_with_its_own_code() -> None:
     with pytest.raises(CornerRadiusTooLargeError) as raised:
-        validate_geometry(replace(G, corner_radius=501))
+        validate_geometry(replace(G, corner_radius=501), on_write=True)
     assert raised.value.status == 422
     assert raised.value.error_code == "corner_radius_too_large"
     assert raised.value.detail is not None and raised.value.detail["field"] == "corner_radius"
@@ -37,7 +37,7 @@ def test_radius_over_half_is_refused_with_its_own_code() -> None:
 
 def test_a_round_label_has_no_radius_to_check() -> None:
     round_g = Geometry("A4", 21000, 29700, 3000, 3000, 5, 7, 3500, 3500, 1000, 1000, None, "round")
-    assert validate_geometry(round_g) is not None
+    assert validate_geometry(round_g, on_write=True) is not None
 
 
 def test_stored_oversized_radius_is_clamped_at_render() -> None:
@@ -47,3 +47,9 @@ def test_stored_oversized_radius_is_clamped_at_render() -> None:
     at_half = replace(G, corner_radius=500)
     assert content_box(huge, 1) == content_box(at_half, 1)
     assert content_box(huge, 1) == BoxHmm(860 + 250, 1350 + 250, 2540 - 500, 1000 - 500)
+
+
+def test_reading_validation_does_not_refuse_a_stored_radius() -> None:
+    """The read path validates stored versions for hints; a radius stored before the bound must
+    not make every read of the type fail (#204, fix round 1)."""
+    assert isinstance(validate_geometry(replace(G, corner_radius=10_000)), list)

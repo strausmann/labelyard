@@ -1035,3 +1035,42 @@ async def test_corner_radius_over_half_is_422(api_client_with_seed, admin):
     )
     assert version.status_code == 422
     assert _err(version)["error_code"] == "corner_radius_too_large"
+
+
+async def _store_radius(key: str, hmm: int) -> None:
+    from app.models.sheet import SheetTypeVersion
+    from sqlalchemy import update
+
+    async with _factory()() as s:
+        await s.execute(update(SheetTypeVersion).values(corner_radius=hmm))
+        await s.commit()
+
+
+async def test_stored_oversized_radius_keeps_every_read_working(api_client_with_seed, admin):
+    """A type stored before the bound (radius 20 mm on a 21.2 mm label) is still read: list,
+    detail, version, archive and an edit of a text field answer 200."""
+    await _create(api_client_with_seed, admin)
+    await _store_radius("acme-t1", 2000)
+    c = api_client_with_seed
+
+    listed = await c.get("/api/v1/sheet-types", headers=admin)
+    assert listed.status_code == 200, listed.text
+    assert any(t["key"] == "acme-t1" for t in listed.json())
+    detail = await c.get("/api/v1/sheet-types/acme-t1", headers=admin)
+    assert detail.status_code == 200, detail.text
+    assert (await c.get("/api/v1/sheet-types/acme-t1/versions/1", headers=admin)).status_code == 200
+    patched = await c.patch("/api/v1/sheet-types/acme-t1", json={"verified": True}, headers=admin)
+    assert patched.status_code == 200, patched.text
+    assert (await c.post("/api/v1/sheet-types/acme-t1/archive", headers=admin)).status_code == 200
+
+
+async def test_create_with_an_oversized_radius_commits_nothing(api_client_with_seed, admin):
+    over = deepcopy(GEOMETRY)
+    over["corner_radius"] = 15.0
+    refused = await api_client_with_seed.post(
+        "/api/v1/sheet-types", json=_body(geometry=over), headers=admin
+    )
+    assert refused.status_code == 422
+    assert _err(refused)["error_code"] == "corner_radius_too_large"
+    gone = await api_client_with_seed.get("/api/v1/sheet-types/acme-t1", headers=admin)
+    assert gone.status_code == 404

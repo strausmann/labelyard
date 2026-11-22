@@ -98,3 +98,36 @@ def test_web_url_setting_refuses_a_look_alike_host(value: str) -> None:
 
     with pytest.raises(InvalidSettingValueError):
         _validate(SETTINGS["integrations.snipeit.web_url"], value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://exam​ple.invalid/",  # zero-width space in the host
+        "https://example.invalid/a⁠b",  # word joiner in the path
+        "https://example.invalid/﻿",
+        "https://example.invalid/\U000e0041",
+    ],
+)
+def test_format_characters_in_a_url_are_refused(url: str) -> None:
+    with pytest.raises(ValueError, match=r"invisible|control"):
+        check_http_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["http://ex%0aample.invalid/", "http://ex%00ample.invalid/", "http://ex%7fample.invalid/"],
+)
+def test_percent_encoded_control_code_in_the_host_is_refused(url: str) -> None:
+    with pytest.raises(ValueError, match="host"):
+        check_http_url(url)
+
+
+def test_percent_sign_in_the_path_is_fine() -> None:
+    assert check_http_url("https://example.invalid/a%20b") == "https://example.invalid/a%20b"
+
+
+def test_fullwidth_latin_mixed_with_cyrillic_is_refused() -> None:
+    host = "ａа.example.invalid"  # fullwidth Latin a + Cyrillic a  # noqa: RUF001
+    with pytest.raises(ValueError, match="mix"):
+        check_http_url(f"https://{host}/")
