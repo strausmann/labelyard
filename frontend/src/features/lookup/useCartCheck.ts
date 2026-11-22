@@ -45,7 +45,7 @@ async function checkAll(
 }
 
 const NONE: ReadonlyMap<string, RenderCheckResult> = new Map();
-const CHECK_KEY = "render-check";
+export const CHECK_KEY = "render-check";
 
 /** The verdicts one check run fetched, by verdict key: what the query caches. */
 type Verdicts = Record<string, RenderCheckResult>;
