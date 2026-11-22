@@ -1318,7 +1318,7 @@ export interface paths {
         };
         /**
          * List sheets
-         * @description At most `limit` sheets (default and largest 500) in the order: sheets with at least `free_at_least` free cells first, then the most free, then by code. When more match, the `Link` header names the next page (`rel="next"`); the body stays a list. Every filter is applied before the page is cut, so a page is never thinned out. `state=full` and `hide_used_up` look at active sheets without a free cell; `back_missing` keeps active sheets whose code on the back is not confirmed yet. Sheets carry no printer restriction (OC-37).
+         * @description At most `limit` sheets (default and largest 500) in the order: sheets with at least `free_at_least` free cells first, then the most free, then by code. When more match, the `Link` header names the next page (`rel="next"`); the body stays a list. Every filter is applied before the page is cut, so a page is never thinned out. `state=full` and `hide_used_up` look at active sheets without a free cell; `back_missing` keeps active sheets whose code on the back is not confirmed yet. Each page is a snapshot at its own request: a sheet that changes between two requests can move to another page, so a client that reads every page de-duplicates by `code`. Sheets carry no printer restriction (OC-37).
          */
         get: operations["list_sheets_api_v1_sheets_get"];
         put?: never;

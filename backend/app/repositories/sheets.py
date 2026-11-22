@@ -109,20 +109,18 @@ async def counter(session: AsyncSession, prefix: str) -> SheetIdCounter | None:
     return await session.get(SheetIdCounter, prefix, populate_existing=True)
 
 
-def _count_state(state: str) -> ColumnElement[int]:
-    return func.coalesce(func.sum(case((col(SheetCell.state) == state, 1), else_=0)), 0)
+def _cell_count(state: str) -> Any:
+    """The sheet's cells in ``state``, correlated to the outer ``sheets`` row.
 
-
-def _counts_subquery() -> Any:
+    A lookup on the ``(sheet_id, cell_no)`` primary key per sheet, never a pass over every row of
+    ``sheet_cells`` (#204: a list request costs the sheets it looks at, not the whole archive).
+    """
     return (
-        select(
-            col(SheetCell.sheet_id).label("sid"),
-            _count_state("used").label("used"),
-            _count_state("reserved").label("reserved"),
-            _count_state("unconfirmed").label("unconfirmed"),
-        )
-        .group_by(col(SheetCell.sheet_id))
-        .subquery()
+        select(func.count())
+        .select_from(SheetCell)
+        .where(col(SheetCell.sheet_id) == col(Sheet.id), col(SheetCell.state) == state)
+        .correlate(Sheet)
+        .scalar_subquery()
     )
 
 
@@ -144,17 +142,15 @@ def _listing(f: SheetListFilter) -> tuple[Any, ColumnElement[int], ColumnElement
     Returns the statement, the free-cell expression (cells of the pinned version minus the
     used, reserved and unconfirmed ones) and the "used up" condition (active, nothing free).
     """
-    counts = _counts_subquery()
-    used = func.coalesce(counts.c.used, 0)
-    reserved = func.coalesce(counts.c.reserved, 0)
-    unconfirmed = func.coalesce(counts.c.unconfirmed, 0)
+    used = _cell_count("used")
+    reserved = _cell_count("reserved")
+    unconfirmed = _cell_count("unconfirmed")
     free = col(SheetTypeVersion.cols) * col(SheetTypeVersion.rows) - used - reserved - unconfirmed
     used_up = and_(col(Sheet.state) == "active", free <= 0)
     stmt = (
         select(Sheet, SheetType, SheetTypeVersion, used, reserved, unconfirmed)
         .join(SheetType, col(SheetType.id) == col(Sheet.type_id))
         .join(SheetTypeVersion, col(SheetTypeVersion.id) == col(Sheet.type_version_id))
-        .outerjoin(counts, counts.c.sid == col(Sheet.id))
     )
     if f.type_id is not None:
         stmt = stmt.where(col(Sheet.type_id) == f.type_id)
@@ -209,10 +205,20 @@ async def list_page(
 
     Returns the rows and whether more follow (one row more is read to know).
     """
+    rows = _rows(
+        await session.execute(
+            page_statement(f, free_at_least=free_at_least, limit=limit, offset=offset)
+        )
+    )
+    return rows[:limit], len(rows) > limit
+
+
+def page_statement(f: SheetListFilter, *, free_at_least: int, limit: int, offset: int) -> Any:
+    """The statement of ``list_page``: one row more than ``limit``, to know whether more follow."""
     stmt, free, used_up = _listing(f)
     if f.hide_used_up:
         stmt = stmt.where(not_(used_up))
-    stmt = (
+    return (
         stmt.order_by(
             case((free >= free_at_least, 0), else_=1),
             free.desc(),
@@ -222,16 +228,19 @@ async def list_page(
         .limit(limit + 1)
         .offset(offset)
     )
-    rows = _rows(await session.execute(stmt))
-    return rows[:limit], len(rows) > limit
 
 
 async def count_used_up(session: AsyncSession, f: SheetListFilter) -> int:
     """How many sheets matching ``f`` are used up (what ``hide_used_up`` leaves out)."""
+    result = await session.execute(used_up_count_statement(f))
+    return int(result.scalar_one())
+
+
+def used_up_count_statement(f: SheetListFilter) -> Any:
+    """The statement of ``count_used_up``."""
     stmt, _free, used_up = _listing(f)
     inner = stmt.where(used_up).with_only_columns(col(Sheet.id)).subquery()
-    result = await session.execute(select(func.count()).select_from(inner))
-    return int(result.scalar_one())
+    return select(func.count()).select_from(inner)
 
 
 async def count_active(session: AsyncSession, type_id: UUID | None = None) -> int:

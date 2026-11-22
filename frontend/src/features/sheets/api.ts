@@ -74,11 +74,20 @@ export interface SheetPage {
 const post = <T>(path: string, json?: unknown) => apiFetch<T>(path, { method: "POST", json });
 const encode = encodeURIComponent;
 
+/**
+ * Each page is its own snapshot: a sheet whose free cells change between two requests can move across the page
+ * boundary and come back twice. The first answer for a code wins (OC-34 order: the earlier page is the earlier rank).
+ */
+export function uniqueByCode(rows: SheetSummary[]): SheetSummary[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => !seen.has(row.code) && (seen.add(row.code), true));
+}
+
 /** Every sheet that matches, all pages (the print dialog, the notifications): nothing beyond 500 is lost. */
 export const useSheets = (filters: SheetFilters = {}, enabled = true) =>
   useQuery({
     queryKey: sheetsKey(filters),
-    queryFn: () => fetchAllPages<SheetSummary>(`/api/v1/sheets${queryString({ ...filters })}`, MAX_SHEET_PAGES),
+    queryFn: async () => uniqueByCode(await fetchAllPages<SheetSummary>(`/api/v1/sheets${queryString({ ...filters })}`, MAX_SHEET_PAGES)),
     enabled,
   });
 

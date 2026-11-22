@@ -217,3 +217,33 @@ async def test_used_up_hidden_header_counts_the_hidden_sheets(ready, reader) -> 
     plain = await ready.get("/api/v1/sheets", headers=reader)
     assert "x-used-up-hidden" not in plain.headers
     assert len(_codes(plain)) == 4
+
+
+async def _plan(stmt: Any) -> list[str]:
+    """SQLite's query plan for ``stmt``: one detail line per step."""
+    async with _factory()() as s:
+        conn = await s.connection()
+        compiled = stmt.compile(dialect=conn.dialect)
+        params = tuple(compiled.params[name] for name in compiled.positiontup or ())
+        rows = await conn.exec_driver_sql("EXPLAIN QUERY PLAN " + str(compiled), params)
+        return [str(r[-1]) for r in rows.all()]
+
+
+@pytest.mark.parametrize("hide_used_up", [False, True])
+async def test_a_page_reads_cells_by_sheet_never_the_whole_table(ready, hide_used_up) -> None:
+    """The cell counts are looked up per sheet on the primary key: no request scans every row of
+    ``sheet_cells`` (a structural bound, independent of timing)."""
+    from app.repositories import sheets as repo
+
+    await _insert([{"code": f"AT1-{n:04d}", "used": n % 5} for n in range(1, 30)])
+    f = repo.SheetListFilter(
+        sheet_state="active", q="at1", back_missing=False, hide_used_up=hide_used_up
+    )
+    for stmt in (
+        repo.page_statement(f, free_at_least=3, limit=10, offset=0),
+        repo.used_up_count_statement(f),
+    ):
+        plan = await _plan(stmt)
+        cells = [line for line in plan if "sheet_cells" in line]
+        assert cells, plan
+        assert all(line.startswith("SEARCH") for line in cells), plan

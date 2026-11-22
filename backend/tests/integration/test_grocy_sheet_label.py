@@ -325,9 +325,10 @@ async def test_response_does_not_wait_for_the_reservation(
     seeded = await _seed_base()
     code = await _sheet(used=5)
     original = sheet_print_service.reserve
+    delay_s = 3.0
 
     async def slow(*args: Any, **kwargs: Any) -> Any:
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(delay_s)
         return await original(*args, **kwargs)
 
     monkeypatch.setattr(sheet_print_service, "reserve", slow)
@@ -337,11 +338,16 @@ async def test_response_does_not_wait_for_the_reservation(
         elapsed = time.monotonic() - started
         assert resp.status_code == 202, resp.text
         assert elapsed < GROCY_LABEL_BUDGET_S, elapsed
+        # The proof: when the answer is there, the delayed reservation has not happened yet.
+        assert [c for c in await _grocy_cells() if c[:2] == (code, 6)] == []
 
-        async def reserved() -> bool:
-            return (code, 6, "reserved") in await _grocy_cells()
+        async def taken() -> bool:
+            # A fast mock printer can move the cell from reserved to used between two polls; either
+            # state shows the reservation ran after the answer.
+            cells = await _grocy_cells()
+            return (code, 6, "reserved") in cells or (code, 6, "used") in cells
 
-        await _until(reserved)
+        await _until(taken, timeout=WAIT_S + delay_s)
         await _until(lambda: _used(code, 6))
 
 
