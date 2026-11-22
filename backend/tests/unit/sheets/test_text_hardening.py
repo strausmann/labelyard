@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 Bj\u00f6rn Strausmann and Labelyard contributors
+# SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Invisible characters in free text (#204 note 1, 1.8.0)."""

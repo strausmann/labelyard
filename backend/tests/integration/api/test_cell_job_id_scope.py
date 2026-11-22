@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 Bj\u00f6rn Strausmann and Labelyard contributors
+# SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """A cell's ``job_id`` opens nothing the key may not read (#204 note 3, 1.8.0).

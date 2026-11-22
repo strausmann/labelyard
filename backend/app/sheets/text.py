@@ -133,8 +133,8 @@ def check_http_url(value: str) -> str:
         raise ValueError("the host is not valid") from None
     if not host:
         raise ValueError("the URL has no host")
-    # A host never needs a percent escape. A browser decodes it (``%D0%B5`` is a Cyrillic letter,
-    # ``%0a`` a line break), so the checks below would judge another host than the one opened.
+    # A host never needs a percent escape. A browser decodes it (an escaped Cyrillic letter,
+    # an escaped line break), so the checks below would judge another host than the one opened.
     if "%" in host:
         raise ValueError("the host is not valid: no percent escapes")
     _check_host(host)
