@@ -205,3 +205,14 @@ async def test_importing_as_a_reserved_new_key_is_422(api_client_with_seed, admi
     )
     assert resp.status_code == 422, resp.text
     assert resp.json()["detail"]["error_code"] == "type_key_reserved"
+
+
+async def test_vendor_filter_folds_non_ascii_case(api_client_with_seed, admin, reader) -> None:
+    """SQLite's lower() only folds ASCII; "Ärger" must match "ärger" and be listed as a facet."""
+    await _make(api_client_with_seed, admin, "ae-a", "AEA", "Ärger")
+    for spelling in ("ärger", "Ärger"):
+        resp = await api_client_with_seed.get(
+            "/api/v1/sheet-types", params={"vendor": spelling}, headers=reader
+        )
+        assert [t["key"] for t in resp.json()] == ["ae-a"], spelling
+    assert (await _facets(api_client_with_seed, reader, q="ae-"))["vendors"] == {"Ärger": 1}

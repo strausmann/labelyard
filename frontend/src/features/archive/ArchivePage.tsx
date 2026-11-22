@@ -194,7 +194,10 @@ export function SheetArchivePage() {
                   value={search.vendor ?? ANY}
                   options={[{ id: ANY, label: t`Any vendor` }, ...vendors.map((v) => ({ id: v, label: v }))]}
                   onChange={(id) => commit({ vendor: id === ANY ? undefined : id })}
+                  isDisabled={facets.isPending}
+                  placeholder={facets.isPending ? t`Loading vendors…` : undefined}
                 />
+                {facets.isError ? <p className="text-small text-ink-2">{t`The vendors could not be loaded.`}</p> : null}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <TextInput label={t`Label width (mm)`} value={typed.w} onChange={typed.setW} inputMode="decimal" />

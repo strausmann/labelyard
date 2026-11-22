@@ -642,6 +642,13 @@ describe("filters, as a person uses them", () => {
     expect(await screen.findByRole("option", { name: "Other Labels" })).toBeVisible();
   });
 
+  it("says so when the vendors cannot be loaded, and the list still works", async () => {
+    mockApi({ ...LIST, "GET /api/v1/sheet-types/facets": () => respond(500, { detail: "boom" }) });
+    await renderApp({ path: "/sheets/archive" });
+    await screen.findByRole("link", { name: /L4736REV/ });
+    expect(await screen.findByText("The vendors could not be loaded.")).toBeVisible();
+  });
+
   it("typing a label size (with a decimal comma) asks the server for it", async () => {
     const { calls } = mockApi(LIST);
     await renderApp({ path: "/sheets/archive" });

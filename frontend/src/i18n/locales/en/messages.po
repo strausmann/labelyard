@@ -2638,6 +2638,10 @@ msgstr "Loading notifications…"
 msgid "Loading test"
 msgstr "Loading test"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Loading vendors…"
+msgstr "Loading vendors…"
+
 #: src/app/router.tsx
 #: src/features/about/DependencyLicences.tsx
 #: src/features/archive/ArchivePage.tsx
@@ -6083,6 +6087,10 @@ msgstr "The values are filled in below. Nothing is saved yet."
 #: src/features/archive/errors.ts
 msgid "The vendor"
 msgstr "The vendor"
+
+#: src/features/archive/ArchivePage.tsx
+msgid "The vendors could not be loaded."
+msgstr "The vendors could not be loaded."
 
 #: src/features/archive/errors.ts
 msgid "The vertical pitch"

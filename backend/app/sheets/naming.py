@@ -11,10 +11,11 @@ from app.sheets.geometry import Geometry
 
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$")
 
-# Static path segments under /api/v1/sheet-types/ ("facets", "import", ...): a type with such a
-# key would be shadowed by the route. Filled from the registered routes (see
-# ``reserve_static_segments``), never by hand, so a later route reserves its segment too.
-RESERVED_TYPE_KEYS: set[str] = set()
+# Keys a type must not have, because a fixed path segment under /api/v1/sheet-types/ would shadow
+# its detail route. The floor below holds without any route imported (service-level callers, unit
+# tests); ``create_app()`` adds the segments of every registered route through
+# ``reserve_static_segments``, so a later route (the catalogue of Task 8c) reserves its own.
+RESERVED_TYPE_KEYS: set[str] = {"facets", "import"}
 
 
 def reserve_static_segments(prefix: str, paths: list[str]) -> None:

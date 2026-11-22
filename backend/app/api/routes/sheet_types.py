@@ -44,7 +44,7 @@ from app.sheets import type_service as ts
 from app.sheets.errors import ImportTooLargeError, SheetTypeVersionNotFoundError
 from app.sheets.geometry import normalise, validate_geometry
 from app.sheets.id_placement import resolve_type_placement
-from app.sheets.naming import KEY_PATTERN, reserve_static_segments
+from app.sheets.naming import KEY_PATTERN
 
 router = APIRouter(prefix="/api/v1/sheet-types", tags=["sheet-types"])
 
@@ -177,7 +177,7 @@ async def list_sheet_types(
     offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
 ) -> list[SheetTypeRead]:
     with mapped():
-        found = await ts.list_types(
+        found = await ts.list_types_page(
             session,
             page=page,
             vendor=vendor,
@@ -418,8 +418,3 @@ async def export_sheet_type(
         content=doc.to_json(),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
-# A type key equal to a static segment of this router would be shadowed by its route. Derived
-# from the routes registered above, so a route added later reserves its segment automatically.
-reserve_static_segments(router.prefix, [r.path for r in router.routes if hasattr(r, "path")])
