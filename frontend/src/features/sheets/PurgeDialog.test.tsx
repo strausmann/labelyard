@@ -99,3 +99,23 @@ describe("purge discarded sheets (#204)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "New sheet" })).toBeVisible());
   });
 });
+
+describe("purge dialog after a purged batch", () => {
+  it("does not offer the purged codes again when the next dry run fails", async () => {
+    let round = 0;
+    setup((b) => {
+      if (b.dry_run && round > 0) return respond(500, { detail: "boom" });
+      if (!b.dry_run) round += 1;
+      return { codes: ["L4736-0001", "L4736-0002"], dry_run: b.dry_run, more: !b.dry_run };
+    });
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Check what would go" }));
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Purge 2 sheets" }));
+
+    expect(await within(dialog).findByRole("alert")).toBeVisible();
+    expect(within(dialog).getByText("2 sheets purged.")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Purge 2 sheets" })).toBeNull();
+    expect(within(dialog).queryByText("L4736-0001, L4736-0002")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Check what would go" })).toBeEnabled();
+  });
+});

@@ -55,6 +55,8 @@ export function PurgeDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () 
       {
         onSuccess: (result) => {
           setPurged((n) => n + result.codes.length);
+          // The batch is gone: its codes may never be offered again, even when the next dry run fails.
+          setPreview(null);
           if (result.more) check(forDays);
           else setPreview({ days: forDays, result: { codes: [], dry_run: true, more: false } });
         },
@@ -81,9 +83,9 @@ export function PurgeDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () 
           purge.reset();
         }}
       />
+      {purged > 0 ? <p role="status">{plural(purged, { one: "# sheet purged.", other: "# sheets purged." })}</p> : null}
       {preview ? (
         <div role="status" className="flex flex-col gap-1.5">
-          {purged > 0 ? <p>{plural(purged, { one: "# sheet purged.", other: "# sheets purged." })}</p> : null}
           {codes.length === 0 ? (
             <p>{purged > 0 ? t`No further discarded sheet matches.` : t`No discarded sheet matches.`}</p>
           ) : (
