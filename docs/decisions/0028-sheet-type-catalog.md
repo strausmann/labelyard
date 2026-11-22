@@ -36,9 +36,9 @@ hub never changes an installed type on its own.**
   one sheet-type export document (the import format of ADR 0023, unchanged) per type. What the
   document cannot carry lives in the sidecar `backend/app/catalog/meta.json`, per key: `revision`
   (from 1, raised by every new geometry or field change of the entry), `verified_on`, `evidence`
-  (at most 500 characters) and `baseline_fields_hash`. `backend/app/catalog/index.json` is generated
-  from both by `scripts/catalog_index.py`; a CI step (`--check`) and a test fail when the index, the
-  sidecar and the documents disagree. `backend/app/catalog/presets/` holds preprint presets.
+  (at most 500 characters), `baseline_fields_hash` and `prior_fields_hashes`.
+  `backend/app/catalog/index.json` is generated from both by `scripts/catalog_index.py`; a CI step
+  (`--check`) and a test fail when the index, the sidecar and the documents disagree. `backend/app/catalog/presets/` holds preprint presets.
 - **Two hashes identify an entry.** The geometry hash is the one the type service stores per
   version (D14). The fields hash is the SHA-256 of the canonical JSON (sorted keys, no spaces) of the
   document's `type` object without `key` and `prefix` and **without fields that hold their default
@@ -50,6 +50,12 @@ hub never changes an installed type on its own.**
   revision-1 document, which is the seed of revision 3 with its corrections applied. It is written
   once and never changed by a later revision. Upgraded installations are stamped with revision 1 and
   this baseline, so a later revision is offered to them as an update.
+- **Older shipped states count as unedited too.** An installation first seeded before 1.6.0 kept
+  `allow_qr` off for three types (Avery 5167, HERMA 10001, Avery Zweckform L4731REV) that 1.6.0
+  only turned on in the seed, and the seeder never changes a row field afterwards. The hashes of
+  such states are listed per key in `prior_fields_hashes`; a type whose fields hash is the baseline
+  or one of them counts as unedited. They are derived by seeding a database with the older seed
+  files and then with the 1.7.1 seed, never written by hand, and a test repeats this for v1.5.2.
 - **Nothing is inserted on start.** A fresh installation starts with no types and installs from the
   catalog. Existing installations keep their types: a one-time startup step applies the pending
   `adopt`/`corrections` of seed revision 3 that an installation has not run yet, then records catalog

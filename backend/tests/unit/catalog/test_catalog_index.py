@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -21,6 +22,7 @@ import pytest
 from app.catalog import loader
 from app.models.backing_design import BackingDesign
 from app.models.sheet import SheetType
+from app.seed import sheet_seed
 from app.seed.sheet_seed import load_seed
 from app.sheets import type_service as ts
 from app.sheets.backing_design_service import strips_to_mm
@@ -33,11 +35,21 @@ from app.sheets.exchange import (
     parse_import,
 )
 from app.sheets.geometry import geometry_hash
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 REPO = Path(__file__).resolve().parents[4]
 CATALOG = REPO / "backend" / "app" / "catalog"
 SCRIPT = REPO / "scripts" / "catalog_index.py"
+SEED_V1_5_2 = REPO / "backend" / "tests" / "fixtures" / "seed" / "sheet_types_v1_5_2.json"
 ULTRAGRIP_TYPES = {"avery-zweckform-6121", "avery-zweckform-3490"}
+
+
+@pytest.fixture(autouse=True)
+def _fresh_catalog_caches() -> Iterator[None]:
+    loader.clear_caches()
+    yield
+    loader.clear_caches()
 
 
 def _script() -> ModuleType:
@@ -176,6 +188,15 @@ def test_index_hash_rule_matches_the_app() -> None:
     )
 
 
+def test_script_type_defaults_are_the_type_doc_defaults() -> None:
+    defaults = {
+        name: field.get_default(call_default_factory=True)
+        for name, field in TypeDoc.model_fields.items()
+        if not field.is_required()
+    }
+    assert defaults == _script().TYPE_DEFAULTS
+
+
 def test_adding_a_defaulted_type_field_keeps_the_hash() -> None:
     """Task 10a adds defaulted fields to ``TypeDoc``; no shipped hash may change through that."""
 
@@ -237,6 +258,12 @@ def _seed_design_rows() -> dict[str, BackingDesign]:
     }
 
 
+def _hash_of(row: SheetType, design: BackingDesign | None) -> str:
+    doc = loader.type_doc_of(row, design)
+    assert doc is not None
+    return loader.fields_hash(doc)
+
+
 def test_baseline_hash_is_the_revision_1_document_hash() -> None:
     """S14: the baseline is what a 1.7.x installation holds after the seed, link included."""
     seed = load_seed()
@@ -245,14 +272,13 @@ def test_baseline_hash_is_the_revision_1_document_hash() -> None:
     docs, meta = _docs(), _meta()
     for seed_doc in seed.docs:
         key = seed_doc.type.key
-        assert meta[key]["revision"] == 1
-        assert meta[key]["baseline_fields_hash"] == loader.fields_hash(docs[key].type)
         design = designs[links[key].design] if key in links else None
-        row = _seeded_row(seed_doc, design)
-        installed = loader.fields_hash(loader.type_doc_of(row, design))
-        assert installed == meta[key]["baseline_fields_hash"], (
+        installed = _hash_of(_seeded_row(seed_doc, design), design)
+        assert meta[key]["baseline_fields_hash"] == installed, (
             f"{key}: a 1.7.x row counts as edited"
         )
+        if meta[key]["revision"] == 1:  # a later revision has its own document hash
+            assert meta[key]["baseline_fields_hash"] == loader.fields_hash(docs[key].type)
 
 
 def test_type_doc_of_embeds_a_linked_design_and_refuses_a_foreign_one() -> None:
@@ -261,14 +287,69 @@ def test_type_doc_of_embeds_a_linked_design_and_refuses_a_foreign_one() -> None:
     seed_doc = next(d for d in load_seed().docs if d.type.key == "avery-zweckform-6121")
     row = _seeded_row(seed_doc, design)
     with_design = loader.type_doc_of(row, design)
-    assert with_design.backing_design is not None
+    assert with_design is not None and with_design.backing_design is not None
     assert with_design.backing_design.key == design.key
     other = BackingDesign(key="other", name="Other", page_size="A4", strips=[], origin="custom")
     with pytest.raises(ValueError):
         loader.type_doc_of(row, other)
     row.backing_design_id = None
-    assert loader.type_doc_of(row, None).backing_design is None
-    assert loader.fields_hash(loader.type_doc_of(row, None)) != loader.fields_hash(with_design)
+    without = loader.type_doc_of(row, None)
+    assert without is not None and without.backing_design is None
+    assert loader.fields_hash(without) != loader.fields_hash(with_design)
+
+
+def test_type_doc_of_a_row_1_7_accepted_but_documents_refuse_is_none() -> None:
+    """A source URL with user info was stored by 1.7.x and is refused since #427: no document
+    can carry it, so the type counts as edited instead of the hash step failing."""
+    seed_doc = next(d for d in load_seed().docs if d.type.key == "avery-7160")
+    row = _seeded_row(seed_doc, None)
+    row.source_url = "https://user:secret@example.invalid/sheet"
+    assert loader.type_doc_of(row, None) is None
+    row.source_url = seed_doc.type.source_url
+    row.notes = "x" * 2001  # longer than any document field allows
+    assert loader.type_doc_of(row, None) is None
+
+
+def test_catalog_meta_knows_prior_shipped_states() -> None:
+    meta = loader.load_meta("avery-5167")
+    assert meta.counts_as_unedited(meta.baseline_fields_hash)
+    assert all(meta.counts_as_unedited(h) for h in meta.prior_fields_hashes)
+    assert not meta.counts_as_unedited("0" * 64)
+    assert loader.load_meta("avery-7160").prior_fields_hashes == []
+
+
+async def _seed_with(factory: async_sessionmaker[AsyncSession], path: Path) -> None:
+    real = sheet_seed.load_seed
+    try:
+        sheet_seed.load_seed = lambda p=path: real(p)  # type: ignore[assignment]
+        await sheet_seed.run_sheet_seed(factory)
+    finally:
+        sheet_seed.load_seed = real
+    await sheet_seed.run_sheet_seed(factory)  # then the shipped (1.7.1) seed
+
+
+async def test_an_installation_from_1_5_2_holds_shipped_states_only(
+    async_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Seeded by v1.5.2, then by the 1.7.1 seed: every type counts as unedited (prior states)."""
+    await _seed_with(async_session_factory, SEED_V1_5_2)
+    seen_prior = set()
+    async with async_session_factory() as session:
+        types = list((await session.execute(select(SheetType))).scalars())
+        assert len(types) == 39
+        for t in types:
+            design = (
+                await session.get(BackingDesign, t.backing_design_id)
+                if t.backing_design_id
+                else None
+            )
+            h = _hash_of(t, design)
+            meta = loader.load_meta(t.key)
+            assert meta.counts_as_unedited(h), f"{t.key}: a 1.5.2 installation counts as edited"
+            if h in meta.prior_fields_hashes:
+                seen_prior.add(t.key)
+    # every prior hash is reachable from a real older installation, none is dead weight
+    assert seen_prior == {k for k, v in _meta().items() if v.get("prior_fields_hashes")}
 
 
 def test_no_catalog_key_is_reserved() -> None:

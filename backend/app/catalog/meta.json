@@ -39,7 +39,10 @@
     "revision": 1,
     "verified_on": null,
     "evidence": null,
-    "baseline_fields_hash": "fe2271bc917545d265fe4bef6635b6bb06d58714ca43b42e0bff05dac1a2dec3"
+    "baseline_fields_hash": "fe2271bc917545d265fe4bef6635b6bb06d58714ca43b42e0bff05dac1a2dec3",
+    "prior_fields_hashes": [
+      "b461f6da63dcf3ef22860a791a49607a9d1abc362083adc86476978efca8f085"
+    ]
   },
   "avery-5195": {
     "revision": 1,
@@ -147,7 +150,10 @@
     "revision": 1,
     "verified_on": "2026-11-15",
     "evidence": "Verified on real sheets 2026-11-15: HP Color LaserJet, tray 1, check print with correction. The earlier geometry (top margin 13.5 mm, rows 10.0 mm) put every row line 0.7–1.3 mm low; corrected to top 12.54 mm and 9.98 mm rows. Vendor page not reachable; values agree between two third-party sources for this size (Labelplanet LP189/25, MR-Label MR111, listed there as the L4731 size; second source: http://mr-label.com/articles/3884). Corner radius 1.47 mm from MR-Label MR111, rounded to 1.5.",
-    "baseline_fields_hash": "976a304d44b258be0051e0434689b2bcc379f0c948c1d080506c402beee73f1c"
+    "baseline_fields_hash": "976a304d44b258be0051e0434689b2bcc379f0c948c1d080506c402beee73f1c",
+    "prior_fields_hashes": [
+      "770b45587d93ab54824fde35dba8fb5527b189edcd118dbd0dbcbf723f289a9f"
+    ]
   },
   "avery-zweckform-l4736rev": {
     "revision": 1,
@@ -177,7 +183,10 @@
     "revision": 1,
     "verified_on": null,
     "evidence": null,
-    "baseline_fields_hash": "9397a7d736ee0686bc2ebc68f554f2eb6e1870d8321faf6397be5e6cf7b21fdc"
+    "baseline_fields_hash": "9397a7d736ee0686bc2ebc68f554f2eb6e1870d8321faf6397be5e6cf7b21fdc",
+    "prior_fields_hashes": [
+      "d7e1362caf3cdc82e78cb2f6b8eee13072ae3e5067751735787d031ff8176508"
+    ]
   },
   "herma-4097": {
     "revision": 1,

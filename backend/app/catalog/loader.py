@@ -23,7 +23,7 @@ import json
 from datetime import date
 from typing import Annotated, Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.models.backing_design import BackingDesign
 from app.models.sheet import SheetType
@@ -47,6 +47,14 @@ class CatalogMeta(BaseModel):
     # The fields hash of the revision-1 document: what a 1.7.x installation holds after the
     # seed's corrections. Written once, never changed by a later revision (S14).
     baseline_fields_hash: _HASH
+    # Fields hashes of earlier shipped states that still count as unedited: an installation
+    # seeded by an older release and then by 1.7.x holds them (before 1.6.0 three types shipped
+    # with ``allow_qr`` off). Derived by running the old seed files through the 1.7.1 seeder.
+    prior_fields_hashes: list[_HASH] = Field(default_factory=list)
+
+    def counts_as_unedited(self, fields_hash: str) -> bool:
+        """Whether an installed type with this fields hash holds a state the catalog shipped."""
+        return fields_hash == self.baseline_fields_hash or fields_hash in self.prior_fields_hashes
 
 
 class CatalogEntry(BaseModel):
@@ -82,17 +90,28 @@ def fields_hash(type_doc: TypeDoc) -> str:
     return hashlib.sha256(_canonical(data).encode("utf-8")).hexdigest()
 
 
-def type_doc_of(t: SheetType, design: BackingDesign | None) -> TypeDoc:
+def type_doc_of(t: SheetType, design: BackingDesign | None) -> TypeDoc | None:
     """The type fields of an installed type, its linked design always embedded.
 
     ``export_type`` leaves out a shipped type's default design (a version-1 document); a hash
     comparison with the catalog document, which embeds it, must not, so a shipped link never
     counts as an edit (S14). ``design`` is the design the type links to, or ``None``.
+
+    ``None`` when the row holds a value an exchange document can no longer carry, such as a
+    source URL with user info that 1.7.x accepted and #427 refuses. No catalog revision ships
+    such a value, so callers treat the type as locally edited.
     """
     if design is not None and design.id != t.backing_design_id:
         raise ValueError("the design is not the one this type links to")
     if design is None and t.backing_design_id is not None:
         raise ValueError("the type links a design that was not passed")
+    try:
+        return _type_doc(t, design)
+    except ValidationError:
+        return None
+
+
+def _type_doc(t: SheetType, design: BackingDesign | None) -> TypeDoc:
     return TypeDoc(
         key=t.key,
         prefix=t.prefix,
@@ -123,6 +142,12 @@ def load_index() -> tuple[CatalogEntry, ...]:
 def _all_meta() -> dict[str, CatalogMeta]:
     raw: dict[str, Any] = json.loads(_read("meta.json"))
     return {key: CatalogMeta.model_validate(value) for key, value in raw.items()}
+
+
+def clear_caches() -> None:
+    """Forget the cached index and sidecar (tests that swap the catalog files)."""
+    load_index.cache_clear()
+    _all_meta.cache_clear()
 
 
 def _known(key: str) -> str:
