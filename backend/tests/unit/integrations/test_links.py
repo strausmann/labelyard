@@ -264,3 +264,25 @@ def test_a_base_that_is_its_own_web_address_is_public() -> None:
     # Another integration's internal base still counts.
     leaky = _Settings({**settings._values, "integrations.grocy.url": GROCY})
     assert redact_for(_auth("read"), "manual", f"{GROCY}/product/1", leaky) is None
+
+
+def test_a_web_address_under_the_internal_base_is_not_rebased_twice() -> None:
+    """Codex P2: ``web_url`` nested under ``url``: a printed (public) payload stays as it is."""
+    base = "https://example.invalid"
+    web = f"{base}/inventory"
+    settings = _Settings({"integrations.snipeit.url": base, "integrations.snipeit.web_url": web})
+    printed = qr_payload_for("snipeit", "A-1", _label(f"{base}/hardware/42"), settings)
+    assert printed == f"{web}/hardware/42"
+    assert redact_for(_auth("read"), "snipeit", printed, settings) == printed
+    # A payload under the internal base but not under the web address is still rebased once.
+    assert redact_for(_auth("read"), "snipeit", f"{base}/hardware/42", settings) == printed
+    # The public prefix does not excuse an internal address after it.
+    assert (
+        redact_for(
+            _auth("read"),
+            "snipeit",
+            f"{web}/x?next={GROCY}",
+            _Settings({**settings._values, "integrations.grocy.url": GROCY}),
+        )
+        is None
+    )

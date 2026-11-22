@@ -203,15 +203,23 @@ def redact_for(
     names = [app] if app in INTEGRATIONS else []
     names += [n for n in INTEGRATIONS if n != app]
     candidate: str | None = payload
+    checked = payload  # the part that must name no internal base (a public prefix is exempt)
     for name in names:
+        web = _strip_one_slash(_web_base(name, settings))
+        public_rest = _remainder(payload, web) if web else None
+        if public_rest is not None:
+            # Already public (a printed payload): never rebased again, even when the web
+            # address lies under the internal base (``https://h`` and ``https://h/inv``).
+            checked = public_rest
+            break
         rest = _remainder(payload, _internal_base(name, settings))
         if rest is not None:
-            web = _strip_one_slash(_web_base(name, settings))
             candidate = web + rest if web else None
+            checked = rest
             break
     if candidate is None:
         return None
-    folded = candidate.casefold()
+    folded = checked.casefold()
     if any(marker in folded for marker in _markers(settings)):
         return None
     return candidate
