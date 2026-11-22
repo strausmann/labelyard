@@ -1,0 +1,236 @@
+{
+  "avery-5159": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "7410782e5f2e560b00f8916b543be9699deaa2ae3985e6fda725e077aa606dc2"
+  },
+  "avery-5160": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "b3e158c668ee1eb1691afd9db194a8463e67aff546c0e8ed2cf245ec8da96b39"
+  },
+  "avery-5161": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "f0f62a9e2b1df4ea1c4e223ab49a3d26e0b8d8385e592fe5b62d7749b797a5dd"
+  },
+  "avery-5162": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "c8163602f1f66b86c144b47f4653b030c8f1dcc499774466395db37a8c623e3a"
+  },
+  "avery-5163": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "2ec920cda5aece7184b797ea642bc1b1d7159597fe7661650fa5ed9223236824"
+  },
+  "avery-5164": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "a238226145c376051bdd6d41793d28c0422f62588a4d2f7e0f00415c6a3471cf"
+  },
+  "avery-5167": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "fe2271bc917545d265fe4bef6635b6bb06d58714ca43b42e0bff05dac1a2dec3"
+  },
+  "avery-5195": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "dc0824a1a498be09cdafac0964425fc984671448ba77efcea19ed5b6ec8b4a76"
+  },
+  "avery-7160": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "a0d5c9d30ad6bb4ec8c8f68cd5cec05c46d370beb6da78025fe3684fc1d414e9"
+  },
+  "avery-7162": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "bdf70a9d9b597a12d3c85bc0904325fc41ed14dc3c133e59da95bd4de78c6013"
+  },
+  "avery-7164": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "930cbd7315abfc73b94a9166498b6fda1a8b49b355d485b7043eb97e5604f927"
+  },
+  "avery-7165": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "f74f9c04b7c8a24c44ce57a346fd6441c5fe538485de4aef927d1b399d002a3b"
+  },
+  "avery-8195": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "bf9b39099cbcde6594df48bf22f71d98109e507eff37d75f6302bf2b7f26f657"
+  },
+  "avery-8651": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "86f5ca07da0c7e073995e09970f6d135c753d36c7a431f0882388d6fd7c1809a"
+  },
+  "avery-l4732": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "d25b7e088f272c56269f51f1c0c4d957e71e697b2edda50c4989eabee9397a5c"
+  },
+  "avery-zweckform-3474": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "f027cc29bf4a809cf31b16e440bb7a02aa53917051595b8f6ab908513ea3568f"
+  },
+  "avery-zweckform-3481": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "a00bf6bbbcbd698bd0a54612b73ff409f3ec1ce58823db8fb3a49c9507f7db3a"
+  },
+  "avery-zweckform-3490": {
+    "revision": 1,
+    "verified_on": "2026-11-15",
+    "evidence": "Verified on real sheets 2026-11-15: HP Color LaserJet, tray 1, check print within −0.33 to −0.50 mm across and ±0.3 mm down. Square-cut labels edge to edge, no side margin, top margin 4.5 mm. No usable margin: the sheet code is not printed in the margin (until #350).",
+    "baseline_fields_hash": "437c9f7b81469614f549af6dad183e1d09db2c927869273e559a97cc691c3671"
+  },
+  "avery-zweckform-3669": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "516d4633c2fcbbaaf20f23013c7411a59d48d7c7fbed3fdd49b8c00495a9cc95"
+  },
+  "avery-zweckform-4760": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "0649e9b28fe696600f77cab279d14973cd4dd643097d2e4e4282cd48b4f318e0"
+  },
+  "avery-zweckform-4761": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "8383b6124032fc95152313bc144f71425bd9feb83bdba4fcd5073756c8568760"
+  },
+  "avery-zweckform-4780": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "dacd0ca15aada0d1d967d528bd9f9617d7357baedff3ecb59e1b1860bb90136a"
+  },
+  "avery-zweckform-6021": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "9c89de59c0fa341829505e52cf5b2a36002d07306426e59d5cf5fadbc42a94ae"
+  },
+  "avery-zweckform-6121": {
+    "revision": 1,
+    "verified_on": "2026-11-15",
+    "evidence": "Verified on real sheets 2026-11-15: HP Color LaserJet, tray 1, check print within +0.3 / ±0.2 mm. 5 columns of 38.1 mm with no horizontal gap (190.5 mm), rows 21.18 mm (275.34 mm); left edge 9.9 mm from the template, top 10.8 mm confirmed by the calibration print. Corner radius unknown. 65 labels per sheet; `-65` is the pack of 65 sheets.",
+    "baseline_fields_hash": "31873d828717f23663043f094d6590ac2fb72aae25c9b7d83508766cf0cf75da"
+  },
+  "avery-zweckform-l4731rev": {
+    "revision": 1,
+    "verified_on": "2026-11-15",
+    "evidence": "Verified on real sheets 2026-11-15: HP Color LaserJet, tray 1, check print with correction. The earlier geometry (top margin 13.5 mm, rows 10.0 mm) put every row line 0.7–1.3 mm low; corrected to top 12.54 mm and 9.98 mm rows. Vendor page not reachable; values agree between two third-party sources for this size (Labelplanet LP189/25, MR-Label MR111, listed there as the L4731 size; second source: http://mr-label.com/articles/3884). Corner radius 1.47 mm from MR-Label MR111, rounded to 1.5.",
+    "baseline_fields_hash": "976a304d44b258be0051e0434689b2bcc379f0c948c1d080506c402beee73f1c"
+  },
+  "avery-zweckform-l4736rev": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "f76586e96a882f357f08d3e3daf2811743b8ad64e66faf15958d65977ef3baea"
+  },
+  "avery-zweckform-l4737rev": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": "Vendor template pages not reachable (HTTP 403). Size 63.5 x 29.6 mm and 27 per sheet confirmed by the Avery Zweckform catalogue 2022 (https://www.avery-zweckform.com/sites/default/files/2022-01/X93000-2022_Hauptkatalog_deutsch.pdf); grid, pitch and margins from Labelplanet LP27/63 only (same size and count, listed there without the L4737 code). Corner radius not stated anywhere; measure. No vertical gap (pitch 29.6 = label height).",
+    "baseline_fields_hash": "3ee5785a869f8eb830773ee39459a1ab7b6ade10b2a267a769d4f89a26d55387"
+  },
+  "endisch-6500040x": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "f0ed3c5100f56ab83cd307d06baa8dba45e0e0efae2fc09fdbd83388447e5c11"
+  },
+  "endisch-6500060x": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "5a7c56882c556e428b5e0ef104c58249eeef9174dd81b6254cb7e9f6eda2fb03"
+  },
+  "herma-10001": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "9397a7d736ee0686bc2ebc68f554f2eb6e1870d8321faf6397be5e6cf7b21fdc"
+  },
+  "herma-4097": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "a194ea39a982e3ccf382c5f5a8f6d96cfa9a4f722dcbc84a08bf25cadb5e09e7"
+  },
+  "herma-4098": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "a2d094c1429b31125d5f56cdfa77932c8fd36878a67649bd82915c0aa755caf5"
+  },
+  "herma-4103": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "5a4102b75699be8b0ba2c98402392a66ac7c1bb2581c1e8d67d86d5c13d6aaff"
+  },
+  "herma-4283": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "d3d13414518f425e054eeca65ce354b85f2f68a8a86ab630a2e868a107841fd0"
+  },
+  "herma-4293": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "4f50e331b81423f748c0df1b561541c147dc8c305362105515a7edfe88c401a9"
+  },
+  "herma-4606": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "2d223b75e3b449b3123066d455dc4f933115fbdd99106b9b1ba34d322a3c5003"
+  },
+  "herma-4607": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "22f9c90200d0503cb4405d471769f454c26155441e6ddc0f7b7f3093ae0d3d43"
+  },
+  "herma-4614": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "7a7e7d9b37ead6d3f0fff03434d4aded7d1a4149ad219a0690deda41067c8188"
+  },
+  "herma-4625": {
+    "revision": 1,
+    "verified_on": null,
+    "evidence": null,
+    "baseline_fields_hash": "9aad2dba058ecac8dd5ce32528212c96cbd25a995a36999ae3c3cbda0bf070ed"
+  }
+}

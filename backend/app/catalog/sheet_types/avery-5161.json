@@ -1,0 +1,43 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-5161",
+    "prefix": "A5161",
+    "vendor": "Avery",
+    "product_codes": [
+      "5161",
+      "5261",
+      "5961",
+      "8161",
+      "8461",
+      "18161"
+    ],
+    "description": "Address labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-us-templates.xml#L149",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "Letter",
+      "label_w": 101.6,
+      "label_h": 25.4,
+      "cols": 2,
+      "rows": 10,
+      "pitch_x": 106.36,
+      "pitch_y": 25.4,
+      "margin_top": 12.7,
+      "margin_left": 3.97,
+      "corner_radius": 1.59,
+      "shape": "rectangle",
+      "page_w": 215.9,
+      "page_h": 279.4
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

@@ -1,0 +1,38 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-l4732",
+    "prefix": "L4732",
+    "vendor": "Avery",
+    "product_codes": [
+      "L4732"
+    ],
+    "description": "Mini labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-iso-templates.xml#L31",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 35.6,
+      "label_h": 16.9,
+      "cols": 5,
+      "rows": 16,
+      "pitch_x": 38.1,
+      "pitch_y": 16.9,
+      "margin_top": 13.0,
+      "margin_left": 11.0,
+      "corner_radius": 1.5,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

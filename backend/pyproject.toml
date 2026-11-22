@@ -86,8 +86,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
-# The bundled PDF font and its licence ship inside the wheel/sdist.
-include = ["app/page_render/fonts/*"]
+# The bundled PDF font and its licence ship inside the wheel/sdist, and so does the sheet-type
+# catalog (ADR 0028): its documents, sidecar, index and presets are data, not modules.
+include = ["app/page_render/fonts/*", "app/catalog/**/*.json"]
 
 [tool.ruff]
 line-length = 100

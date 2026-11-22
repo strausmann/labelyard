@@ -1,0 +1,38 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "herma-10001",
+    "prefix": "H10001",
+    "vendor": "Herma",
+    "product_codes": [
+      "10001"
+    ],
+    "description": "Rectangular labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/herma-iso-templates.xml#L445",
+    "notes": "Left and right remaining margins differ (8.00 / 7.40 mm). Top and bottom remaining margins differ (14.40 / 12.60 mm)."
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 25.4,
+      "label_h": 10.0,
+      "cols": 7,
+      "rows": 27,
+      "pitch_x": 28.2,
+      "pitch_y": 10.0,
+      "margin_top": 14.4,
+      "margin_left": 8.0,
+      "corner_radius": 3.0,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

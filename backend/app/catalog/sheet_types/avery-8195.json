@@ -1,0 +1,38 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-8195",
+    "prefix": "A8195",
+    "vendor": "Avery",
+    "product_codes": [
+      "8195"
+    ],
+    "description": "Return address labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-us-templates.xml#L795",
+    "notes": "Left and right remaining margins differ (7.54 / 9.14 mm). Top and bottom remaining margins differ (13.49 / 12.17 mm)."
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "Letter",
+      "label_w": 44.45,
+      "label_h": 16.92,
+      "cols": 4,
+      "rows": 15,
+      "pitch_x": 51.59,
+      "pitch_y": 16.92,
+      "margin_top": 13.49,
+      "margin_left": 7.54,
+      "corner_radius": 1.6,
+      "shape": "rectangle",
+      "page_w": 215.9,
+      "page_h": 279.4
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

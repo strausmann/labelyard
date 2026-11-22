@@ -1,0 +1,42 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-zweckform-l4736rev",
+    "prefix": "L4736",
+    "vendor": "Avery Zweckform",
+    "product_codes": [
+      "L4736REV-25",
+      "L4736REV-10",
+      "L4736REV-65",
+      "L4736REV-100",
+      "L4736"
+    ],
+    "description": "Mini labels, removable",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "Labelplanet LP48/45",
+    "source_url": "https://labelplanet.co.uk/label-templates-for-rounded-rectangle-labels/label-templates-48-per-sheet-lp48-45",
+    "notes": "Vendor page not reachable; values from Labelplanet LP48/45 only. Corner radius unknown (comparable templates range from 2.0 to 4.25 mm); measure. Commercial variation: an alternative layout of 45.5 x 21.1, top 21.9, side 9.8, pitch 48.3 x 21.1 is also listed. Material: removable."
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 45.7,
+      "label_h": 21.2,
+      "cols": 4,
+      "rows": 12,
+      "pitch_x": 48.2,
+      "pitch_y": 21.2,
+      "margin_top": 21.3,
+      "margin_left": 9.85,
+      "corner_radius": null,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

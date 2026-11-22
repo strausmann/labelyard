@@ -1,0 +1,43 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-8651",
+    "prefix": "A8651",
+    "vendor": "Avery",
+    "product_codes": [
+      "8651",
+      "L8651",
+      "J8651",
+      "J8551",
+      "L7651",
+      "L7551"
+    ],
+    "description": "Mini address labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-iso-templates.xml#L327",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 38.1,
+      "label_h": 21.2,
+      "cols": 5,
+      "rows": 13,
+      "pitch_x": 40.6,
+      "pitch_y": 21.2,
+      "margin_top": 10.9,
+      "margin_left": 4.7,
+      "corner_radius": 1.76,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

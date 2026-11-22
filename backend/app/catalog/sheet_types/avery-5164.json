@@ -1,0 +1,46 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-5164",
+    "prefix": "A5164",
+    "vendor": "Avery",
+    "product_codes": [
+      "5164",
+      "5264",
+      "5514",
+      "5524",
+      "6464",
+      "6499",
+      "8164",
+      "8254",
+      "8464"
+    ],
+    "description": "Shipping labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-us-templates.xml#L227",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "Letter",
+      "label_w": 101.6,
+      "label_h": 84.67,
+      "cols": 2,
+      "rows": 3,
+      "pitch_x": 106.36,
+      "pitch_y": 84.67,
+      "margin_top": 12.7,
+      "margin_left": 3.97,
+      "corner_radius": 3.17,
+      "shape": "rectangle",
+      "page_w": 215.9,
+      "page_h": 279.4
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

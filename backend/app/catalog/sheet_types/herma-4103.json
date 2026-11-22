@@ -1,0 +1,55 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "herma-4103",
+    "prefix": "H4103",
+    "vendor": "Herma",
+    "product_codes": [
+      "4103",
+      "4113",
+      "4641b",
+      "4677",
+      "4904",
+      "5074",
+      "8632",
+      "8650",
+      "8680",
+      "8801",
+      "8838",
+      "8890",
+      "9600",
+      "9621",
+      "9661",
+      "10007",
+      "10301",
+      "10802"
+    ],
+    "description": "Rectangular labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/herma-iso-templates.xml#L414",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 63.5,
+      "label_h": 38.1,
+      "cols": 3,
+      "rows": 7,
+      "pitch_x": 66.5,
+      "pitch_y": 38.1,
+      "margin_top": 15.5,
+      "margin_left": 6.75,
+      "corner_radius": 0.0,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

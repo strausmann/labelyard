@@ -227,6 +227,11 @@ jobs:
       - name: Run the script tests
         run: '"$RUNNER_TEMP/scripttests/bin/python" -m unittest discover -s scripts -p "test_*.py" -v'
 
+      # The sheet-type catalog's index is generated from its documents and meta.json (ADR 0028);
+      # a document edited without regenerating the index fails here.
+      - name: Check the sheet-type catalog index
+        run: python3 scripts/catalog_index.py --check
+
   brand-guard:
     name: Brand guard — old product name
     # Fails on any leftover of the old product name outside the documented

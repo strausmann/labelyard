@@ -1,0 +1,38 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "endisch-6500060x",
+    "prefix": "E6500060X",
+    "vendor": "Endisch",
+    "product_codes": [
+      "6500060x"
+    ],
+    "description": "Round labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/endisch-templates.xml#L52",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 60.0,
+      "label_h": 60.0,
+      "cols": 3,
+      "rows": 4,
+      "pitch_x": 67.0,
+      "pitch_y": 67.0,
+      "margin_top": 18.0,
+      "margin_left": 8.0,
+      "corner_radius": null,
+      "shape": "round",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}
