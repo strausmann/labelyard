@@ -50,6 +50,14 @@ class SheetTypeNotFoundError(SheetApiError):
     message = "Sheet type not found."
 
 
+class CatalogEntryNotFoundError(SheetApiError):
+    """No catalog entry (or preset) under this key ships in the image (ADR 0028)."""
+
+    status = 404
+    error_code = "catalog_entry_not_found"
+    message = "Catalog entry not found."
+
+
 class SheetTypeVersionNotFoundError(SheetApiError):
     status = 404
     error_code = "sheet_type_version_not_found"

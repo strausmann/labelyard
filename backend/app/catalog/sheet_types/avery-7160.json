@@ -1,0 +1,40 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-7160",
+    "prefix": "A7160",
+    "vendor": "Avery",
+    "product_codes": [
+      "7160",
+      "L7160",
+      "J8160"
+    ],
+    "description": "Mailing labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-iso-templates.xml#L115",
+    "notes": "Left and right remaining margins differ (7.48 / 6.45 mm)."
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 63.99,
+      "label_h": 38.1,
+      "cols": 3,
+      "rows": 7,
+      "pitch_x": 66.04,
+      "pitch_y": 38.1,
+      "margin_top": 15.49,
+      "margin_left": 7.48,
+      "corner_radius": 1.76,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

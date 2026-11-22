@@ -1,0 +1,57 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 2,
+  "type": {
+    "key": "avery-zweckform-3490",
+    "prefix": "A3490",
+    "vendor": "Avery Zweckform",
+    "product_codes": [
+      "3490"
+    ],
+    "description": "Universal labels, 70 x 36 mm, square cut",
+    "allow_qr": true,
+    "verified": true,
+    "source_name": "Labelplanet LP24/70SS; glabels-qt Zweckform 3490",
+    "source_url": "https://www.labelplanet.co.uk/label-templates-for-square-cut-rectangle-labels/label-templates-24-per-sheet-lp24-70ss/",
+    "notes": "Verified on real sheets 2026-11-15: HP Color LaserJet, tray 1, check print within −0.33 to −0.50 mm across and ±0.3 mm down. Square-cut labels edge to edge, no side margin, top margin 4.5 mm. No usable margin: the sheet code is not printed in the margin (until #350).",
+    "backing_design": {
+      "key": "avery-zweckform-ultragrip",
+      "name": "Avery Zweckform ultragrip",
+      "page_size": "A4",
+      "strips": [
+        {
+          "x_mm": 33.5,
+          "y_mm": 22.0,
+          "w_mm": 22.0,
+          "h_mm": 253.0
+        },
+        {
+          "x_mm": 154.5,
+          "y_mm": 22.0,
+          "w_mm": 22.0,
+          "h_mm": 253.0
+        }
+      ]
+    }
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "page_w": 210.0,
+      "page_h": 297.0,
+      "shape": "rectangle",
+      "label_w": 70,
+      "label_h": 36,
+      "cols": 3,
+      "rows": 8,
+      "pitch_x": 70,
+      "pitch_y": 36,
+      "margin_top": 4.5,
+      "margin_left": 0,
+      "corner_radius": null
+    }
+  },
+  "exported_at": "2026-11-15T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

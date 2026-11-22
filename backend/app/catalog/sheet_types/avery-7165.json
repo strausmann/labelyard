@@ -1,0 +1,40 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-7165",
+    "prefix": "A7165",
+    "vendor": "Avery",
+    "product_codes": [
+      "7165",
+      "L7165",
+      "J8165"
+    ],
+    "description": "Address labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-iso-templates.xml#L193",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 99.06,
+      "label_h": 67.73,
+      "cols": 2,
+      "rows": 4,
+      "pitch_x": 101.64,
+      "pitch_y": 67.73,
+      "margin_top": 13.04,
+      "margin_left": 4.67,
+      "corner_radius": 0.0,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

@@ -1,0 +1,38 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-zweckform-3669",
+    "prefix": "A3669",
+    "vendor": "Avery Zweckform",
+    "product_codes": [
+      "3669"
+    ],
+    "description": "Rectangular labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/zweckform-iso-templates.xml#L96",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 70.0,
+      "label_h": 50.8,
+      "cols": 3,
+      "rows": 5,
+      "pitch_x": 70.0,
+      "pitch_y": 50.8,
+      "margin_top": 21.52,
+      "margin_left": 0.0,
+      "corner_radius": 0.0,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

@@ -52,18 +52,19 @@ Each ADR follows the [Nygard format](https://cognitect.com/blog/2011/11/15/docum
 | [0020](0020-backend-kinds-ipp-page-printers.md) | Page printers are a backend kind (IPP) with the hub's own client | Accepted (amended by 0030) |
 | [0021](0021-api-versioning.md) | Every API route lives under `/api/v1` | Accepted (amended 2026-11-22: compatibility within `/api/v1`, bounded lists, D31) |
 | [0022](0022-design-system-and-app-layout.md) | Design system and app layout | Accepted (amended 2026-11-21: top bar, phone menu) |
-| [0023](0023-sheet-archive.md) | Sheet archive, physical sheets and calibration (D13–D19) | Accepted (amended 2026-11-21: seed corrections, sheet code placement) |
+| [0023](0023-sheet-archive.md) | Sheet archive, physical sheets and calibration (D13–D19) | Accepted (amended 2026-11-21: seed corrections, sheet code placement; amended by 0028: catalog instead of seed) |
 | [0024](0024-runtime-printer-wiring-and-hardware-identity.md) | Printers are wired at runtime through one code path and identified by hardware | Accepted (amended 2026-11-21: a printer that could not be wired says why, D29) |
 | [0025](0025-milestone-branches-for-minor-and-major-releases.md) | Minor and major releases come from milestone branches | Accepted |
 | [0026](0026-rename-to-labelyard.md) | The project is called Labelyard | Accepted |
 | [0027](0027-url-token-for-the-grocy-label-webhook.md) | A print-scope key in the URL authenticates the Grocy label webhook | Accepted (amended 2026-11-21: own access log, D26) |
+| [0028](0028-sheet-type-catalog.md) | Sheet types ship as a catalog in the image instead of being seeded | Proposed |
 | [0030](0030-confirmed-tape-prints.md) | A tape print counts only when the printer confirms it | Accepted |
 | [0031](0031-licence-and-supply-chain.md) | The hub is AGPL-3.0-or-later and every image says what it contains and who built it | Accepted |
 | [0032](0032-integration-plugins-and-layout-engine.md) | Integrations are entry-point plugins; a label is a content type drawn by the layout engine | Accepted |
 | [0033](0033-server-computed-qr-payloads-and-internal-addresses.md) | Printed QR payloads are computed by the server; internal addresses stay with admins | Proposed |
 | [0034](0034-database-migrations-and-the-way-back.md) | Database migrations and the way back | Proposed |
 
-Numbers 0028 and 0029 are reserved for ADRs planned in the approved design of milestone 1.8.0 (0033 and 0034 are written, `Proposed`); do not use them for other ADRs.
+Number 0029 is reserved for an ADR planned in the approved design of milestone 1.8.0 (0028, 0033 and 0034 are written, `Proposed`); do not use it for another ADR.
 
 The [decision register](register.md) lists the short `D<n>` labels cited in code.
 

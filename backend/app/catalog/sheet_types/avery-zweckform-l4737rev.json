@@ -1,0 +1,41 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-zweckform-l4737rev",
+    "prefix": "L4737",
+    "vendor": "Avery Zweckform",
+    "product_codes": [
+      "L4737REV-25",
+      "L4737REV-10",
+      "L4737REV-100",
+      "L4737"
+    ],
+    "description": "Universal labels, removable",
+    "allow_qr": true,
+    "verified": true,
+    "source_name": "Labelplanet LP27/63; Avery Zweckform catalogue 2022 (size only)",
+    "source_url": "https://www.labelplanet.co.uk/label-templates-for-rounded-rectangle-labels/label-templates-27-per-sheet-lp27-63/",
+    "notes": "Vendor template pages not reachable (HTTP 403). Size 63.5 x 29.6 mm and 27 per sheet confirmed by the Avery Zweckform catalogue 2022 (https://www.avery-zweckform.com/sites/default/files/2022-01/X93000-2022_Hauptkatalog_deutsch.pdf); grid, pitch and margins from Labelplanet LP27/63 only (same size and count, listed there without the L4737 code). Corner radius not stated anywhere; measure. No vertical gap (pitch 29.6 = label height). Labelplanet notes the height is sometimes manufactured slightly below 29.6 mm. Material: removable. Left margin measured 6.95 mm on two check prints (Labelplanet: 7.25); the die cut sits off-centre."
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "page_w": 210.0,
+      "page_h": 297.0,
+      "shape": "rectangle",
+      "label_w": 63.5,
+      "label_h": 29.6,
+      "cols": 3,
+      "rows": 9,
+      "pitch_x": 66.0,
+      "pitch_y": 29.6,
+      "margin_top": 15.3,
+      "margin_left": 6.95,
+      "corner_radius": null
+    }
+  },
+  "exported_at": "2026-11-15T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

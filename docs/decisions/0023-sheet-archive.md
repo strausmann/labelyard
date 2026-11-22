@@ -10,6 +10,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - **Deciders:** maintainer
 - **Decision labels:** D13, D14, D15, D16, D17, D19 (D18 is [0020](0020-backend-kinds-ipp-page-printers.md))
 - **Amended:** 2026-11-21 (#334, #350) — seed corrections and adoption, sheet code placement and backing designs as shipped in 1.7.0, and the open D19 violation, see "Amendment — 2026-11-21" at the end
+- **Amended by:** [0028](0028-sheet-type-catalog.md) (#335) — the "Seed" bullet, including the `adopt`/`corrections` rule of the 2026-11-21 amendment, and OC-10 are superseded by the sheet-type catalog; D14 no longer archives a type without sheets, see "Amendment — 2026-11-22" at the end
 - **Related:** [0020](0020-backend-kinds-ipp-page-printers.md) (page printers over IPP), [0005](0005-print-queue-is-mandatory.md)
 
 ## Context
@@ -27,7 +28,7 @@ Label sheets (A4 or Letter die-cut sheets) are printed on ordinary office printe
 - **D17 — calibration stores the printer's deviation around the page centre; the hub applies the inverse.** The stored values are what the person measured on a calibration page (offsets, scale, rotation, within bounded ranges); when rendering, the hub draws at the inverse so the print lands on the nominal position. No stored calibration means identity. Calibration belongs to printer and tray and is valid for every sheet type. The calibration page is printed without correction, on a real sheet, in black only.
 - **D19 — imported sheet types are never marked verified.** A type that arrives through the export/import format is someone else's claim; `verified` is only set on this hub after a test print.
 - **Export and import.** A type exports as one small JSON document (millimetre values, no sheet data). Import is strict and size-limited; identical geometry changes nothing, differing geometry needs an explicit mode.
-- **Seed.** Bundled sheet types are loaded from numbers only, with their provenance and a third-party notice; a seeded type is never changed automatically once a sheet uses it.
+- **Seed.** Bundled sheet types are loaded from numbers only, with their provenance and a third-party notice; a seeded type is never changed automatically once a sheet uses it. *(Superseded by [0028](0028-sheet-type-catalog.md), see "Amendment — 2026-11-22".)*
 
 ## Options considered
 
@@ -80,3 +81,9 @@ A sheet type stores where the code of a new sheet goes (`id_placement`: `auto`, 
 
 D19 stands: an imported type is never marked verified. A type created by an import is stored with `verified=False` (`backend/app/sheets/exchange.py:354`), but an import in mode `new_version` into an existing, verified type adds the version and leaves the type's `verified` flag as it was (`exchange.py:412-417`, `backend/app/sheets/type_service.py:402-419`). That is a code defect against D19, not a change of the decision; milestone 1.8.0 fixes it (#204, item 5).
 
+## Amendment — 2026-11-22 (#335): the sheet-type catalog
+
+[ADR 0028](0028-sheet-type-catalog.md) replaces seeding with a catalog of exchange documents in the image.
+
+- **Seed.** The bullet "Seed" above and the `adopt`/`corrections` rule of the amendment of 2026-11-21 (#334) are superseded: the hub no longer inserts or changes types on start. A one-time startup step applies the pending `adopt`/`corrections` of seed revision 3 to installations that never ran them and records catalog provenance on every seeded type; from then on a shipped change reaches an installed type only as an update the admin applies.
+- **D14.** Geometry stays versioned and sheets keep their version. The sentence "A type that has sheets is archived instead of deleted" still holds for a type with sheets; a type without sheets may now be deleted, whatever its origin. This also replaces OC-10 of the spec ("custom types without sheets may be deleted; all others are archived").

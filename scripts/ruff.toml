@@ -15,4 +15,4 @@ target-version = "py312"
 select = ["E4", "E7", "E9", "F", "I", "UP"]
 
 [lint.isort]
-known-first-party = ["brand_guard", "ghcr_rules", "glossary", "licence_snapshot", "release_impact", "vale_scope"]
+known-first-party = ["brand_guard", "catalog_index", "ghcr_rules", "glossary", "licence_snapshot", "release_impact", "vale_scope"]

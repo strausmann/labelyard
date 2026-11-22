@@ -1,0 +1,51 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-5167",
+    "prefix": "A5167",
+    "vendor": "Avery",
+    "product_codes": [
+      "5167",
+      "5267",
+      "5667",
+      "5927",
+      "6467",
+      "6504",
+      "8167",
+      "8567",
+      "8667",
+      "8927",
+      "15167",
+      "15267",
+      "18167",
+      "18667"
+    ],
+    "description": "Return address labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-us-templates.xml#L249",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "Letter",
+      "label_w": 44.45,
+      "label_h": 12.7,
+      "cols": 4,
+      "rows": 20,
+      "pitch_x": 52.39,
+      "pitch_y": 12.7,
+      "margin_top": 12.7,
+      "margin_left": 7.14,
+      "corner_radius": 1.59,
+      "shape": "rectangle",
+      "page_w": 215.9,
+      "page_h": 279.4
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

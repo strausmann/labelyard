@@ -1,0 +1,53 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "herma-4098",
+    "prefix": "H4098",
+    "vendor": "Herma",
+    "product_codes": [
+      "4098",
+      "4222",
+      "4233",
+      "4347",
+      "4418",
+      "4419",
+      "4864",
+      "5045",
+      "5140",
+      "5141",
+      "5142",
+      "5143",
+      "8865",
+      "8966",
+      "10006",
+      "10300"
+    ],
+    "description": "Rectangular labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/herma-iso-templates.xml#L332",
+    "notes": "Left and right remaining margins differ (7.80 / 5.70 mm)."
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "A4",
+      "label_w": 63.5,
+      "label_h": 29.6,
+      "cols": 3,
+      "rows": 9,
+      "pitch_x": 66.5,
+      "pitch_y": 29.6,
+      "margin_top": 15.5,
+      "margin_left": 7.8,
+      "corner_radius": 0.0,
+      "shape": "rectangle",
+      "page_w": 210.0,
+      "page_h": 297.0
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}

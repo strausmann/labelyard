@@ -1,0 +1,39 @@
+{
+  "format": "label-printer-hub.sheet-type",
+  "format_version": 1,
+  "type": {
+    "key": "avery-5195",
+    "prefix": "A5195",
+    "vendor": "Avery",
+    "product_codes": [
+      "5195",
+      "5295"
+    ],
+    "description": "Round labels",
+    "allow_qr": true,
+    "verified": false,
+    "source_name": "gLabels-qt templates (MIT) @ 37901c1",
+    "source_url": "https://github.com/j-evins/glabels-qt/blob/37901c153cf7f3abffe4e9355e00755d2b152b5b/templates/avery-us-templates.xml#L319",
+    "notes": null
+  },
+  "version": {
+    "version": 1,
+    "geometry": {
+      "page_size": "Letter",
+      "label_w": 84.14,
+      "label_h": 84.14,
+      "cols": 2,
+      "rows": 3,
+      "pitch_x": 99.22,
+      "pitch_y": 85.33,
+      "margin_top": 12.3,
+      "margin_left": 16.27,
+      "corner_radius": null,
+      "shape": "round",
+      "page_w": 215.9,
+      "page_h": 279.4
+    }
+  },
+  "exported_at": "2026-11-05T00:00:00Z",
+  "exported_by_hub": "catalog"
+}
