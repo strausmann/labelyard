@@ -9,6 +9,7 @@ The Snipe-IT plugin looks up assets and locations in your Snipe-IT and prints th
 
 1. In Snipe-IT, create a personal API token for a user that may read assets and locations.
 2. In Labelyard, open **Settings > Integrations > Snipe-IT**, enter the Snipe-IT address and the token, and test the connection. Or set `LABELYARD_SNIPEIT_URL` and `LABELYARD_SNIPEIT_API_KEY`.
+3. Optional: enter the **Public web address** of Snipe-IT, the address people open, so the item page shows an "Open in Snipe-IT" link and printed codes lead there. See [Public web address](/integrations/#public-web-address).
 
 ## Printing
 

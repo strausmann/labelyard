@@ -483,6 +483,26 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await expectInSight(page, save, "the Create printer button");
       });
 
+      test("web_url field stays in view with the keyboard open", async () => {
+        await prepare(mode);
+        await page.goto("/settings/integrations");
+        // Spoolman has no web address in the e2e hub, so its field is empty and editable (Snipe-IT's comes from the container).
+        const card = page.getByRole("group", { name: "Spoolman" });
+        const field = card.getByRole("textbox", { name: "Public web address" });
+        await field.click();
+        await keyboard(mode);
+        await page.keyboard.type("https://spools.example.invalid");
+        // The browser scrolls the focused field into the visible area; the stand-in for a "covered" keyboard does not, so the
+        // test does it: the page must be able to scroll far enough for the field (and then the button) to reach the top.
+        await field.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expectInSight(page, field, "the public web address field");
+        // The explanation sits under the field and the Save button below it: both can be brought into sight.
+        const save = card.getByRole("button", { name: "Save" });
+        await save.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expectInSight(page, save, "the Save button of the Spoolman card");
+        // Nothing was saved: the next test loads the page again with the stored values.
+      });
+
       test("Grocy labels: a printer list and the Save button can be brought into sight (inline panel, page scrolls)", async () => {
         await prepare(mode);
         await page.goto("/settings/integrations");

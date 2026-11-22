@@ -85,14 +85,14 @@ describe("integration card state (#176)", () => {
     const card = await openGrocy({ ok: false, status: null, detail: "timeout" });
     await userEvent.click(testButton(card));
     await within(card).findByText("Connection failed");
-    await userEvent.type(within(card).getByRole("textbox", { name: "URL" }), "x");
+    await userEvent.type(within(card).getByRole("textbox", { name: "Address the hub uses" }), "x");
     expect(within(card).queryByText("Connection failed")).toBeNull();
     expect(within(card).getByText("Configured")).toBeVisible();
   });
 
   it("a result for unsaved values does not claim the saved integration is connected", async () => {
     const card = await openGrocy({ ok: true, status: 200, detail: "ok" });
-    await userEvent.type(within(card).getByRole("textbox", { name: "URL" }), "https://grocy.example.invalid");
+    await userEvent.type(within(card).getByRole("textbox", { name: "Address the hub uses" }), "https://grocy.example.invalid");
     await userEvent.click(testButton(card));
     await resultLine(card);
     expect(within(card).queryByText("Connected")).toBeNull();

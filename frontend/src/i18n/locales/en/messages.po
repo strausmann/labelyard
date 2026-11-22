@@ -712,6 +712,10 @@ msgstr "Add reading"
 msgid "Add sheet"
 msgstr "Add sheet"
 
+#: src/features/settings/Integrations.tsx
+msgid "Add the host name after https://."
+msgstr "Add the host name after https://."
+
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Add these lines to Grocy's <0>data/config.php</0> and replace <1><print-key></1> with an API key of this hub."
 msgstr "Add these lines to Grocy's <0>data/config.php</0> and replace <1><print-key></1> with an API key of this hub."
@@ -747,6 +751,10 @@ msgstr "Added version {0} to {1}."
 #: src/features/printers/PrinterDetail.tsx
 msgid "Address"
 msgstr "Address"
+
+#: src/features/settings/Integrations.tsx
+msgid "Address the hub uses"
+msgstr "Address the hub uses"
 
 #: src/features/printers/wiring.tsx
 msgid "After a restart"
@@ -1259,6 +1267,11 @@ msgstr "Chore"
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Chosen automatically from the usable margin. You can change it."
 msgstr "Chosen automatically from the usable margin. You can change it."
+
+#: src/features/settings/Integrations.tsx
+msgctxt "public web address"
+msgid "Clear"
+msgstr "Clear"
 
 #: src/features/printers/model.ts
 msgctxt "tape colour"
@@ -2251,6 +2264,10 @@ msgstr "Input tray missing"
 msgid "Integrations"
 msgstr "Integrations"
 
+#: src/features/settings/Integrations.tsx
+msgid "Internal. Only admins see this address."
+msgstr "Internal. Only admins see this address."
+
 #: src/features/printers/model.ts
 msgid "Interrupted by a restart"
 msgstr "Interrupted by a restart"
@@ -2441,6 +2458,10 @@ msgstr "Leave empty if unknown."
 msgid "Leave empty to keep the prefix of the file."
 msgstr "Leave empty to keep the prefix of the file."
 
+#: src/features/settings/Integrations.tsx
+msgid "Leave out the part after “?” or “#”; the hub adds the item's path itself."
+msgstr "Leave out the part after “?” or “#”; the hub adds the item's path itself."
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "left margin"
 msgstr "left margin"
@@ -2523,6 +2544,14 @@ msgstr "Lines and scale"
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Lines for Grocy's config.php"
 msgstr "Lines for Grocy's config.php"
+
+#: src/features/settings/Integrations.tsx
+msgid "Links open on <0>{savedHost}</0>"
+msgstr "Links open on <0>{savedHost}</0>"
+
+#: src/features/settings/Integrations.tsx
+msgid "Links shown"
+msgstr "Links shown"
 
 #: src/shell/LiveStatus.tsx
 msgid "Live updates paused"
@@ -2897,6 +2926,10 @@ msgstr "No jobs yet."
 msgid "No jobs."
 msgstr "No jobs."
 
+#: src/features/settings/Integrations.tsx
+msgid "No links shown"
+msgstr "No links shown"
+
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "No other sheet of this type has a free cell."
 msgstr "No other sheet of this type has a free cell."
@@ -3067,6 +3100,10 @@ msgstr "Not ready"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Not reported"
 msgstr "Not reported"
+
+#: src/features/settings/Integrations.tsx
+msgid "Not saved"
+msgstr "Not saved"
 
 #: src/features/scan/GrocycodePage.tsx
 msgid "Not scheduled"
@@ -3818,6 +3855,10 @@ msgstr "Product ID or barcode."
 msgid "Public URL"
 msgstr "Public URL"
 
+#: src/features/settings/Integrations.tsx
+msgid "Public web address"
+msgstr "Public web address"
+
 #: src/shell/PullToRefresh.tsx
 msgid "Pull down to reload"
 msgstr "Pull down to reload"
@@ -4367,6 +4408,10 @@ msgstr "Server unreachable"
 #: src/features/settings/SettingField.tsx
 msgid "Set"
 msgstr "Set"
+
+#: src/features/settings/SettingField.tsx
+msgid "Set by {envName}"
+msgstr "Set by {envName}"
 
 #: src/features/settings/SettingField.tsx
 msgid "Set by the container"
@@ -4995,6 +5040,11 @@ msgstr "The address must start with ipp://, ipps://, http:// or https://."
 #: src/features/settings/feedback.tsx
 msgid "The address or the certificate setting is not valid."
 msgstr "The address or the certificate setting is not valid."
+
+#. placeholder {0}: NAMES[name]
+#: src/features/settings/Integrations.tsx
+msgid "The address people reach {0} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now."
+msgstr "The address people reach {0} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now."
 
 #: src/features/settings/Integrations.tsx
 msgid "The address redirects, often to a login page in front of the app. Use an address that reaches the app's API directly."
@@ -6053,6 +6103,10 @@ msgstr "This is not a sheet type export file."
 msgid "This is not a valid sheet type export."
 msgstr "This is not a valid sheet type export."
 
+#: src/features/settings/Integrations.tsx
+msgid "This is not a valid web address."
+msgstr "This is not a valid web address."
+
 #: src/features/lookup/ItemView.tsx
 msgid "This item cannot be shown"
 msgstr "This item cannot be shown"
@@ -6413,10 +6467,6 @@ msgstr "Updating the preview…"
 msgid "Updating…"
 msgstr "Updating…"
 
-#: src/features/settings/Integrations.tsx
-msgid "URL"
-msgstr "URL"
-
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "Use {roomyCode} instead ({room} free)"
 msgstr "Use {roomyCode} instead ({room} free)"
@@ -6428,6 +6478,14 @@ msgstr "Use a key with the print scope, restricted to the label printer. Grocy w
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Use a reserved cell instead"
 msgstr "Use a reserved cell instead"
+
+#: src/features/settings/Integrations.tsx
+msgid "Use an http or https address without a user name or password."
+msgstr "Use an http or https address without a user name or password."
+
+#: src/features/settings/Integrations.tsx
+msgid "Use at most 2048 characters."
+msgstr "Use at most 2048 characters."
 
 #. placeholder {0}: type.key
 #: src/features/archive/FeedbackLinks.tsx
@@ -6589,6 +6647,10 @@ msgstr "When you activate a new sheet, the hub asks you to turn it over and prin
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where a label corner would touch the scale, its corner mark is left out; the gap lines and the scale show the cut."
 msgstr "Where a label corner would touch the scale, its corner mark is left out; the gap lines and the scale show the cut."
+
+#: src/features/settings/Integrations.tsx
+msgid "Where an item's page lives for people, for example on your own domain. Without it the hub shows no \"Open in\" link. It never changes the address the hub itself uses to reach the integration."
+msgstr "Where an item's page lives for people, for example on your own domain. Without it the hub shows no \"Open in\" link. It never changes the address the hub itself uses to reach the integration."
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where gap line {s} and gap line {z} cross, read the small scales against the middle of the physical gap, in millimetres."

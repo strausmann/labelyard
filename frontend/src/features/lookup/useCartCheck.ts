@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useState, useSyncExternalStore } from "react";
 import { apiFetch } from "../../api/client";
 import type { components } from "../../api/schema.gen";
 import { useDebounced, type LayoutOptions } from "../layout/ql";
@@ -45,7 +45,43 @@ async function checkAll(
 }
 
 const NONE: ReadonlyMap<string, RenderCheckResult> = new Map();
-const CHECK_KEY = "render-check";
+export const CHECK_KEY = "render-check";
+
+/**
+ * Counts the saves of a public web address (#247). The code a print carries follows that address, so a verdict
+ * ("fits the label") given under the old one says nothing about the new one: the count is part of every verdict's
+ * key and of the check's query key, and a save bumps it (`useSaveSettings`).
+ *
+ * The count lives beside the query cache, not in it: a query would be refetched by any global invalidation (reconnect,
+ * session check) and fall back to its start value, and a cart coming back would then find its old verdicts again
+ * (Codex review of #425). Here it only ever goes up. One count per QueryClient, so a fresh client starts at 0.
+ */
+type Counter = { value: number; listeners: Set<() => void> };
+const counters = new WeakMap<QueryClient, Counter>();
+function counterOf(client: QueryClient): Counter {
+  let counter = counters.get(client);
+  if (!counter) {
+    counter = { value: 0, listeners: new Set() };
+    counters.set(client, counter);
+  }
+  return counter;
+}
+export const webAddressVersion = (client: QueryClient) => counterOf(client).value;
+export function bumpWebAddressVersion(client: QueryClient) {
+  const counter = counterOf(client);
+  counter.value += 1;
+  for (const listener of counter.listeners) listener();
+}
+function useWebAddressVersion(client: QueryClient): number {
+  return useSyncExternalStore(
+    (listener) => {
+      const { listeners } = counterOf(client);
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => counterOf(client).value,
+  );
+}
 
 /** The verdicts one check run fetched, by verdict key: what the query caches. */
 type Verdicts = Record<string, RenderCheckResult>;
@@ -67,7 +103,9 @@ export function useCartCheck(
   // Mutated as answers arrive, never replaced: a render reads what the finished requests left.
   const [kept] = useState(() => new Map<string, RenderCheckResult>());
   const layoutKey = JSON.stringify(layout ?? null);
-  const verdictKey = (item: CartItem) => `${tapeMm}|${layoutKey}|${item.app}:${item.id}:${item.content_type}`;
+  // Subscribed, so a cart that is open while the address is saved checks again.
+  const version = useWebAddressVersion(client);
+  const verdictKey = (item: CartItem) => `${tapeMm}|${layoutKey}|v${version}|${item.app}:${item.id}:${item.content_type}`;
   // The query cache outlives this component: verdicts fetched before (on an earlier visit of the cart, also for a
   // smaller cart) are taken from it, so coming back neither loses them nor asks for them again (Codex review, #399).
   for (const [, data] of client.getQueriesData<Verdicts>({ queryKey: [CHECK_KEY, tapeMm, layoutKey] })) {
@@ -79,7 +117,7 @@ export function useCartCheck(
   const active = tapeMm !== null && items.length > 0;
   const missing = active ? items.filter((i) => !kept.has(verdictKey(i))) : [];
   const query = useQuery({
-    queryKey: [CHECK_KEY, tapeMm, layoutKey, missing.map((i) => [i.app, i.id, i.content_type])],
+    queryKey: [CHECK_KEY, tapeMm, layoutKey, version, missing.map((i) => [i.app, i.id, i.content_type])],
     // Only runs once the debounce has caught up, so `missing`, `tapeMm` and `layout` are what the key says. Returns
     // the verdicts it fetched, so the cache holds them for the next visit of the cart.
     queryFn: async ({ signal }) => {

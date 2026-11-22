@@ -9,6 +9,7 @@ Das Snipe-IT-Plugin schlägt Assets und Standorte in deinem Snipe-IT nach und dr
 
 1. Leg in Snipe-IT ein persönliches API-Token für einen Benutzer an, der Assets und Standorte lesen darf.
 2. Öffne in Labelyard **Einstellungen > Integrationen > Snipe-IT**, trag die Adresse von Snipe-IT und das Token ein und teste die Verbindung. Oder setz `LABELYARD_SNIPEIT_URL` und `LABELYARD_SNIPEIT_API_KEY`.
+3. Optional: Trag die **Öffentliche Webadresse** von Snipe-IT ein, die Adresse, die Leute öffnen, damit die Eintragsseite einen Link „In Snipe-IT öffnen“ zeigt und gedruckte Codes dorthin führen. Siehe [Öffentliche Webadresse](/de/integrations/#öffentliche-webadresse).
 
 ## Drucken
 

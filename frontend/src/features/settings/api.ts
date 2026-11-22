@@ -6,6 +6,7 @@ import { ApiError, apiFetch } from "../../api/client";
 import type { components } from "../../api/schema.gen";
 import { INFO_KEY } from "../../app/session";
 import { printersKey } from "../printers/api";
+import { bumpWebAddressVersion } from "../lookup/useCartCheck";
 
 export type SettingView = components["schemas"]["SettingView"];
 export type AdminPrinter = components["schemas"]["app__api__routes__admin_printers_api__PrinterRead"];
@@ -31,9 +32,19 @@ export function useSaveSettings() {
   return useMutation({
     mutationFn: (values: Record<string, unknown>) =>
       apiFetch<SettingView[]>("/api/v1/settings", { method: "PUT", json: { values } }),
-    onSuccess: (fresh) => {
+    onSuccess: (fresh, values) => {
       client.setQueryData(settingsKey, fresh);
       void client.invalidateQueries({ queryKey: INFO_KEY });
+      // A public web address (#247) decides the "Open in" link and the code a print carries. What an open item, its
+      // preview (cached for a minute) and the cart's verdicts hold was drawn under the old address, so it is asked again.
+      for (const key of Object.keys(values)) {
+        const app = /^integrations\.([a-z]+)\.web_url$/.exec(key)?.[1];
+        if (!app) continue;
+        void client.invalidateQueries({ queryKey: ["lookup", app] });
+        void client.invalidateQueries({ queryKey: ["preview", app] });
+        bumpWebAddressVersion(client);
+        if (app === "grocy") void client.invalidateQueries({ queryKey: ["grocy-object"] });
+      }
     },
   });
 }

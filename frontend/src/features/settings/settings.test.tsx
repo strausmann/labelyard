@@ -77,7 +77,7 @@ describe("Integrations", () => {
     });
     await renderApp({ path: "/settings/integrations" });
     const grocy = await screen.findByRole("group", { name: "Grocy" });
-    await userEvent.type(within(grocy).getByRole("textbox", { name: "URL" }), "https://grocy.example.invalid");
+    await userEvent.type(within(grocy).getByRole("textbox", { name: "Address the hub uses" }), "https://grocy.example.invalid");
     await userEvent.type(within(grocy).getByLabelText("API key"), "fake-key-for-tests");
     await userEvent.click(within(grocy).getByRole("button", { name: "Test connection" }));
     expect(await within(grocy).findByText("Works")).toBeVisible();
@@ -111,7 +111,7 @@ describe("Integrations", () => {
     await renderApp({ path: "/settings/integrations" });
     const snipe = await screen.findByRole("group", { name: "Snipe-IT" });
     const save = within(snipe).getByRole("button", { name: "Save" });
-    const url = within(snipe).getByRole("textbox", { name: "URL" });
+    const url = within(snipe).getByRole("textbox", { name: "Address the hub uses" });
     await userEvent.clear(url);
     await userEvent.type(url, "https://other.example.invalid");
     expect(within(snipe).getByLabelText(/API key/)).toBeRequired();
@@ -134,7 +134,7 @@ describe("Integrations", () => {
     });
     await renderApp({ path: "/settings/integrations" });
     const grocy = await screen.findByRole("group", { name: "Grocy" });
-    await userEvent.type(within(grocy).getByRole("textbox", { name: "URL" }), "https://grocy.example.invalid");
+    await userEvent.type(within(grocy).getByRole("textbox", { name: "Address the hub uses" }), "https://grocy.example.invalid");
     await userEvent.click(within(grocy).getByRole("button", { name: "Save" }));
     expect(await within(grocy).findByRole("alert")).toHaveTextContent(/enter the secret again/i);
   });
