@@ -6393,7 +6393,7 @@
         "type": "object"
       },
       "SheetTypeNotice": {
-        "description": "A shipped sheet type was marked verified or got new dimensions (spec 10i, R-334-4).\n\nInformation only: it carries no secret and no write path. ``code`` is the type's product\ncode without its pack-size suffix, as it stood when the notice was written.",
+        "description": "A shipped sheet type was marked verified or got new dimensions (spec 10i, R-334-4).\n\nInformation only: it carries no secret and no write path. ``code`` is the type's product\ncode without its pack-size suffix, as it stood when the notice was written.\n\n``catalog_migration_failed`` (#335, ADR 0028): the one-time step that links the installed\nsheet types to the catalog failed and runs again on the next start; ``key`` and ``code``\nare empty, the notice names no type.",
         "properties": {
           "at": {
             "title": "At",
@@ -6417,7 +6417,8 @@
           "kind": {
             "enum": [
               "sheet_type_verified",
-              "sheet_type_updated"
+              "sheet_type_updated",
+              "catalog_migration_failed"
             ],
             "title": "Kind",
             "type": "string"
@@ -10248,7 +10249,7 @@
     },
     "/api/v1/notices": {
       "get": {
-        "description": "Notices of the last 30 days, newest first (sheet types marked verified or updated).",
+        "description": "Notices of the last 30 days, newest first (sheet types marked verified or updated, a\nfailed catalog step).",
         "operationId": "list_notices_api_v1_notices_get",
         "responses": {
           "200": {
