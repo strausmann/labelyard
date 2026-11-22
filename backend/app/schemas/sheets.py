@@ -113,6 +113,16 @@ _TypePlacement = Literal["auto", "margin", "back_side", "cell"]
 _IdCell = Annotated[int, Field(ge=1, le=10000)]
 
 
+class FacetCount(BaseModel):
+    value: str
+    count: int
+
+
+class SheetTypeFacets(BaseModel):
+    vendors: list[FacetCount] = Field(description="Sorted case-insensitively.")
+    page_sizes: list[FacetCount]
+
+
 class SheetTypeRead(BaseModel):
     key: str
     prefix: str

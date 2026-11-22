@@ -471,7 +471,7 @@ async def delete_type(session: AsyncSession, key: str, *, actor: str) -> None:  
     logger.info("sheet type %s deleted", log_value(key))
 
 
-async def list_types(
+async def _filtered(
     session: AsyncSession,
     *,
     page: str | None,
@@ -480,14 +480,14 @@ async def list_types(
     w: float | None,
     h: float | None,
     include_archived: bool,
-) -> list[SheetType]:
+) -> list[tuple[SheetType, SheetTypeVersion]]:
     rows = await repo.list_with_current_version(
         session, vendor=vendor, include_archived=include_archived
     )
     needle = q.lower() if q else None
     w_hmm = None if w is None else mm_to_hmm_rounded(w)
     h_hmm = None if h is None else mm_to_hmm_rounded(h)
-    out: list[SheetType] = []
+    out: list[tuple[SheetType, SheetTypeVersion]] = []
     for t, v in rows:
         if page is not None and v.page_size != page:
             continue
@@ -499,5 +499,70 @@ async def list_types(
             haystack = [t.key, t.vendor or "", t.description or "", *t.product_codes]
             if not any(needle in part.lower() for part in haystack):
                 continue
-        out.append(t)
+        out.append((t, v))
     return out
+
+
+@dataclass(frozen=True)
+class TypePage:
+    """The types of one page (all of them without a ``limit``) and whether more follow."""
+
+    types: list[SheetType]
+    has_more: bool
+
+
+async def list_types(
+    session: AsyncSession,
+    *,
+    page: str | None,
+    vendor: str | None,
+    q: str | None,
+    w: float | None,
+    h: float | None,
+    include_archived: bool,
+    limit: int | None = None,
+    offset: int = 0,
+) -> TypePage:
+    """Types in key order. Without ``limit`` every match comes back (the historic behaviour)."""
+    rows = await _filtered(
+        session, page=page, vendor=vendor, q=q, w=w, h=h, include_archived=include_archived
+    )
+    types = [t for t, _ in rows]
+    if limit is None:
+        return TypePage(types, False)
+    return TypePage(types[offset : offset + limit], len(types) > offset + limit)
+
+
+@dataclass(frozen=True)
+class TypeFacets:
+    vendors: list[tuple[str, int]]
+    page_sizes: list[tuple[str, int]]
+
+
+async def type_facets(
+    session: AsyncSession,
+    *,
+    page: str | None,
+    q: str | None,
+    w: float | None,
+    h: float | None,
+    include_archived: bool,
+) -> TypeFacets:
+    """Vendor and page-size counts under the list's filters, **without** the vendor filter.
+
+    Choosing a vendor must not hide the other vendors, so the vendor is never applied here.
+    """
+    rows = await _filtered(
+        session, page=page, vendor=None, q=q, w=w, h=h, include_archived=include_archived
+    )
+    vendors: dict[str, tuple[str, int]] = {}  # lower-case -> (first spelling seen, count)
+    sizes: dict[str, int] = {}
+    for t, v in rows:
+        if t.vendor:
+            spelling, n = vendors.get(t.vendor.lower(), (t.vendor, 0))
+            vendors[t.vendor.lower()] = (spelling, n + 1)
+        sizes[v.page_size] = sizes.get(v.page_size, 0) + 1
+    return TypeFacets(
+        vendors=[vendors[k] for k in sorted(vendors)],
+        page_sizes=sorted(sizes.items()),
+    )

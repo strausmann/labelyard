@@ -1174,11 +1174,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List sheet types */
+        /**
+         * List sheet types
+         * @description Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is paged; the `Link` header names the next page (`rel="next"`), the body stays a list.
+         */
         get: operations["list_sheet_types_api_v1_sheet_types_get"];
         put?: never;
         /** Create a sheet type with version 1 */
         post: operations["create_sheet_type_api_v1_sheet_types_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Vendor and page-size counts for the type filters
+         * @description Counted under the list's filters except `vendor`, so choosing a vendor keeps the other vendors available. Archived types are counted only with `include_archived`.
+         */
+        get: operations["sheet_type_facets_api_v1_sheet_types_facets_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2222,6 +2245,13 @@ export interface components {
             format_version: 1 | 2;
             type: components["schemas"]["TypeDoc"];
             version: components["schemas"]["VersionDoc"];
+        };
+        /** FacetCount */
+        FacetCount: {
+            /** Count */
+            count: number;
+            /** Value */
+            value: string;
         };
         /** FitRequest */
         FitRequest: {
@@ -4394,6 +4424,16 @@ export interface components {
             verified: boolean;
             /** Versions */
             versions: components["schemas"]["VersionRead"][];
+        };
+        /** SheetTypeFacets */
+        SheetTypeFacets: {
+            /** Page Sizes */
+            page_sizes: components["schemas"]["FacetCount"][];
+            /**
+             * Vendors
+             * @description Sorted case-insensitively.
+             */
+            vendors: components["schemas"]["FacetCount"][];
         };
         /**
          * SheetTypeNotice
@@ -7885,6 +7925,8 @@ export interface operations {
                 /** @description Label height, ±0.5 mm. */
                 h?: number | null;
                 include_archived?: boolean;
+                limit?: number | null;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -7895,6 +7937,8 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
+                    /** @description The next page, `rel="next"`; absent on the last page. */
+                    Link?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7932,6 +7976,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SheetTypeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    sheet_type_facets_api_v1_sheet_types_facets_get: {
+        parameters: {
+            query?: {
+                page?: ("A4" | "Letter") | null;
+                /** @description Key, codes, description. */
+                q?: string | null;
+                /** @description Label width, ±0.5 mm. */
+                w?: number | null;
+                /** @description Label height, ±0.5 mm. */
+                h?: number | null;
+                include_archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetTypeFacets"];
                 };
             };
             /** @description Validation Error */
