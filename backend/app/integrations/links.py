@@ -31,6 +31,7 @@ from urllib.parse import unquote, urlsplit
 from app.integrations.urls import base_url
 from app.schemas.grocy_label import is_grocycode
 from app.settings_store.registry import INTEGRATIONS, SETTINGS
+from app.sheets.text import check_http_url
 
 if TYPE_CHECKING:
     from app.auth.dependencies import AuthContext
@@ -72,23 +73,19 @@ def check_web_url(raw: str) -> str:
     """``raw`` when it is usable as a web address, else ``""``.
 
     The settings validator refuses a bad value on write; an environment value bypasses it
-    (``LABELYARD_<NAME>_WEB_URL``), so the same rules are applied again here: http or https,
-    a host, no user info, no query or fragment, no whitespace, at most
-    :data:`MAX_WEB_URL_LENGTH` characters; every trailing slash is stripped, like the validator
-    does. Task 6b of 1.8.0 replaces this local check with ``check_http_url`` once that is
-    tightened.
+    (``LABELYARD_<NAME>_WEB_URL``), so the same rules are applied again here. The rules every
+    stored link follows are those of :func:`app.sheets.text.check_http_url` (http or https, a
+    host, no user info, no whitespace or control characters, no mixed-script host); on top of
+    them a web address is at most :data:`MAX_WEB_URL_LENGTH` characters, carries no query and no
+    fragment, and has every trailing slash stripped, like the validator does.
     """
     text = raw.strip()
-    if not text or len(text) > MAX_WEB_URL_LENGTH or any(c.isspace() for c in text):
+    if not text or len(text) > MAX_WEB_URL_LENGTH:
         return ""
     try:
-        parts = urlsplit(text)
-        _ = parts.port
+        check_http_url(text)
+        _ = urlsplit(text).port
     except ValueError:
-        return ""
-    if parts.scheme not in ("http", "https") or not parts.hostname:
-        return ""
-    if parts.username is not None or parts.password is not None:
         return ""
     if "?" in text or "#" in text:  # a base address carries no query and no fragment
         return ""

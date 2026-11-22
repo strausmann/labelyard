@@ -50,6 +50,8 @@ Wähle **Auf einen Bogen drucken**, nimm den Bogen (oder scanne seinen Code) und
 
 Hat ein anderes Gerät Felder desselben Bogens belegt, während du geschaut hast, sagt dir der Hub das und bittet dich, den neuen Plan zu prüfen, bevor er druckt.
 
+**Der Auftrag einer Zelle.** In der API nennt eine Zelle den Auftrag, der sie reserviert oder bedruckt hat (`job_id`). Das ist ein Verweis, keine Berechtigung: `GET /api/v1/jobs/{id}` antwortet mit `404` für einen Schlüssel, der den Drucker des Auftrags nicht nutzen darf (`allowed_printer_ids`), und für einen Auftrag, den ein anderer einfacher Schlüssel abgeschickt hat, genau wie für einen unbekannten Auftrag. Ein Schlüssel, der den Bogen lesen darf, aber nicht den Drucker, sieht die Nummer des Auftrags und nichts von seinem Inhalt.
+
 ## Layouts
 
 Ein Layout bestimmt, was ein Etikett zeigt: einen QR-Code, einen Code, einen Titel und eine Detailzeile, in Kombinationen von „Nur Code“ bis „QR-Code, Code, Titel und Detail“. Layouts, die ein Feld brauchen, das der Eintrag nicht hat, werden vor dem Druck abgelehnt, mit dem fehlenden Feld benannt. Auf einem Bogentyp mit ausgeschalteten QR-Codes druckt ein QR-Layout nur seinen Text (siehe [Bogentypen](#bogentypen)).

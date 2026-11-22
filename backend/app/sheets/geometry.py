@@ -14,7 +14,7 @@ from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 from typing import Literal
 
-from app.sheets.errors import CellOutOfRangeError, InvalidGeometryError
+from app.sheets.errors import CellOutOfRangeError, CornerRadiusTooLargeError, InvalidGeometryError
 
 PAGE_SIZES: dict[str, tuple[int, int]] = {"A4": (21000, 29700), "Letter": (21590, 27940)}
 MAX_CELLS = 400
@@ -85,6 +85,11 @@ def remaining_margins(g: Geometry) -> tuple[int, int]:
     return right, bottom
 
 
+def max_corner_radius(g: Geometry) -> int:
+    """The largest corner radius a label can have: half its shorter side, in hundredths of a mm."""
+    return min(g.label_w, g.label_h) // 2
+
+
 def validate_geometry(g: Geometry) -> list[str]:
     """Raise ``InvalidGeometryError`` on a rule failure; return hint codes otherwise."""
     if g.page_size not in PAGE_SIZES:
@@ -101,6 +106,8 @@ def validate_geometry(g: Geometry) -> list[str]:
     for name in ("margin_top", "margin_left"):
         if getattr(g, name) < 0:
             raise InvalidGeometryError(name, "must not be negative")
+    if g.corner_radius is not None and g.corner_radius > max_corner_radius(g):
+        raise CornerRadiusTooLargeError(max_corner_radius(g))
     if g.cols < 1:
         raise InvalidGeometryError("cols", "must be at least 1")
     if g.rows < 1:

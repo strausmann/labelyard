@@ -1006,3 +1006,32 @@ async def test_changed_shipped_design_exports_v2_and_imports_back(api_client_wit
     again = (await client.get("/api/v1/sheet-types/acme-3490/export", headers=admin)).json()
     assert again["format_version"] == 2
     assert again["type"]["backing_design"] == doc["type"]["backing_design"]
+
+
+async def test_corner_radius_over_half_is_422(api_client_with_seed, admin):
+    """#204 note 4: 21.2 mm is the shorter side, so 10.6 mm is the largest radius."""
+    over = deepcopy(GEOMETRY)
+    over["corner_radius"] = 10.61
+    created = await api_client_with_seed.post(
+        "/api/v1/sheet-types", json=_body(geometry=over), headers=admin
+    )
+    assert created.status_code == 422, created.text
+    detail = _err(created)
+    assert detail["error_code"] == "corner_radius_too_large"
+    assert detail["error_detail"]["field"] == "corner_radius"
+
+    ok = deepcopy(GEOMETRY)
+    ok["corner_radius"] = 10.6
+    assert (
+        await api_client_with_seed.post(
+            "/api/v1/sheet-types", json=_body(geometry=ok), headers=admin
+        )
+    ).status_code == 201
+
+    version = await api_client_with_seed.post(
+        "/api/v1/sheet-types/acme-t1/versions",
+        json={"geometry": over, "change_note": "rounder"},
+        headers=admin,
+    )
+    assert version.status_code == 422
+    assert _err(version)["error_code"] == "corner_radius_too_large"

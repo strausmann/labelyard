@@ -52,13 +52,24 @@ export function parseDecimal(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** A source address worth a link: only http and https. */
+/** A source address worth a link: only http and https, and never one that carries user info (#204). */
 export function httpUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.username !== "" || url.password !== "" ? null : url.href;
   } catch {
     return null;
   }
+}
+
+/**
+ * The host of a stored link as the browser reads it, shown next to the link text (#204): `URL.host`
+ * is the punycode form (`xn--…`) for an international name and carries the port, so a look-alike
+ * cannot pass for the name it imitates. `null` for anything `httpUrl` would not link.
+ */
+export function linkHost(value: string | null | undefined): string | null {
+  const href = httpUrl(value);
+  return href ? new URL(href).host : null;
 }

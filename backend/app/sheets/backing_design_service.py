@@ -108,10 +108,7 @@ def to_doc(design: BackingDesign) -> BackingDesignDoc:
 
 
 def _clean_name(name: str) -> str:
-    cleaned = clean_text("name", name, NAME_MAX)
-    if not cleaned:
-        raise InvalidFieldError("name", "must not be empty")
-    return cleaned
+    return clean_text("name", name, NAME_MAX, required=True)
 
 
 async def get(session: AsyncSession, key: str) -> BackingDesign:

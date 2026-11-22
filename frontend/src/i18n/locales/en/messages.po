@@ -494,6 +494,10 @@ msgid "{version} ready"
 msgstr "{version} ready"
 
 #: src/features/archive/errors.ts
+msgid "{what} can be at most half the shorter side of a label."
+msgstr "{what} can be at most half the shorter side of a label."
+
+#: src/features/archive/errors.ts
 msgid "{what} can have at most two decimals."
 msgstr "{what} can have at most two decimals."
 

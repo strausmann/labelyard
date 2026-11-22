@@ -2131,7 +2131,10 @@ export interface components {
              * @description Whether the cell holds the sheet's ID label (the hub fills it). Set by the hub; do not infer it from `source`.
              */
             is_id_cell: boolean;
-            /** Job Id */
+            /**
+             * Job Id
+             * @description The job that reserved or printed the cell, `null` for a cell marked by hand. It is a pointer, not a grant: `GET /api/v1/jobs/{id}` answers `404` for a key whose `allowed_printer_ids` do not hold the job's printer, and for a job another plain key submitted, exactly like an unknown job.
+             */
             job_id: string | null;
             /** Marked By Hand */
             marked_by_hand: boolean;

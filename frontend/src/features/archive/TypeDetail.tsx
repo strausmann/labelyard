@@ -18,7 +18,7 @@ import { Badge } from "./fields";
 import { FeedbackLinks } from "./FeedbackLinks";
 import { IdPlacementSection } from "./IdPlacementSection";
 import { TypeForm } from "./TypeForm";
-import { httpUrl } from "./search";
+import { httpUrl, linkHost } from "./search";
 
 const TAB =
   "-mb-px inline-flex min-h-11 cursor-pointer items-center whitespace-nowrap border-b-2 border-transparent px-3 font-bold text-ink-2 transition-colors duration-150 data-[selected]:border-accent data-[selected]:text-ink data-[focus-visible]:outline-3 data-[focus-visible]:-outline-offset-3 data-[focus-visible]:outline-link [@media(hover:hover)]:hover:text-ink";
@@ -52,14 +52,18 @@ function ProductCodes({ codes }: { codes: string[] }) {
 
 function Source({ type }: { type: SheetTypeDetail }) {
   const url = httpUrl(type.source_url);
+  const host = linkHost(type.source_url);
   const name = type.source_name;
   if (!name && !type.source_url) return null;
   return (
     <p>
       {url ? (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="text-link underline underline-offset-2 [overflow-wrap:anywhere]">
-          {name ?? url}
-        </a>
+        <>
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-link underline underline-offset-2 [overflow-wrap:anywhere]">
+            {name ?? url}
+          </a>
+          {host ? <span className="ml-2 font-mono text-small text-ink-2 [overflow-wrap:anywhere]">{host}</span> : null}
+        </>
       ) : (
         <>
           {name ? <span>{name}</span> : null}

@@ -77,7 +77,9 @@ describe("ItemView", () => {
     const { calls } = mockApi(routes());
     await renderApp({ path: "/asset/42" });
     await screen.findByRole("heading", { level: 1, name: "Cordless drill" });
-    expect(screen.getByRole("link", { name: "Open in Snipe-IT" })).toHaveAttribute("href", "https://assets.example.invalid/snipeit/42");
+    const open = screen.getByRole("link", { name: "Open in Snipe-IT" });
+    expect(open).toHaveAttribute("href", "https://assets.example.invalid/snipeit/42");
+    expect(open.parentElement).toHaveTextContent("assets.example.invalid"); // the host stands next to the link (#204)
     expect(await screen.findByRole("img", { name: "Label preview" })).toBeVisible();
     const picker = screen.getByRole("combobox", { name: "Printer" });
     expect(within(picker).getAllByRole("option").map((o) => o.textContent)).toEqual(["Workshop PT-P750W · Tape printer · Ready", "Office QL-820NWB · Tape printer"]);

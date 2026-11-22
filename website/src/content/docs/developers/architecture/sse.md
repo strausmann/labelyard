@@ -171,7 +171,9 @@ resolve of unconfirmed cells and a manual edit. Its `data` is
 `{"code": str, "free": int, "total": int, "changed": [int], "state": str}`, where `changed`
 lists the cell numbers touched and `state` is the sheet's state. Sheets carry no printer
 restriction (OC-11), so every stream receives this channel regardless of
-`allowed_printer_ids` and of a `printer_id` filter. A client reacts by reading the sheet.
+`allowed_printer_ids` and of a `printer_id` filter.
+
+**Re-read on event.** The event is a hint that something changed, not the new state: a client does not apply `changed` to what it holds, it reads the sheet again (`GET /api/v1/sheets/{code}`) and replaces its copy. Several changes can share one event, and an event can be missed while the stream reconnects (there is no replay, see below); the read always answers with the committed state. A client that cannot read the sheet (no `read` scope for the route, an offline browser) shows what it has and tries again on the next event or reconnect.
 
 `run.state_changed` (channel `printer:{id}:queue`) is published when a tape run (#277) enters or
 leaves the held list, which no job event tells a client: it starts waiting for a confirmation,

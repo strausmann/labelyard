@@ -439,7 +439,7 @@ class _SlowLookup:
 
 @pytest.mark.parametrize("route", ["preview", "print"])
 async def test_no_db_connection_is_held_while_the_lookups_run(
-    api_client_with_seed: httpx.AsyncClient, route: str
+    api_client_with_seed: httpx.AsyncClient, route: str, production_engine
 ) -> None:
     """R10-1: a request kept its pooled connection through up to 500 slow lookups (and, for the
     preview, through the rendering queue), so about 15 concurrent requests from one key used up

@@ -332,7 +332,14 @@ class CellRead(BaseModel):
             "do not infer it from `source`."
         )
     )
-    job_id: UUID | None
+    job_id: UUID | None = Field(
+        description=(
+            "The job that reserved or printed the cell, `null` for a cell marked by hand. It "
+            "is a pointer, not a grant: `GET /api/v1/jobs/{id}` answers `404` for a key whose "
+            "`allowed_printer_ids` do not hold the job's printer, and for a job another plain "
+            "key submitted, exactly like an unknown job."
+        )
+    )
     updated_at: datetime
 
     @field_serializer("updated_at")

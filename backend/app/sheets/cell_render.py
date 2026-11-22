@@ -44,7 +44,7 @@ from app.schemas.label_data import LabelData
 from app.services.fonts import load_truetype
 from app.services.layout_engine import REQUIRED_FIELDS
 from app.services.spool_swatch import SHEET_METRICS, layout_for_box, render_swatch
-from app.sheets.geometry import Geometry, cell_origin
+from app.sheets.geometry import Geometry, cell_origin, max_corner_radius
 from app.sheets.text import sanitise_text
 
 __all__ = [
@@ -137,7 +137,8 @@ def content_box(g: Geometry, n: int) -> BoxHmm:
 
     Rectangles are inset by ``1.0 mm + 0.3 x corner_radius`` per side (unknown radius counts as
     2.0 mm, inset 1.6 mm); round cells use the square inscribed in the circle, inset by 1.0 mm,
-    centred in the cell.
+    centred in the cell. A stored radius above half the shorter label side (a type from before
+    the bound of #204) counts as exactly that half.
     """
     ox, oy = cell_origin(g, n)
     if g.shape == "round":
@@ -146,7 +147,7 @@ def content_box(g: Geometry, n: int) -> BoxHmm:
     inset = (
         _UNKNOWN_RADIUS_INSET_HMM
         if g.corner_radius is None
-        else _BASE_INSET_HMM + round(_RADIUS_FACTOR * g.corner_radius)
+        else _BASE_INSET_HMM + round(_RADIUS_FACTOR * min(g.corner_radius, max_corner_radius(g)))
     )
     # A label no larger than twice its inset has no room inside: an empty box, never a negative
     # one (``box_fits_a_line`` then refuses it).

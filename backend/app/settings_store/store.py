@@ -39,6 +39,7 @@ from app.settings_store.registry import (
     integration_url_key,
 )
 from app.sheets.limits import MAX_ACTIVE_LIMIT
+from app.sheets.text import check_http_url
 
 _log = logging.getLogger(__name__)
 
@@ -160,6 +161,12 @@ def _validate(d: SettingDef, value: Any) -> Any:
             raise bad("a web address has no query or fragment")
         if any(c.isspace() for c in text):
             raise bad("not a valid URL")
+        if d.key.endswith(".web_url"):
+            # #204 note 2: a web address people open must not hide a look-alike host.
+            try:
+                check_http_url(text)
+            except ValueError as exc:
+                raise bad(str(exc)) from None
         return _norm_url(text)
     # str
     if len(text) > 256:

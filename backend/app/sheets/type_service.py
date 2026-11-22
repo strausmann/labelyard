@@ -153,11 +153,19 @@ CHANGE_NOTE_MAX = 500
 MULTILINE_FIELDS = frozenset({"description", "notes", "change_note"})
 
 
-def clean_text(field: str, value: str, max_len: int) -> str:
-    """``sanitise_text`` with the error mapped to a 422 that names the field."""
+def clean_text(field: str, value: str, max_len: int, *, required: bool = False) -> str:
+    """``sanitise_text`` with the error mapped to a 422 that names the field.
+
+    ``required``: a text that is empty after cleaning (only invisible characters, say) is
+    refused as ``must not be empty``, not stored as an empty string.
+    """
     try:
-        return sanitise_text(value, max_len=max_len, multiline=field in MULTILINE_FIELDS)
-    except ValueError:
+        return sanitise_text(
+            value, max_len=max_len, multiline=field in MULTILINE_FIELDS, required=required
+        )
+    except ValueError as exc:
+        if str(exc) == "empty":
+            raise InvalidFieldError(field, "must not be empty") from None
         raise TextTooLongError(field) from None
 
 

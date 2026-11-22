@@ -64,4 +64,9 @@ describe("useArchiveErrorText", () => {
   ])("invalid_geometry on %s: %s", (field, reason, sentence) => {
     expect(words(api(422, "invalid_geometry", "x", { field, reason }))).toBe(sentence);
   });
+
+  it("corner_radius_too_large says what the limit is", () => {
+    const detail = { field: "corner_radius", reason: "larger than half the shorter label side (500)" };
+    expect(words(api(422, "corner_radius_too_large", "x", detail))).toBe("The corner radius can be at most half the shorter side of a label.");
+  });
 });

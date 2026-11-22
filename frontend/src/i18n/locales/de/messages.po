@@ -494,6 +494,10 @@ msgid "{version} ready"
 msgstr "{version} bereit"
 
 #: src/features/archive/errors.ts
+msgid "{what} can be at most half the shorter side of a label."
+msgstr "{what} darf höchstens halb so groß sein wie die kürzere Seite eines Etiketts."
+
+#: src/features/archive/errors.ts
 msgid "{what} can have at most two decimals."
 msgstr "{what} darf höchstens zwei Nachkommastellen haben."
 

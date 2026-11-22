@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "vitest";
-import { httpUrl } from "./search";
+import { httpUrl, linkHost } from "./search";
 
 describe("httpUrl", () => {
   it("httpUrl returns the normalised href", () => {
@@ -10,5 +10,20 @@ describe("httpUrl", () => {
   });
   it.each(["javascript:alert(1)", "data:text/html,x", "", null, undefined, "not a url"])("refuses %s", (value) => {
     expect(httpUrl(value)).toBeNull();
+  });
+});
+
+describe("linkHost (#204)", () => {
+  it("is the host as the browser reads it, punycode and port included", () => {
+    expect(linkHost("https://example.invalid/a")).toBe("example.invalid");
+    expect(linkHost("http://example.invalid:8080/a")).toBe("example.invalid:8080");
+    expect(linkHost("https://bücher.example.invalid/")).toBe("xn--bcher-kva.example.invalid");
+  });
+
+  it("is null for what httpUrl does not link", () => {
+    expect(linkHost("javascript:alert(1)")).toBeNull();
+    expect(linkHost("https://user:secret@example.invalid/")).toBeNull();
+    expect(linkHost("not a url")).toBeNull();
+    expect(linkHost(null)).toBeNull();
   });
 });

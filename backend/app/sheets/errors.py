@@ -104,6 +104,16 @@ class InvalidGeometryError(SheetApiError):
         )
 
 
+class CornerRadiusTooLargeError(InvalidGeometryError):
+    """``corner_radius`` is larger than half the shorter label side (#204 note 4): its own code,
+    the detail of ``invalid_geometry`` (``field`` ``corner_radius``)."""
+
+    error_code = "corner_radius_too_large"
+
+    def __init__(self, limit: int) -> None:
+        super().__init__("corner_radius", f"larger than half the shorter label side ({limit})")
+
+
 class InvalidFieldError(InvalidGeometryError):
     """A non-geometry field has a bad value; same code and status as invalid geometry."""
 

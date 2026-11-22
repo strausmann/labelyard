@@ -48,6 +48,7 @@ function useGeometrySentence(): (field: string, reason: string) => string {
   return (field, reason) => {
     const what = word(field);
     if (reason.startsWith("cols x rows must not exceed")) return t`The grid has too many labels: at most 400 per sheet.`;
+    if (reason.startsWith("larger than half the shorter label side")) return t`${what} can be at most half the shorter side of a label.`;
     switch (reason) {
       case "not a finite number":
       case "not a valid number":
