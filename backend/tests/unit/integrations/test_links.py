@@ -376,3 +376,11 @@ def test_the_longer_prefix_wins() -> None:
     assert redact_for(_auth("read"), "snipeit", payload, settings) == (
         "https://inv.example.invalid/hardware/1"
     )
+
+
+def test_a_bracketed_ipv6_host_is_found() -> None:
+    """Codex P2: an IPv6 base host (``[fd00::1]``) is found on another port, too."""
+    settings = _Settings({"integrations.snipeit.url": "http://[fd00::1]:8080"})
+    reader = _auth("read")
+    assert redact_for(reader, "manual", "http://[fd00::1]:9090/hardware/1", settings) is None
+    assert redact_for(reader, "manual", "http://u@[FD00::1]/x", settings) is None

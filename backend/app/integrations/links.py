@@ -185,9 +185,10 @@ def _host_forms(host: str) -> set[str]:
 def _markers(settings: SettingsLike) -> tuple[list[str], list[re.Pattern[str]]]:
     """What betrays an internal base: the base itself, and its host in any spelling.
 
-    The host counts wherever it follows ``//`` or ``@`` (user info), with or without a port or a
-    trailing dot. It is left out when the integration's web address uses the same host, and the
-    base altogether when it is the web address itself: it is public then.
+    The host counts wherever it follows ``//`` or ``@`` (user info), with or without a port, a
+    trailing dot or the brackets of an IPv6 address. It is left out when the integration's web
+    address uses the same host, and the base altogether when it is the web address itself: it
+    is public then.
     """
     bases: list[str] = []
     hosts: list[re.Pattern[str]] = []
@@ -204,7 +205,8 @@ def _markers(settings: SettingsLike) -> tuple[list[str], list[re.Pattern[str]]]:
         if not host or (web_host and _host_forms(web_host) & _host_forms(host)):
             continue
         for form in _host_forms(host):
-            hosts.append(re.compile(r"(?://|@)" + re.escape(form) + r"\.?(?=[:/?#\\]|$)"))
+            # An IPv6 host stands in brackets in a URL (``urlsplit`` drops them).
+            hosts.append(re.compile(r"(?://|@)\[?" + re.escape(form) + r"\]?\.?(?=[:/?#\\]|$)"))
     return bases, hosts
 
 
