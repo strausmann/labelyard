@@ -580,7 +580,8 @@ export interface paths {
         };
         /**
          * List the hub's recent notices
-         * @description Notices of the last 30 days, newest first (sheet types marked verified or updated).
+         * @description Notices of the last 30 days, newest first (sheet types marked verified or updated, a
+         *     failed catalog step).
          */
         get: operations["list_notices_api_v1_notices_get"];
         put?: never;
@@ -4441,6 +4442,10 @@ export interface components {
          *
          *     Information only: it carries no secret and no write path. ``code`` is the type's product
          *     code without its pack-size suffix, as it stood when the notice was written.
+         *
+         *     ``catalog_migration_failed`` (#335, ADR 0028): the one-time step that links the installed
+         *     sheet types to the catalog failed and runs again on the next start; ``key`` and ``code``
+         *     are empty, the notice names no type.
          */
         SheetTypeNotice: {
             /** At */
@@ -4464,7 +4469,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "sheet_type_verified" | "sheet_type_updated";
+            kind: "sheet_type_verified" | "sheet_type_updated" | "catalog_migration_failed";
         };
         /**
          * SheetTypePatch

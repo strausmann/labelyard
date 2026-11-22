@@ -145,6 +145,7 @@ markers = [
     "hardware: requires real Brother printer hardware (skipped by default; opt in with --hardware)",
     "slow: flush-timing integration tests; excluded from fast CI run (opt in with -m slow)",
     "swatch_reference: drawn ink widths of the swatch label against the committed reference; run only in the swatch-text-metrics CI job (#346)",
+    "fresh_install: an integration test that starts on an empty database, without the 1.7.x seed the other integration tests start from (#335)",
 ]
 
 [tool.coverage.run]

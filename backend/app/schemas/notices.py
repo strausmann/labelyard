@@ -18,12 +18,16 @@ class SheetTypeNotice(BaseModel):
 
     Information only: it carries no secret and no write path. ``code`` is the type's product
     code without its pack-size suffix, as it stood when the notice was written.
+
+    ``catalog_migration_failed`` (#335, ADR 0028): the one-time step that links the installed
+    sheet types to the catalog failed and runs again on the next start; ``key`` and ``code``
+    are empty, the notice names no type.
     """
 
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(description="Stable id of the notice; a browser keeps its read state under it.")
-    kind: Literal["sheet_type_verified", "sheet_type_updated"]
+    kind: Literal["sheet_type_verified", "sheet_type_updated", "catalog_migration_failed"]
     key: str = Field(description="Key of the sheet type the notice is about.")
     code: str = Field(description="Product code of the type, or its key when it has none.")
     at: datetime

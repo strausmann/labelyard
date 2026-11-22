@@ -210,6 +210,18 @@ describe("Grocy labels", { timeout: 15_000 }, () => {
     expect(sheetType).not.toHaveTextContent(`L4736REV-25${SHEET_TYPE.key}`);
   });
 
+  it("no types empty state links to the catalog (#335)", async () => {
+    mockApi(routes({ "GET /api/v1/sheet-types": [] }));
+    await renderApp({ path: "/settings/integrations" });
+    const grocy = await panel();
+    expect(within(grocy).queryByText(/No sheet types are installed yet\./)).toBeNull(); // tape printer: no type needed
+    await userEvent.click(within(grocy).getByRole("button", { name: /Default printer$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: PAGE_PRINTER.name }));
+    expect(await within(grocy).findByText(/No sheet types are installed yet\./)).toBeVisible();
+    const link = within(grocy).getByRole("link", { name: "Add one from the catalog in the sheet archive" });
+    expect(link).toHaveAttribute("href", "/sheets/archive");
+  });
+
   it("save is disabled until a sheet type is chosen", async () => {
     const { calls } = mockApi(routes({ "PUT /api/v1/settings": settingsList() }));
     await renderApp({ path: "/settings/integrations" });

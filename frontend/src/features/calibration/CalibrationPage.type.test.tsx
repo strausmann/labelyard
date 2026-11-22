@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SIGNED_IN } from "../../test-utils";
 import { SHEET_TYPE } from "../test-api";
-import { BASE, body, button, enter, fillThree, FIT, only, open, P, resetBetweenTests, secondPrinter, stored, typeB } from "./CalibrationPage.kit";
+import { BASE, body, button, enter, fillThree, FIT, oneColumn, only, open, P, resetBetweenTests, secondPrinter, stored, typeB } from "./CalibrationPage.kit";
 
 vi.setConfig({ testTimeout: 15_000 });
 resetBetweenTests();
@@ -117,5 +117,21 @@ describe("which type the values were measured on", () => {
     await userEvent.click(await button("Save for this printer and tray"));
     await screen.findByText("Saved. New prints use this correction.");
     expect(body(only(calls, "PUT")[0]).measured_on).toEqual({ type_key: "OTHERTYPE", version: 3 });
+  });
+});
+
+describe("no sheet types installed (#335)", () => {
+  it("no types empty state links to the catalog", async () => {
+    await open({ "GET /api/v1/sheet-types": [] });
+    expect(await screen.findByText(/No sheet types are installed yet\./)).toBeVisible();
+    const link = screen.getByRole("link", { name: "Add one from the catalog in the sheet archive" });
+    expect(link).toHaveAttribute("href", "/sheets/archive");
+    expect(screen.queryByText("There is no sheet type with at least two columns and two rows.")).toBeNull();
+  });
+
+  it("types that are all too small keep their own hint, not the catalog link", async () => {
+    await open({ "GET /api/v1/sheet-types": [oneColumn] });
+    expect(await screen.findByText("There is no sheet type with at least two columns and two rows.")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Add one from the catalog in the sheet archive" })).toBeNull();
   });
 });

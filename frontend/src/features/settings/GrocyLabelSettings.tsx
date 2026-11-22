@@ -8,6 +8,7 @@ import { Button } from "react-aria-components";
 import { PRIMARY_BUTTON } from "../../shell/SignIn";
 import { StatusBadge } from "../../shell/StatusBadge";
 import { useSheetTypes, type SheetTypeRead } from "../archive/api";
+import { NoTypesInstalled } from "../archive/NoTypesInstalled";
 import { useContentTypeLabel } from "../lookup/apps";
 import { typeLabel } from "../sheets/typeLabel";
 import type { ContentType } from "../lookup/cart";
@@ -106,6 +107,7 @@ function LabelTarget({
           placeholder={t`Choose a sheet type`}
         />
       ) : null}
+      {page && types !== null && types.length === 0 ? <NoTypesInstalled /> : null}
     </div>
   );
 }

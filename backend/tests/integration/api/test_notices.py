@@ -111,3 +111,24 @@ async def test_internal_rows_are_not_listed_by_the_settings_api(api_client_with_
     assert resp.status_code == 200
     listed = {row["key"] for row in resp.json()}
     assert listed and not listed & {ADOPTED_KEY, CORRECTED_KEY, NOTICES_KEY}
+
+
+async def test_failed_catalog_step_is_listed(api_client_with_seed, monkeypatch) -> None:
+    """#335: the catalog startup step that failed leaves a notice the notification centre reads."""
+    from app.catalog import upgrade
+    from sqlalchemy import delete
+    from sqlmodel import col
+
+    async def _boom(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("no catalog today")
+
+    async with _factory()() as s:  # the lifespan ran the step: forget that it did
+        await s.execute(delete(AppSetting).where(col(AppSetting.key) == upgrade.MIGRATED_KEY))
+        await s.commit()
+    monkeypatch.setattr(upgrade, "_stamp", _boom)
+    assert (await upgrade.run_catalog_migration(_factory())).failed
+    resp = await api_client_with_seed.get("/api/v1/notices", headers=await _read_key())
+    assert resp.status_code == 200
+    failed = [n for n in resp.json() if n["kind"] == "catalog_migration_failed"]
+    assert [(n["id"], n["key"], n["code"]) for n in failed] == [(upgrade.FAILED_NOTICE_ID, "", "")]
+    assert "no catalog today" not in resp.text

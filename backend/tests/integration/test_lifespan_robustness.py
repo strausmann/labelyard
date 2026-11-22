@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Startup robustness of the lifespan (#264 seed, #265 producer start).
+"""Startup robustness of the lifespan (#264 seed, #335 catalog step, #265 producer start).
 
-A failing seed must not block startup; a failing ``PrinterRuntime.start`` must still stop the
-producers it already started.
+A failing catalog step must not block startup; a failing ``PrinterRuntime.start`` must still
+stop the producers it already started.
 """
 
 from __future__ import annotations
@@ -24,21 +24,21 @@ from httpx import ASGITransport, AsyncClient
 from tests.helpers.fake_ipp_printer import FAKE_URI, FakeIppPrinter
 
 
-async def test_failing_sheet_seed_does_not_block_startup(
+async def test_failing_catalog_step_does_not_block_startup(
     client: AsyncClient, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """264-09: a seed that raises is logged once; the hub starts and answers ``/healthz``."""
+    """264-09, #335: a catalog step that raises is logged once; the hub answers ``/healthz``."""
 
     async def _boom(_factory: Any) -> None:
-        raise RuntimeError("seed failed")
+        raise RuntimeError("catalog step failed")
 
     with (
-        patch("app.seed.sheet_seed.run_sheet_seed", _boom),
+        patch("app.catalog.upgrade.run_catalog_migration", _boom),
         caplog.at_level(logging.ERROR, logger="app.main"),
     ):
         response = await client.get("/healthz")  # the first request starts the lifespan
     assert response.status_code == 200
-    failures = [r for r in caplog.records if "Sheet type seeding failed" in r.getMessage()]
+    failures = [r for r in caplog.records if "Sheet type catalog step failed" in r.getMessage()]
     assert len(failures) == 1
 
 

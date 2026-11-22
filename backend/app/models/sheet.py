@@ -74,6 +74,12 @@ class SheetType(SQLModel, table=True):
     backing_design_id: UUID | None = Field(
         default=None, sa_column=Column(Uuid, ForeignKey("backing_designs.id"), nullable=True)
     )
+    # Catalog provenance (ADR 0028, #335): the catalog entry this type is a copy of, the
+    # installed revision and the fields hash of the entry's type fields at install. ``None`` for
+    # a custom or imported type, and for a type installed from the catalog under a new key.
+    catalog_key: str | None = Field(default=None, sa_column=Column(String, nullable=True))
+    catalog_revision: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
+    catalog_fields_hash: str | None = Field(default=None, sa_column=Column(String, nullable=True))
 
 
 class SheetTypeVersion(SQLModel, table=True):

@@ -89,6 +89,32 @@ async def _temp_db_engine(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  #
     await eng.dispose()
 
 
+@pytest.fixture(autouse=True)
+def _as_an_upgraded_installation(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Start every integration test as an upgraded 1.7.x installation (#335, ADR 0028).
+
+    1.8.0 inserts no sheet types on start; the tests here were written against the 39 seeded
+    types. The startup step therefore runs the 1.7.x seeder first, so the lifespan sees what an
+    upgraded installation holds and stamps it. ``@pytest.mark.fresh_install`` turns this off.
+    """
+    if request.node.get_closest_marker("fresh_install") is not None:
+        return
+    from app.catalog import upgrade
+    from app.seed.sheet_seed import run_sheet_seed
+
+    real = upgrade.run_catalog_migration
+
+    async def _seed_then_migrate(
+        factory: async_sessionmaker[AsyncSession],
+    ) -> upgrade.CatalogMigrationReport:
+        await run_sheet_seed(factory)
+        return await real(factory)
+
+    monkeypatch.setattr(upgrade, "run_catalog_migration", _seed_then_migrate)
+
+
 @pytest_asyncio.fixture
 async def production_engine(monkeypatch: pytest.MonkeyPatch, tmp_path):  # type: ignore[no-untyped-def]
     """A per-test engine configured like ``app/db/engine.py`` (Task 6a, #204 note 7).

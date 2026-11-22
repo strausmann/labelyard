@@ -3,6 +3,7 @@
 
 import { useLingui } from "@lingui/react/macro";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { NoTypesInstalled } from "../archive/NoTypesInstalled";
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Button } from "react-aria-components";
 import { ApiError } from "../../api/client";
@@ -254,6 +255,8 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
         </p>
         {types.isPending ? (
           <p role="status" className="text-ink-2">{t`Loading…`}</p>
+        ) : types.isSuccess && types.data.length === 0 ? (
+          <NoTypesInstalled />
         ) : !type ? (
           <p className="text-ink-2">{t`There is no sheet type with at least two columns and two rows.`}</p>
         ) : (

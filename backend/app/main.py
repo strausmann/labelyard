@@ -313,13 +313,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await run_migrations()
     await verify_alembic_at_head(settings)
 
-    # Sheet type archive: seed the shipped types. A failure is logged and never blocks startup.
+    # Sheet types ship as a catalog (ADR 0028): nothing is inserted on start. The one-time
+    # catalog step gives an upgraded installation's seeded types their provenance; it records
+    # its own failure as a notice and runs again on the next start. Never blocks startup.
     try:
-        from app.seed.sheet_seed import run_sheet_seed
+        from app.catalog.upgrade import run_catalog_migration
 
-        await run_sheet_seed(async_session)
+        await run_catalog_migration(async_session)
     except Exception:
-        _log.exception("Sheet type seeding failed; continuing without it")
+        _log.exception("Sheet type catalog step failed; continuing without it")
 
     # 2. Plugin registries (idempotent — skips already-registered names).
     # Re-run if the registry was cleared (e.g. by test fixtures that call
