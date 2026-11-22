@@ -192,6 +192,17 @@ Grocy can send its own labels (products, stock entries, chores, batteries and re
   </picture>
 </p>
 
+### Public web address of an integration
+
+Snipe-IT, Grocy and Spoolman each have a **Public web address** under **Settings > Integrations**: the address people open, which is often not the one the hub uses. The "Open in …" link on an item and, once it is set, the QR codes on printed labels use it. Without it no link is shown and printed codes stay as they are.
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/web-address-dark.png">
+    <img src="docs/screenshots/web-address-light.png" alt="The Snipe-IT card on the integrations page: the public web address, the badge Links shown, and the host the links open on.">
+  </picture>
+</p>
+
 ### Spoolman spool labels
 
 A Spoolman spool prints as a **Spool label**: vendor and colour codes, the material on a black bar, the filament name, print settings, spool data and a QR code back to the spool. It is made for the L4737REV sheet cell and for 62 mm QL endless tape, and drops parts in a fixed order on smaller cells. The bar can show the filament name instead of the material, and the keys of Spoolman's extra fields are settings ([details](https://labelyard.app/integrations/spoolman/)).

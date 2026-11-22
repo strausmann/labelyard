@@ -21,13 +21,15 @@ interface Props {
   /** Labels for enum choices, by value. */
   choiceLabels?: Record<string, string>;
   mono?: boolean;
+  /** A refusal shown under the field; marks it invalid. Only used by text-like fields. */
+  error?: string | null;
 }
 
 /**
  * One setting as a form control. Locked values (D4) are shown read-only with the reason;
  * secrets (D5) are write-only: the field starts empty and says whether a value is saved.
  */
-export function SettingField({ view, label, value, onChange, description, required, choiceLabels, mono }: Props) {
+export function SettingField({ view, label, value, onChange, description, required, choiceLabels, mono, error }: Props) {
   const { t } = useLingui();
   const locked = view.locked;
   const lockedHint = t`Set by the container`;
@@ -118,9 +120,20 @@ export function SettingField({ view, label, value, onChange, description, requir
       onChange={locked ? undefined : (v) => onChange(v)}
       type={view.kind === "url" ? "url" : "text"}
       readOnly={locked}
-      description={locked ? lockedHint : description}
+      description={error ? <ErrorLine text={error} extra={locked ? undefined : description} /> : locked ? lockedHint : description}
+      invalid={Boolean(error)}
       inputMode={numeric ? (view.kind === "int" ? "numeric" : "decimal") : view.kind === "url" ? "url" : undefined}
       mono={mono ?? view.kind === "url"}
     />
+  );
+}
+
+/** The refusal first, in the error colour with a word, not colour alone; the explanation stays below it. */
+function ErrorLine({ text, extra }: { text: string; extra?: string }) {
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="font-bold text-bad">{text}</span>
+      {extra ? <span>{extra}</span> : null}
+    </span>
   );
 }

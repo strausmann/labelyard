@@ -1260,6 +1260,11 @@ msgstr "Chore"
 msgid "Chosen automatically from the usable margin. You can change it."
 msgstr "Chosen automatically from the usable margin. You can change it."
 
+#: src/features/settings/Integrations.tsx
+msgctxt "public web address"
+msgid "Clear"
+msgstr "Clear"
+
 #: src/features/printers/model.ts
 msgctxt "tape colour"
 msgid "Clear"
@@ -2441,6 +2446,10 @@ msgstr "Leave empty if unknown."
 msgid "Leave empty to keep the prefix of the file."
 msgstr "Leave empty to keep the prefix of the file."
 
+#: src/features/settings/Integrations.tsx
+msgid "Leave out the part after “?” or “#”; the hub adds the item's path itself."
+msgstr "Leave out the part after “?” or “#”; the hub adds the item's path itself."
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "left margin"
 msgstr "left margin"
@@ -2523,6 +2532,14 @@ msgstr "Lines and scale"
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Lines for Grocy's config.php"
 msgstr "Lines for Grocy's config.php"
+
+#: src/features/settings/Integrations.tsx
+msgid "Links open on <0>{savedHost}</0>"
+msgstr "Links open on <0>{savedHost}</0>"
+
+#: src/features/settings/Integrations.tsx
+msgid "Links shown"
+msgstr "Links shown"
 
 #: src/shell/LiveStatus.tsx
 msgid "Live updates paused"
@@ -2896,6 +2913,10 @@ msgstr "No jobs yet."
 #: src/features/jobs/JobsPage.tsx
 msgid "No jobs."
 msgstr "No jobs."
+
+#: src/features/settings/Integrations.tsx
+msgid "No links shown"
+msgstr "No links shown"
 
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "No other sheet of this type has a free cell."
@@ -3817,6 +3838,10 @@ msgstr "Product ID or barcode."
 #: src/features/settings/sections.tsx
 msgid "Public URL"
 msgstr "Public URL"
+
+#: src/features/settings/Integrations.tsx
+msgid "Public web address"
+msgstr "Public web address"
 
 #: src/shell/PullToRefresh.tsx
 msgid "Pull down to reload"
@@ -4996,6 +5021,11 @@ msgstr "The address must start with ipp://, ipps://, http:// or https://."
 msgid "The address or the certificate setting is not valid."
 msgstr "The address or the certificate setting is not valid."
 
+#. placeholder {0}: NAMES[name]
+#: src/features/settings/Integrations.tsx
+msgid "The address people reach {0} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now."
+msgstr "The address people reach {0} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now."
+
 #: src/features/settings/Integrations.tsx
 msgid "The address redirects, often to a login page in front of the app. Use an address that reaches the app's API directly."
 msgstr "The address redirects, often to a login page in front of the app. Use an address that reaches the app's API directly."
@@ -6053,6 +6083,10 @@ msgstr "This is not a sheet type export file."
 msgid "This is not a valid sheet type export."
 msgstr "This is not a valid sheet type export."
 
+#: src/features/settings/Integrations.tsx
+msgid "This is not a valid web address."
+msgstr "This is not a valid web address."
+
 #: src/features/lookup/ItemView.tsx
 msgid "This item cannot be shown"
 msgstr "This item cannot be shown"
@@ -6428,6 +6462,14 @@ msgstr "Use a key with the print scope, restricted to the label printer. Grocy w
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Use a reserved cell instead"
 msgstr "Use a reserved cell instead"
+
+#: src/features/settings/Integrations.tsx
+msgid "Use an http or https address without a user name or password."
+msgstr "Use an http or https address without a user name or password."
+
+#: src/features/settings/Integrations.tsx
+msgid "Use at most 2048 characters."
+msgstr "Use at most 2048 characters."
 
 #. placeholder {0}: type.key
 #: src/features/archive/FeedbackLinks.tsx

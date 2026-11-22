@@ -21,6 +21,16 @@ Dieselben Werte lassen sich als Umgebungsvariablen setzen, zum Beispiel `LABELYA
 
 Ein Geheimnis gehört zu der Adresse, mit der es gespeichert wurde: Änderst du die Adresse einer App, gib ihr Geheimnis neu ein.
 
+## Öffentliche Webadresse
+
+Die Adresse, unter der der Hub eine App erreicht, ist oft intern (ein Containername oder ein Rechner im LAN) und nicht die, die Leute öffnen. Unter **Einstellungen > Integrationen** haben Snipe-IT, Grocy und Spoolman ein zweites Feld, die **Öffentliche Webadresse**: die Adresse, unter der Leute die App erreichen, zum Beispiel `https://inventar.example.com`. Paperless hat keines, weil der Hub keine Paperless-Einträge druckt.
+
+- **Links:** Der Link „In … öffnen“ an einem Eintrag entsteht daraus. Solange das Feld leer ist, gibt es keinen Link, und die Karte zeigt „Keine Links“.
+- **Gedruckte Codes:** Ist sie gesetzt, nutzen auch die QR-Codes auf gedruckten Etiketten sie, denn ein Code, den du mit dem Handy scannst, muss irgendwohin führen, wo das Handy hinkommt. Leer bleiben gedruckte Codes, wie sie sind.
+- **Vorschau:** Die Vorschau eines Eintrags zeichnet den Code, den auch der Druck trägt.
+- **Regeln:** http oder https, kein Benutzername und kein Passwort, kein `?` und kein `#`, höchstens 2048 Zeichen. Ein Schrägstrich am Ende fällt weg. Das Feld zeigt die Ablehnung schon beim Tippen, und Speichern bleibt aus, bis die Adresse gültig ist.
+- **Umgebung:** `LABELYARD_SNIPEIT_WEB_URL`, `LABELYARD_GROCY_WEB_URL` und `LABELYARD_SPOOLMAN_WEB_URL` setzen sie und sperren das Feld, wie die anderen Werte. Die interne Adresse sehen nur Admins.
+
 ## Einträge aus Skripten nachschlagen
 
 `GET /api/v1/lookup/{app}/{id}` liefert, was ein Plugin zu einer ID gefunden hat, ohne zu drucken; `POST /api/v1/print` mit einem Objekt `lookup` druckt in einem Schritt. Siehe die [API-Referenz](/de/developers/api/).

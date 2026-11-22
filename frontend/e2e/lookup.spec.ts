@@ -31,9 +31,8 @@ test.describe("lookup", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/asset/42");
     await expect(page.getByRole("heading", { level: 1, name: "Snipe-IT item" })).toBeVisible();
-    // #247: no web address is set for Snipe-IT here, so the hub answers no link (and none to an
-    // internal address).
-    await expect(page.getByRole("link", { name: "Open in Snipe-IT" })).toHaveCount(0);
+    // #247: the e2e hub gives Snipe-IT a public web address, so the link points there, never at the internal address.
+    await expect(page.getByRole("link", { name: "Open in Snipe-IT" })).toHaveAttribute("href", "https://assets.example.invalid/snipeit/42");
     const preview = page.getByRole("img", { name: "Label preview" });
     await expect(preview).toBeVisible();
     // The preview is a real picture from the layout engine, not a broken image.
@@ -52,6 +51,8 @@ test.describe("lookup", () => {
     // On the P-touch a Spoolman item starts on the default layout, not the spool label (#346).
     await expect(page.getByRole("combobox", { name: "Layout" })).toHaveValue("qr_two_lines");
     await expect(page.getByRole("img", { name: "Label preview" })).toBeVisible();
+    // Spoolman has no web address here, so there is no link to open.
+    await expect(page.getByRole("link", { name: "Open in Spoolman" })).toHaveCount(0);
     await shot(page, "task-12-item-phone.png");
     expect(await noSideScroll(page)).toBe(true);
   });

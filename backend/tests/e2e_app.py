@@ -21,7 +21,8 @@ Environment:
 - ``E2E_BOOTSTRAP=1``: start with no API keys and the one-time bootstrap key instead (D7);
   the file then holds the bootstrap key.
 
-The Grocy URL is set through the environment, so the settings UI has a locked field to test.
+The Grocy URL is set through the environment, so the settings UI has a locked field to test; so are the
+Snipe-IT URL and its public web address (#247).
 
 The module builds the app on import (like ``app.main``), because that is how uvicorn
 loads it. Importing it therefore needs the same settings ``app.main`` needs; they are
@@ -220,6 +221,11 @@ def _prepare_environment(workdir: Path) -> tuple[bool, Path | None]:
     os.environ.setdefault("LABELYARD_WEB_DIST_DIR", "../frontend/dist")
     # One integration URL comes from the container, so the settings UI has a locked field (D4).
     os.environ["LABELYARD_GROCY_URL"] = "http://grocy.example.invalid"
+    # Snipe-IT has a public web address (#247): the lookup answers a link and the settings page shows a locked
+    # field. The fake's codes lie under ``https://example.invalid``, so they rebase onto the public address.
+    # Spoolman has none, so its web address field is editable and empty.
+    os.environ["LABELYARD_SNIPEIT_URL"] = "https://example.invalid"
+    os.environ["LABELYARD_SNIPEIT_WEB_URL"] = "https://assets.example.invalid"
     if bootstrap:
         # A throw-away bootstrap key: at least 32 characters.
         os.environ["LABELYARD_BOOTSTRAP_ADMIN_KEY"] = "e2e-bootstrap-" + secrets.token_urlsafe(24)

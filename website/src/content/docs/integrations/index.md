@@ -21,6 +21,16 @@ The same values can be set as environment variables, for example `LABELYARD_SNIP
 
 A secret belongs to the address it was saved with: when you change an app's address, enter its secret again.
 
+## Public web address
+
+The address the hub uses to reach an app is often internal (a container name or a LAN host) and is not the one people open. Under **Settings > Integrations**, Snipe-IT, Grocy and Spoolman each have a second field, **Public web address**, for the address people reach the app on, for example `https://inventory.example.com`. Paperless has none, because the hub prints no Paperless items.
+
+- **Links:** the "Open in …" link on an item is built from it. While the field is empty there is no link, and the card says "No links shown".
+- **Printed codes:** once it is set, the QR codes on printed labels use it too, because a code scanned with a phone has to lead somewhere the phone can reach. Empty, printed codes stay as they are.
+- **Preview:** the preview of an item draws the code a print of it carries.
+- **Rules:** http or https, no user name or password, no `?` or `#`, at most 2048 characters. A trailing slash is dropped. The field shows the refusal while you type, and Save stays off until the address is valid.
+- **Environment:** `LABELYARD_SNIPEIT_WEB_URL`, `LABELYARD_GROCY_WEB_URL` and `LABELYARD_SPOOLMAN_WEB_URL` set it and lock the field, like the other values. The internal address stays visible to admins only.
+
 ## Looking items up from scripts
 
 `GET /api/v1/lookup/{app}/{id}` returns what a plugin found for an ID, without printing; `POST /api/v1/print` with a `lookup` object prints it in one step. See the [API reference](/developers/api/).

@@ -1260,6 +1260,11 @@ msgstr "Hausarbeit"
 msgid "Chosen automatically from the usable margin. You can change it."
 msgstr "Automatisch nach dem nutzbaren Rand gewählt. Du kannst es ändern."
 
+#: src/features/settings/Integrations.tsx
+msgctxt "public web address"
+msgid "Clear"
+msgstr "Leeren"
+
 #: src/features/printers/model.ts
 msgctxt "tape colour"
 msgid "Clear"
@@ -2441,6 +2446,10 @@ msgstr "Leer lassen, wenn unbekannt."
 msgid "Leave empty to keep the prefix of the file."
 msgstr "Leer lassen, um das Präfix der Datei zu behalten."
 
+#: src/features/settings/Integrations.tsx
+msgid "Leave out the part after “?” or “#”; the hub adds the item's path itself."
+msgstr "Lass den Teil ab „?“ oder „#“ weg; den Pfad des Eintrags ergänzt der Hub selbst."
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "left margin"
 msgstr "linken Rand"
@@ -2523,6 +2532,14 @@ msgstr "Linien und Skala"
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Lines for Grocy's config.php"
 msgstr "Zeilen für Grocys config.php"
+
+#: src/features/settings/Integrations.tsx
+msgid "Links open on <0>{savedHost}</0>"
+msgstr "Links öffnen auf <0>{savedHost}</0>"
+
+#: src/features/settings/Integrations.tsx
+msgid "Links shown"
+msgstr "Links werden gezeigt"
 
 #: src/shell/LiveStatus.tsx
 msgid "Live updates paused"
@@ -2896,6 +2913,10 @@ msgstr "Noch keine Aufträge."
 #: src/features/jobs/JobsPage.tsx
 msgid "No jobs."
 msgstr "Keine Aufträge."
+
+#: src/features/settings/Integrations.tsx
+msgid "No links shown"
+msgstr "Keine Links"
 
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "No other sheet of this type has a free cell."
@@ -3817,6 +3838,10 @@ msgstr "Produkt-ID oder Barcode."
 #: src/features/settings/sections.tsx
 msgid "Public URL"
 msgstr "Öffentliche URL"
+
+#: src/features/settings/Integrations.tsx
+msgid "Public web address"
+msgstr "Öffentliche Webadresse"
 
 #: src/shell/PullToRefresh.tsx
 msgid "Pull down to reload"
@@ -4996,6 +5021,11 @@ msgstr "Die Adresse muss mit ipp://, ipps://, http:// oder https:// beginnen."
 msgid "The address or the certificate setting is not valid."
 msgstr "Die Adresse oder die Zertifikatseinstellung ist nicht gültig."
 
+#. placeholder {0}: NAMES[name]
+#: src/features/settings/Integrations.tsx
+msgid "The address people reach {0} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now."
+msgstr "Die Adresse, unter der Leute {0} erreichen. Der Hub baut daraus die Links in der App — und, sobald sie gesetzt ist, auch die QR-Codes auf gedruckten Etiketten. Leer: Es wird kein Link gezeigt, und gedruckte Codes funktionieren wie bisher."
+
 #: src/features/settings/Integrations.tsx
 msgid "The address redirects, often to a login page in front of the app. Use an address that reaches the app's API directly."
 msgstr "Die Adresse wird weitergeleitet, meist auf eine Anmeldeseite vor der App. Verwende eine Adresse, die die API der App direkt erreicht."
@@ -6053,6 +6083,10 @@ msgstr "Das ist keine Exportdatei eines Bogentyps."
 msgid "This is not a valid sheet type export."
 msgstr "Das ist kein gültiger Export eines Bogentyps."
 
+#: src/features/settings/Integrations.tsx
+msgid "This is not a valid web address."
+msgstr "Das ist keine gültige Webadresse."
+
 #: src/features/lookup/ItemView.tsx
 msgid "This item cannot be shown"
 msgstr "Dieser Eintrag kann nicht angezeigt werden"
@@ -6428,6 +6462,14 @@ msgstr "Nimm einen Schlüssel mit dem Bereich print, beschränkt auf den Drucker
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Use a reserved cell instead"
 msgstr "Stattdessen reservierte Zelle nutzen"
+
+#: src/features/settings/Integrations.tsx
+msgid "Use an http or https address without a user name or password."
+msgstr "Nimm eine http- oder https-Adresse ohne Benutzername und Passwort."
+
+#: src/features/settings/Integrations.tsx
+msgid "Use at most 2048 characters."
+msgstr "Nimm höchstens 2048 Zeichen."
 
 #. placeholder {0}: type.key
 #: src/features/archive/FeedbackLinks.tsx

@@ -110,6 +110,13 @@ describe("ItemView", () => {
     await waitFor(() => expect(within(picker).getAllByRole("option")[0]).toHaveTextContent("Workshop PT-P750W · Tape printer · Problem"));
   });
 
+  it("no open link without url", async () => {
+    mockApi(routes("snipeit", "42", { "GET /api/v1/lookup/snipeit/42": item("snipeit", "42", { url: null }) }));
+    await renderApp({ path: "/asset/42" });
+    await screen.findByRole("heading", { level: 1, name: "Cordless drill" });
+    expect(screen.queryByRole("link", { name: /^Open in/ })).toBeNull();
+  });
+
   it("does not turn a script URL from the integration into a link", async () => {
     mockApi(routes("snipeit", "42", { "GET /api/v1/lookup/snipeit/42": item("snipeit", "42", { url: "javascript:alert(1)" }) }));
     await renderApp({ path: "/asset/42" });

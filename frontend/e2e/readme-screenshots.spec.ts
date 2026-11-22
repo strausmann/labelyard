@@ -29,6 +29,7 @@ import { signInWith } from "./fixtures";
  *   cart-sheet      cart-sheet
  *   cart-check      cart-check
  *   grocy-labels    grocy-labels
+ *   web-address     (desktop only, no website shot) the Snipe-IT card with its public web address (#247)
  *   notifications   notifications
  *   spool-label     (desktop only, no website shot) the spool label of a Spoolman item on the QL with 62 mm tape
  *   activate-back-side  (desktop only, no website shot) a 3490 sheet's code on the back: the first step
@@ -328,6 +329,22 @@ const VIEWS: View[] = [
       await expect(panel).toBeVisible();
       // Bring the panel's top below the sticky top bar.
       await panel.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88));
+    },
+  },
+  {
+    // #247: the Snipe-IT card with the public web address the e2e hub gets from the container (locked), the badge that says
+    // links are shown, and the host they open on.
+    name: "web-address",
+    phone: false,
+    only: "desktop",
+    site: false,
+    open: async (page) => {
+      await page.goto("/settings/integrations");
+      const card = page.getByRole("group", { name: "Snipe-IT" });
+      await expect(card.getByRole("textbox", { name: "Public web address" })).toHaveValue("https://assets.example.invalid");
+      await expect(card.getByText("Links shown")).toBeVisible();
+      // Bring the card's top below the sticky top bar.
+      await card.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88));
     },
   },
   {

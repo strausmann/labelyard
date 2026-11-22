@@ -17,6 +17,7 @@ import { GrocyLabelSettings } from "./GrocyLabelSettings";
 import { SettingField } from "./SettingField";
 import { Section, WithSettings } from "./sections";
 import { SPOOLMAN_LABEL_KEYS, SpoolmanLabelFields } from "./SpoolmanLabelFields";
+import { webUrlHost, webUrlProblem } from "./webUrl";
 
 type Integration = "snipeit" | "grocy" | "spoolman" | "paperless";
 const SECRET_SUFFIX: Record<Integration, string | null> = { snipeit: "api_key", grocy: "api_key", spoolman: null, paperless: "token" };
@@ -47,7 +48,13 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
   const secretKey = SECRET_SUFFIX[name] ? `integrations.${name}.${SECRET_SUFFIX[name]}` : null;
   const timeoutKey = `integrations.${name}.timeout`;
   // The spool label's fields (#346) are saved with the Spoolman card but are not part of the connection test.
-  const keys = [urlKey, ...(secretKey ? [secretKey] : []), timeoutKey, ...(name === "spoolman" ? SPOOLMAN_LABEL_KEYS : [])];
+  const webUrlKey = `integrations.${name}.web_url`;
+  // The connection: what the probe uses. The public web address and the spool label's fields (#346) are saved
+  // with the card but are not part of the connection test.
+  const connectionKeys = [urlKey, ...(secretKey ? [secretKey] : []), timeoutKey];
+  // Paperless prints no items, so its settings carry no web address and the field is not offered.
+  const webUrlView = draft.view(webUrlKey);
+  const keys = [...connectionKeys, ...(webUrlView ? [webUrlKey] : []), ...(name === "spoolman" ? SPOOLMAN_LABEL_KEYS : [])];
   const urlView = draft.view(urlKey);
   const secretView = secretKey ? draft.view(secretKey) : undefined;
   if (!urlView) return null;
@@ -57,7 +64,14 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
   const secretRequired = Boolean(secretView && !secretView.locked && secretView.is_set && urlChanged && draft.valueOf(secretKey!) === "");
 
   const { values, invalid } = draft.payload(keys);
-  const changed = Object.keys(values).length > 0;
+  const probe = draft.payload(connectionKeys);
+  // `changed` says whether the connection differs from what is saved; the web address does not touch a test result.
+  const changed = Object.keys(probe.values).length > 0;
+  const dirty = Object.keys(values).length > 0;
+  const webUrlNow = String(draft.valueOf(webUrlKey) ?? "");
+  const webUrlRefusal = webUrlView && !webUrlView.locked ? webUrlProblem(webUrlNow) : null;
+  const linksShown = Boolean(webUrlView?.is_set && String(webUrlView.value ?? "") !== "");
+  const savedHost = webUrlView ? webUrlHost(String(webUrlView.value ?? "")) : null;
   const savedInSettings = urlView.is_set && (!secretView || secretView.is_set);
   // One source with the sidebar: /api/v1/info says whether the integration is usable (Paperless has no entry there).
   const configured = info ? info.configured : savedInSettings;
@@ -82,6 +96,14 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
     : configured
       ? { state: "ok", label: t`Configured` }
       : { state: "idle", label: t`Not set up` };
+  const refusal = (problem: NonNullable<ReturnType<typeof webUrlProblem>>) =>
+    ({
+      scheme: t`Use an http or https address without a user name or password.`,
+      credentials: t`Use an http or https address without a user name or password.`,
+      query: t`Leave out the part after “?” or “#”; the hub adds the item's path itself.`,
+      length: t`Use at most 2048 characters.`,
+      invalid: t`This is not a valid web address.`,
+    })[problem];
   const label = (suffix: string) => ({ url: t`URL`, secret: SECRET_SUFFIX[name] === "token" ? t`Token` : t`API key`, timeout: t`Timeout (seconds)` })[suffix]!;
 
   const change = (key: string) => (value: string | boolean | null) => {
@@ -97,7 +119,10 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
         <h3 id={heading} className="text-section font-bold">
           {NAMES[name]}
         </h3>
-        <StatusBadge state={header.state} label={header.label} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <StatusBadge state={header.state} label={header.label} />
+          {webUrlView ? <StatusBadge state={linksShown ? "ok" : "idle"} label={linksShown ? t`Links shown` : t`No links shown`} /> : null}
+        </div>
       </div>
       {savedButUnusable ? (
         <p className="max-w-xl text-small text-ink-2">
@@ -109,6 +134,30 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
         {secretView && secretKey ? (
           <SettingField view={secretView} label={label("secret")} value={draft.valueOf(secretKey)} onChange={change(secretKey)} required={secretRequired} />
         ) : null}
+        {webUrlView ? (
+          <div className="flex flex-col gap-2">
+            <SettingField
+              view={webUrlView}
+              label={t`Public web address`}
+              value={draft.valueOf(webUrlKey)}
+              onChange={change(webUrlKey)}
+              description={t`The address people reach ${NAMES[name]} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now.`}
+              error={webUrlRefusal ? refusal(webUrlRefusal) : null}
+            />
+            {savedHost && !draft.isDirty(webUrlKey) ? (
+              <p className="text-small text-ink-2">
+                <Trans>
+                  Links open on <span className="font-mono text-ink">{savedHost}</span>
+                </Trans>
+              </p>
+            ) : null}
+            {!webUrlView.locked && (webUrlNow !== "" || linksShown) ? (
+              <Button onPress={() => change(webUrlKey)("")} className={`${SECONDARY_BUTTON} self-start`}>
+                {t({ message: "Clear", context: "public web address" })}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         {draft.view(timeoutKey) ? (
           <SettingField view={draft.view(timeoutKey)!} label={label("timeout")} value={draft.valueOf(timeoutKey)} onChange={change(timeoutKey)} />
         ) : null}
@@ -118,15 +167,15 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
         <Button
           onPress={() => {
             setTestedSignature(signature);
-            test.mutate(values);
+            test.mutate(probe.values);
           }}
-          isDisabled={testing || invalid.length > 0}
+          isDisabled={testing || probe.invalid.length > 0}
           className={SECONDARY_BUTTON}
         >
           {testing ? t`Testing…` : t`Test connection`}
         </Button>
         <Button
-          isDisabled={!changed || invalid.length > 0 || secretRequired || save.isPending}
+          isDisabled={!dirty || invalid.length > 0 || webUrlRefusal !== null || secretRequired || save.isPending}
           onPress={() => {
             setSaved(false);
             save.mutate(values, {
