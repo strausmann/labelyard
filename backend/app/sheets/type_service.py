@@ -35,6 +35,7 @@ from app.sheets.errors import (
     SheetTypeVersionNotFoundError,
     TextTooLongError,
     TypeExistsError,
+    TypeKeyReservedError,
 )
 from app.sheets.geometry import (
     Geometry,
@@ -43,7 +44,7 @@ from app.sheets.geometry import (
     normalise_shape,
     validate_geometry,
 )
-from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN, default_allow_qr
+from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN, RESERVED_TYPE_KEYS, default_allow_qr
 from app.sheets.text import check_http_url, log_value, sanitise_text
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,8 @@ async def create_type_locked(
     change_note = _clean_change_note(change_note)
     if not KEY_PATTERN.fullmatch(fields.key):
         raise InvalidFieldError("key", "invalid format")
+    if fields.key in RESERVED_TYPE_KEYS:
+        raise TypeKeyReservedError()
     _check_prefix(fields.prefix)
     validate_geometry(normalise_shape(geometry), on_write=True)
     if await repo.get_by_key(session, fields.key) is not None:
@@ -335,6 +338,8 @@ async def create_type(
     # Cheap input checks first so a bad request does not take the write lock.
     if not KEY_PATTERN.fullmatch(fields.key):
         raise InvalidFieldError("key", "invalid format")
+    if fields.key in RESERVED_TYPE_KEYS:
+        raise TypeKeyReservedError()
     _check_prefix(fields.prefix)
     validate_geometry(normalise_shape(geometry), on_write=True)
     _clean_fields(fields)
