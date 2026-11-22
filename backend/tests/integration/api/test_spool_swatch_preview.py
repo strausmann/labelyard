@@ -181,13 +181,14 @@ async def test_lookup_returns_extra_swatch(hub: Hub) -> None:
         "Orange",
     )
     assert body["extra"]["secondary"] == ["640g remaining"]
-    assert body["url"] == URL
+    # #247: no link without a web address; the payload the label prints is URL.
+    assert body["url"] is None
 
 
 async def test_preview_with_raw_swatch_renders_png(hub: Hub) -> None:
     async with hub.running() as (client, _):
         body = await _lookup(client)
-        image = await _preview_png(client, body["extra"]["swatch"], body["url"])
+        image = await _preview_png(client, body["extra"]["swatch"], URL)
     assert image.size == (696, 425)
 
 
@@ -197,11 +198,11 @@ async def test_preview_on_the_other_dk_widths(hub: Hub) -> None:
     async with hub.running() as (client, _):
         body = await _lookup(client)
         for tape_mm, side in ((29, "w"), (38, "h"), (50, "h"), (54, "w")):
-            image = await _preview_png(client, body["extra"]["swatch"], body["url"], tape_mm)
+            image = await _preview_png(client, body["extra"]["swatch"], URL, tape_mm)
             dots = SWATCH_TAPES[tape_mm].dots
             assert (image.width if side == "w" else image.height) == dots, tape_mm
             swatch = SpoolSwatch.model_validate(body["extra"]["swatch"])
-            expected = render_tape_swatch(swatch, body["url"], tape_mm)
+            expected = render_tape_swatch(swatch, URL, tape_mm)
             assert image.convert("1").tobytes() == expected.tobytes(), tape_mm
 
 
@@ -225,12 +226,12 @@ async def test_raw_print_with_swatch_renders(hub: Hub) -> None:
             "/api/v1/print",
             json={
                 "content_type": "spool_swatch",
-                "data": {"qr_payload": body["url"], "swatch": body["extra"]["swatch"]},
+                "data": {"qr_payload": URL, "swatch": body["extra"]["swatch"]},
             },
         )
         assert r.status_code == 202, r.text
         await _done(r.json()["job_id"])
-    label = LabelData(source_app="manual", qr_payload=body["url"], swatch=body["extra"]["swatch"])
+    label = LabelData(source_app="manual", qr_payload=URL, swatch=body["extra"]["swatch"])
     assert label.swatch is not None
     expected = render_tape_swatch(label.swatch, URL)
     assert hub.backend.printed_images[-1].tobytes() == expected.tobytes()
@@ -260,7 +261,7 @@ async def _lookup_job(client: AsyncClient) -> DbJob:
 async def test_preview_equals_the_print_job_image(hub: Hub) -> None:
     async with hub.running() as (client, _):
         body = await _lookup(client)
-        preview = await _preview_png(client, body["extra"]["swatch"], body["url"])
+        preview = await _preview_png(client, body["extra"]["swatch"], URL)
         row = await _lookup_job(client)
     assert row.payload["options"]["orientation"] == "across"
     printed = hub.backend.printed_images[-1]

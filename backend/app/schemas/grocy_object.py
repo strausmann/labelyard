@@ -25,7 +25,13 @@ class GrocyBatteryResult(BaseModel):
     id: str = Field(description="The battery id")
     name: str = Field(description="The battery's name")
     description: str | None = Field(default=None, description="The description, when one is set")
-    url: str | None = Field(default=None, description="The battery's page in Grocy's web UI")
+    url: str | None = Field(
+        default=None,
+        description=(
+            "The battery's page under Grocy's web address (``integrations.grocy.web_url``); "
+            "null without one"
+        ),
+    )
     last_charged: datetime | None = Field(
         default=None, description=f"When it was last charged. {_DATE}"
     )
@@ -44,7 +50,13 @@ class GrocyChoreResult(BaseModel):
     id: str = Field(description="The chore id")
     name: str = Field(description="The chore's name")
     description: str | None = Field(default=None, description="The description, when one is set")
-    url: str | None = Field(default=None, description="The chore's page in Grocy's web UI")
+    url: str | None = Field(
+        default=None,
+        description=(
+            "The chore's page under Grocy's web address (``integrations.grocy.web_url``); "
+            "null without one"
+        ),
+    )
     last_tracked: datetime | None = Field(
         default=None, description=f"When it was last done. {_DATE}"
     )

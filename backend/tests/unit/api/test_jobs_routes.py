@@ -495,8 +495,15 @@ async def test_list_jobs_direct_returns_all(session) -> None:
     j1 = await _make_job(session, printer.id, state=JobState.QUEUED.value)
     j2 = await _make_job(session, printer.id, state=JobState.DONE.value)
 
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
     result = await list_jobs(
-        session=session, _auth=None, state=None, printer_id=None, since=None, limit=50
+        request=request,  # type: ignore[arg-type]
+        session=session,
+        _auth=None,
+        state=None,
+        printer_id=None,
+        since=None,
+        limit=50,
     )
 
     assert len(result) == 2

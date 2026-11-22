@@ -560,7 +560,7 @@ export interface paths {
         };
         /**
          * Resolve an integration entity
-         * @description Looks up an entity from the given integration app by its identifier.  ``app`` must be one of ``snipeit``, ``grocy``, or ``spoolman`` — an unsupported value returns 422.  Returns 404 ProblemDetail when the entity does not exist in the integration's backend.  The ``url`` field is the deep-link to the entity in the integration's own web UI, suitable for embedding in a QR code or label.
+         * @description Looks up an entity from the given integration app by its identifier.  ``app`` must be one of ``snipeit``, ``grocy``, or ``spoolman`` — an unsupported value returns 422.  Returns 404 ProblemDetail when the entity does not exist in the integration's backend.  The ``url`` field is the deep-link to the entity under the integration's public web address (``integrations.<app>.web_url``); it is ``null`` while no web address is set.
          */
         get: operations["lookup_api_v1_lookup__app___entity_id__get"];
         put?: never;
@@ -1089,7 +1089,7 @@ export interface paths {
         put?: never;
         /**
          * Render a label preview as PNG
-         * @description Render a label using the LayoutEngine and return the result as a PNG image (no printer interaction, no job created).  Useful for UI preview and debugging.  Renders through the same engine call as a print job, so ``orientation`` and ``layout_preset`` give the exact image the job would print (an ``along`` image is the landscape band before the printer backend rotates it).  Returns 422 when ``data`` is missing fields required by ``content_type`` or the QR payload does not fit the fixed QR code (``qr_payload_too_long``).  Returns 409 when ``tape_mm`` is not a supported tape width or the orientation is not available for it.
+         * @description Render a label using the LayoutEngine and return the result as a PNG image (no printer interaction, no job created).  Useful for UI preview and debugging.  Renders through the same engine call as a print job, so ``orientation`` and ``layout_preset`` give the exact image the job would print (an ``along`` image is the landscape band before the printer backend rotates it).  Returns 422 when ``data`` is missing fields required by ``content_type`` or the QR payload does not fit the fixed QR code (``qr_payload_too_long``).  Returns 409 when ``tape_mm`` is not a supported tape width or the orientation is not available for it.  With ``item`` the server looks the item up (the same lookup, errors and rate limit as ``GET /api/v1/lookup/{app}/{id}``: 404, 422, 502, 503) and draws the QR payload a print of the item carries; a ``data.qr_payload`` sent with it is ignored.  A caller that cannot print (read scope) gets that code only under the integration's web address; while there is none, the image carries a stand-in code of the same size and the answer the header ``X-Labelyard-QR: withheld``.  Without ``item`` the label is drawn from ``data`` as sent.
          */
         post: operations["render_preview_api_v1_render_preview_post"];
         delete?: never;
@@ -2301,7 +2301,7 @@ export interface components {
             next_estimated_charge?: string | null;
             /**
              * Url
-             * @description The battery's page in Grocy's web UI
+             * @description The battery's page under Grocy's web address (``integrations.grocy.web_url``); null without one
              */
             url?: string | null;
         };
@@ -2342,7 +2342,7 @@ export interface components {
             next_estimated_execution?: string | null;
             /**
              * Url
-             * @description The chore's page in Grocy's web UI
+             * @description The chore's page under Grocy's web address (``integrations.grocy.web_url``); null without one
              */
             url?: string | null;
         };
@@ -2915,6 +2915,22 @@ export interface components {
              * @description Text had to be shortened to fit.
              */
             truncated: boolean;
+        };
+        /**
+         * PreviewItem
+         * @description The integration item a preview draws (#247): the server computes its QR payload.
+         */
+        PreviewItem: {
+            /**
+             * App
+             * @description The integration (``snipeit``, ``grocy``, …)
+             */
+            app: string;
+            /**
+             * Id
+             * @description The item, as for the lookup
+             */
+            id: string;
         };
         /** PreviewPage */
         PreviewPage: {
@@ -4917,6 +4933,7 @@ export interface components {
         _PreviewRequest: {
             content_type: components["schemas"]["ContentType"];
             data: components["schemas"]["RawLabelData"];
+            item?: components["schemas"]["PreviewItem"] | null;
             layout_preset?: components["schemas"]["QlLayoutPreset"] | null;
             orientation?: components["schemas"]["LabelOrientation"] | null;
             /**
@@ -7586,11 +7603,20 @@ export interface operations {
             /** @description PNG label bitmap */
             200: {
                 headers: {
+                    /** @description ``withheld``: a stand-in QR (read scope, no web address) */
+                    "X-Labelyard-QR"?: "withheld";
                     [name: string]: unknown;
                 };
                 content: {
                     "image/png": unknown;
                 };
+            };
+            /** @description ``item`` names an item the integration does not have */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Unsupported tape width or orientation */
             409: {
@@ -7601,6 +7627,20 @@ export interface operations {
             };
             /** @description Data missing required fields, or QR payload too long */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ``item``: the integration failed or could not be reached */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ``item``: the integration is not configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

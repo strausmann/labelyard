@@ -37,6 +37,9 @@ webhook_limit_per_minute:
 snipeit_url:
   en: 'Snipe-IT base address.'
   de: 'Basisadresse von Snipe-IT.'
+snipeit_web_url:
+  en: 'Public address of Snipe-IT that people open, for example `https://snipeit.example.com`. Links in the web UI and the QR codes printed for Snipe-IT items use it; empty: no link, and printed codes keep the base address. http or https, no user name or password.'
+  de: 'Öffentliche Adresse von Snipe-IT, die Menschen öffnen, zum Beispiel `https://snipeit.example.com`. Links in der Weboberfläche und die QR-Codes, die für Snipe-IT-Einträge gedruckt werden, nutzen sie; leer: kein Link, gedruckte Codes behalten die Basisadresse. http oder https, ohne Benutzername und Passwort.'
 snipeit_api_key:
   en: 'Snipe-IT API token (bearer).'
   de: 'API-Token von Snipe-IT (Bearer).'
@@ -46,6 +49,9 @@ snipeit_timeout:
 grocy_url:
   en: 'Grocy base address.'
   de: 'Basisadresse von Grocy.'
+grocy_web_url:
+  en: 'Public address of Grocy that people open, for example `https://grocy.example.com`. Links in the web UI and the QR codes printed for Grocy items use it; empty: no link, and printed codes keep the base address. http or https, no user name or password.'
+  de: 'Öffentliche Adresse von Grocy, die Menschen öffnen, zum Beispiel `https://grocy.example.com`. Links in der Weboberfläche und die QR-Codes, die für Grocy-Einträge gedruckt werden, nutzen sie; leer: kein Link, gedruckte Codes behalten die Basisadresse. http oder https, ohne Benutzername und Passwort.'
 grocy_api_key:
   en: 'Grocy API key.'
   de: 'API-Schlüssel von Grocy.'
@@ -55,6 +61,9 @@ grocy_timeout:
 spoolman_url:
   en: 'Spoolman base address. Spoolman needs no key.'
   de: 'Basisadresse von Spoolman. Spoolman braucht keinen Schlüssel.'
+spoolman_web_url:
+  en: 'Public address of Spoolman that people open, for example `https://spoolman.example.com`. Links in the web UI and the QR codes printed for Spoolman items use it; empty: no link, and printed codes keep the base address. http or https, no user name or password.'
+  de: 'Öffentliche Adresse von Spoolman, die Menschen öffnen, zum Beispiel `https://spoolman.example.com`. Links in der Weboberfläche und die QR-Codes, die für Spoolman-Einträge gedruckt werden, nutzen sie; leer: kein Link, gedruckte Codes behalten die Basisadresse. http oder https, ohne Benutzername und Passwort.'
 spoolman_timeout:
   en: 'Seconds to wait for Spoolman.'
   de: 'Sekunden, die auf Spoolman gewartet wird.'

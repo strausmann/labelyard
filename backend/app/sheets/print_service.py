@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.calibration import service as calibration_service
 from app.config import get_settings
+from app.integrations.links import bound_settings, printed_label
 from app.models.job import Job
 from app.models.print_batch import PrintBatch
 from app.models.printer import Printer, is_page_printer
@@ -409,7 +410,9 @@ async def resolve_items(
 
     async def gated(request: PrintLookupRequest) -> LabelData:
         async with gate:
-            return await lookup.lookup(request.app, request.identifier)
+            found = await lookup.lookup(request.app, request.identifier)
+        # ADR 0033: the printed code follows the integration's web address once it is set.
+        return printed_label(request.app, request.identifier, found, bound_settings())
 
     async def fetch(request: PrintLookupRequest) -> LabelData:
         return await deadline.run(gated(request))

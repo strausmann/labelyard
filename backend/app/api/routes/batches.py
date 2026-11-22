@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.job_views import job_read
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.ownership import may_see
 from app.auth.scope_deps import require_print, require_read
@@ -26,7 +27,6 @@ from app.schemas.batch_read import (
     ReprintResponse,
     TapeRunRead,
 )
-from app.schemas.job import JobRead
 from app.services.print_queue import PrintQueue, RunInfo, RunStateError
 
 router = APIRouter(prefix="/api/v1/batches", tags=["batches"])
@@ -126,7 +126,7 @@ async def get_batch(
         printer_id=batch.printer_id,
         created_by=batch.created_by,
         created_at=batch.created_at,
-        jobs=[JobRead.model_validate(j) for j in ordered],
+        jobs=[job_read(j, _auth, http) for j in ordered],
         summary=summary,
         run=None if queue is None else _run_read(queue.run_info(batch.id)),
     )

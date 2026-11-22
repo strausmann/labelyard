@@ -42,6 +42,7 @@ A guard test (`backend/tests/unit/test_decision_register.py`) fails if a `D<n>` 
 | D27 | A tape print counts only when the printer confirms it (IPP job state or SNMP label counter); an unknown outcome pauses the printer | 2026-11-18 | Accepted | [0030](0030-confirmed-tape-prints.md) |
 | D28 | Every migration has a downgrade; the way back from a release is its downgrade or the backup; new job payload fields go only into containers that ignore unknown keys | 2026-11-21 | Proposed | [0034](0034-database-migrations-and-the-way-back.md) |
 | D29 | A printer that could not be wired reports `wiring` and a fixed `wiring_reason` code on its read; the state is kept in memory and never carries the error text (#401) | 2026-11-21 | Accepted | [0024](0024-runtime-printer-wiring-and-hardware-identity.md) |
+| D30 | Printed QR payloads of integration items are computed by the server (`qr_payload_for`) and follow `web_url` once set; no internal integration base address reaches a non-admin response, job answers included (#247) | 2026-11-22 | Proposed | [0033](0033-server-computed-qr-payloads-and-internal-addresses.md) |
 | V1 | Media type `labels` is settable on the test printer via `media-col` | 2026-11-06 | To verify | — |
 | V2 | L4731REV has no vertical gap (pitch 10 mm) | 2026-11-05 | To verify | — |
 | V3 | A QR does not scan reliably on 25.4 × 10 mm cells | 2026-11-05 | To verify | — |

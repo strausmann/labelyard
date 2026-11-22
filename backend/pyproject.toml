@@ -58,6 +58,8 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "types-PyYAML>=6.0",
+    # Decodes the QR of rendered labels in tests (#247); Apache-2.0, compatible with AGPL-3.0.
+    "zxing-cpp==3.1.1",
 ]
 
 [project.scripts]

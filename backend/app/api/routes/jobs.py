@@ -52,6 +52,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.identity_hold import ensure_not_held
+from app.api.job_views import job_read
 from app.api.routes.sheet_common import actor
 from app.auth.dependencies import AuthContext
 from app.auth.ownership import may_see, owner_only
@@ -173,6 +174,7 @@ async def _get_job_or_404(
     ),
 )
 async def list_jobs(
+    request: Request,
     session: SessionDep,
     _auth: ReadAuthDep,
     state: StateQuery = None,
@@ -202,7 +204,7 @@ async def list_jobs(
         api_key_id=owner,
         order=order,
     )
-    return [JobRead.model_validate(r, from_attributes=True) for r in rows]
+    return [job_read(r, _auth, request) for r in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -221,13 +223,14 @@ async def list_jobs(
     ),
 )
 async def get_job(
+    request: Request,
     job_id: UUID,
     session: SessionDep,
     _auth: ReadAuthDep,
 ) -> JobRead:
     """Return a single job by ID."""
     job = await _get_job_or_404(session, job_id, _auth)
-    return JobRead.model_validate(job, from_attributes=True)
+    return job_read(job, _auth, request)
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +276,7 @@ async def cancel_job(
     if job_state != JobState.QUEUED.value and not at_printer:
         raise _cancel_conflict(job_state)
     if tracked and queue is not None:
-        return await _cancel_tracked(session, job, queue, job_id)
+        return await _cancel_tracked(request, _auth, session, job, queue, job_id)
     # The queue does not hold the job (a deferred Grocy job before its hand-off, #281). The
     # write is guarded: if the task handed the job to the queue since ``has_job`` above, the
     # row is not touched and the cancel goes through the queue (review I-1). The hand-off
@@ -284,7 +287,7 @@ async def cancel_job(
     while cancelled is None:
         if queue is not None and queue.has_job(job_id):
             await session.refresh(job)
-            return await _cancel_tracked(session, job, queue, job_id)
+            return await _cancel_tracked(request, _auth, session, job, queue, job_id)
         await session.refresh(job)
         if job.state != JobState.QUEUED.value:
             raise _cancel_conflict(job.state)
@@ -306,14 +309,19 @@ async def cancel_job(
         from_state=JobState.QUEUED.value,
         to_state=JobState.CANCELLED.value,
     )
-    return JobRead.model_validate(cancelled, from_attributes=True)
+    return job_read(cancelled, _auth, request)
 
 
 _HAND_OFF_WAIT_S = 1.0
 
 
 async def _cancel_tracked(
-    session: AsyncSession, job: Job, queue: Any, job_id: UUID
+    request: Request,
+    auth: AuthContext | None,
+    session: AsyncSession,
+    job: Job,
+    queue: Any,
+    job_id: UUID,
 ) -> JobRead | JSONResponse:
     # The queue transitions the in-memory job (the state the worker gates on)
     # and persists the cancellation.  False = the worker took the job first
@@ -322,7 +330,7 @@ async def _cancel_tracked(
         live = await queue.get(job_id)
         raise _cancel_conflict(live.state.value)
     await session.refresh(job)
-    read = JobRead.model_validate(job, from_attributes=True)
+    read = job_read(job, auth, request)
     # Requested at the printer, not yet final. The row may still say ``queued``: the worker
     # moved the page job to PRINTING in memory and has not written it yet (265-07).
     requested = job.state == JobState.PRINTING.value or (
@@ -535,7 +543,7 @@ async def retry_job(
                 "Printer is not available to the print queue",
                 f"Printer {job.printer_id} is not known to the print queue",
             ) from exc
-    return JobRead.model_validate(new_job, from_attributes=True)
+    return job_read(new_job, _auth, request)
 
 
 def _is_unfinished_deferred(payload: dict[str, Any]) -> bool:
@@ -600,7 +608,7 @@ async def _retry_deferred_job(
             "Printer is not available to the print queue",
             f"Job {new_id} could not be read back",
         )
-    return JobRead.model_validate(new_job, from_attributes=True)
+    return job_read(new_job, auth, request)
 
 
 _SHEET_LABEL_GONE = (
@@ -665,7 +673,7 @@ async def _retry_deferred_sheet(
     new_job = await jobs_repo.get(session, new_id)
     if new_job is None:  # pragma: no cover - the row is inserted before ``accept`` returns
         raise _printer_unavailable(job.printer_id)
-    return JobRead.model_validate(new_job, from_attributes=True)
+    return job_read(new_job, auth, request)
 
 
 async def _retry_page_job(
@@ -712,7 +720,7 @@ async def _retry_page_job(
         raise exc.to_http() from exc
     except KeyError as exc:
         raise _printer_unavailable(job.printer_id) from exc
-    return await _read_new_job(session, new_id, job.printer_id)
+    return await _read_new_job(request, auth, session, new_id, job.printer_id)
 
 
 async def _retry_sheet_page(
@@ -741,7 +749,7 @@ async def _retry_sheet_page(
         raise exc.to_http() from None
     except ValueError as exc:  # the stored payload does not describe a sheet page
         raise _stored_page_invalid() from exc
-    return await _read_new_job(session, new_id, job.printer_id)
+    return await _read_new_job(request, auth, session, new_id, job.printer_id)
 
 
 async def _ensure_back_side_sheet(session: AsyncSession, payload: dict[str, Any]) -> None:
@@ -772,11 +780,17 @@ def _stored_page_invalid() -> HTTPException:
     )
 
 
-async def _read_new_job(session: AsyncSession, new_id: UUID, printer_id: UUID) -> JobRead:
+async def _read_new_job(
+    request: Request,
+    auth: AuthContext | None,
+    session: AsyncSession,
+    new_id: UUID,
+    printer_id: UUID,
+) -> JobRead:
     new_job = await jobs_repo.get(session, new_id)
     if new_job is None:  # pragma: no cover - the queue persisted it before returning
         raise _printer_unavailable(printer_id)
-    return JobRead.model_validate(new_job, from_attributes=True)
+    return job_read(new_job, auth, request)
 
 
 def _printer_unavailable(printer_id: UUID) -> HTTPException:

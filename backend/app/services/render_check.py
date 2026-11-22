@@ -15,6 +15,7 @@ import logging
 from collections.abc import Awaitable
 from typing import Protocol
 
+from app.integrations.links import bound_settings, printed_label
 from app.printer_backends.exceptions import (
     ContentTypeDataMismatchError,
     QrPayloadTooLongError,
@@ -94,7 +95,9 @@ async def check_items(request: RenderCheckRequest, lookups: _Lookups) -> RenderC
 
     async def _gated(app: str, identifier: str) -> LabelData:
         async with gate:
-            return await lookups.lookup(app, identifier)
+            found = await lookups.lookup(app, identifier)
+        # ADR 0033: checked with the code a print carries (it can be longer than the internal one).
+        return printed_label(app, identifier, found, bound_settings())
 
     async def _checked(key: _Key) -> _Verdict:
         app, identifier, content_type = key

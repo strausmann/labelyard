@@ -127,16 +127,19 @@ class Settings(BaseSettings):
 
     # Snipe-IT integration (optional)
     snipeit_url: str = ""
+    snipeit_web_url: str = ""
     snipeit_api_key: SecretStr = SecretStr("")
     snipeit_timeout: float = 5.0
 
     # Grocy integration (optional)
     grocy_url: str = ""
+    grocy_web_url: str = ""
     grocy_api_key: SecretStr = SecretStr("")
     grocy_timeout: float = 5.0
 
     # Spoolman integration (no API key needed)
     spoolman_url: str = ""
+    spoolman_web_url: str = ""
     spoolman_timeout: float = 5.0
     spoolman_label_title_source: Literal["material", "name"] = "material"
     """What the swatch label's black bar shows (#346): the filament's ``material`` (default)
