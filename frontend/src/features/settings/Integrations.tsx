@@ -22,7 +22,8 @@ import { webUrlHost, webUrlProblem } from "./webUrl";
 type Integration = "snipeit" | "grocy" | "spoolman" | "paperless";
 const SECRET_SUFFIX: Record<Integration, string | null> = { snipeit: "api_key", grocy: "api_key", spoolman: null, paperless: "token" };
 const NAMES: Record<Integration, string> = { snipeit: "Snipe-IT", grocy: "Grocy", spoolman: "Spoolman", paperless: "Paperless" };
-const ORDER: Integration[] = ["paperless", "snipeit", "grocy", "spoolman"];
+// The order of the approved mockup (M11): the integrations that print items first, Paperless last.
+const ORDER: Integration[] = ["snipeit", "grocy", "spoolman", "paperless"];
 
 const isRedirect = (status: number | null | undefined): boolean => status != null && status >= 300 && status < 400;
 
@@ -47,7 +48,6 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
   const urlKey = `integrations.${name}.url`;
   const secretKey = SECRET_SUFFIX[name] ? `integrations.${name}.${SECRET_SUFFIX[name]}` : null;
   const timeoutKey = `integrations.${name}.timeout`;
-  // The spool label's fields (#346) are saved with the Spoolman card but are not part of the connection test.
   const webUrlKey = `integrations.${name}.web_url`;
   // The connection: what the probe uses. The public web address and the spool label's fields (#346) are saved
   // with the card but are not part of the connection test.
@@ -100,15 +100,20 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
     ({
       scheme: t`Use an http or https address without a user name or password.`,
       credentials: t`Use an http or https address without a user name or password.`,
+      host: t`Add the host name after https://.`,
       query: t`Leave out the part after “?” or “#”; the hub adds the item's path itself.`,
       length: t`Use at most 2048 characters.`,
       invalid: t`This is not a valid web address.`,
     })[problem];
-  const label = (suffix: string) => ({ url: t`URL`, secret: SECRET_SUFFIX[name] === "token" ? t`Token` : t`API key`, timeout: t`Timeout (seconds)` })[suffix]!;
+  const label = (suffix: string) => ({ url: t`Address the hub uses`, secret: SECRET_SUFFIX[name] === "token" ? t`Token` : t`API key`, timeout: t`Timeout (seconds)` })[suffix]!;
+
+  // The variable that sets a value of this integration, as the operator writes it (LABELYARD_SNIPEIT_URL).
+  const envName = (suffix: string) => `LABELYARD_${name.toUpperCase()}_${suffix}`;
 
   const change = (key: string) => (value: string | boolean | null) => {
     setSaved(false);
-    test.reset();
+    // The web address is not part of the connection: editing it leaves the test result as it is.
+    if (key !== webUrlKey) test.reset();
     draft.set(key, value);
   };
 
@@ -119,21 +124,23 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
         <h3 id={heading} className="text-section font-bold">
           {NAMES[name]}
         </h3>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <StatusBadge state={header.state} label={header.label} />
-          {webUrlView ? <StatusBadge state={linksShown ? "ok" : "idle"} label={linksShown ? t`Links shown` : t`No links shown`} /> : null}
-        </div>
+        {webUrlView ? <StatusBadge state={webUrlRefusal ? "bad" : linksShown ? "ok" : "idle"} label={webUrlRefusal ? t`Not saved` : linksShown ? t`Links shown` : t`No links shown`} /> : null}
       </div>
+      <p className="-mt-3 text-small text-ink-2">{header.label}</p>
       {savedButUnusable ? (
         <p className="max-w-xl text-small text-ink-2">
           {t`Saved values exist, but this integration cannot be used yet. A secret may belong to another URL or may not be readable with the current secret key, or the URL is missing. Enter the secret again.`}
         </p>
       ) : null}
       <div className="grid max-w-xl gap-5">
-        <SettingField view={urlView} label={label("url")} value={draft.valueOf(urlKey)} onChange={change(urlKey)} />
-        {secretView && secretKey ? (
-          <SettingField view={secretView} label={label("secret")} value={draft.valueOf(secretKey)} onChange={change(secretKey)} required={secretRequired} />
-        ) : null}
+        <SettingField
+          view={urlView}
+          label={label("url")}
+          value={draft.valueOf(urlKey)}
+          onChange={change(urlKey)}
+          description={t`Internal. Only admins see this address.`}
+          envName={envName("URL")}
+        />
         {webUrlView ? (
           <div className="flex flex-col gap-2">
             <SettingField
@@ -143,6 +150,7 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
               onChange={change(webUrlKey)}
               description={t`The address people reach ${NAMES[name]} on. The hub builds the links in the app from it, and — once it is set — the QR codes on printed labels too. Empty: no link is shown, and printed codes keep working as they do now.`}
               error={webUrlRefusal ? refusal(webUrlRefusal) : null}
+              envName={envName("WEB_URL")}
             />
             {savedHost && !draft.isDirty(webUrlKey) ? (
               <p className="text-small text-ink-2">
@@ -157,6 +165,9 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
               </Button>
             ) : null}
           </div>
+        ) : null}
+        {secretView && secretKey ? (
+          <SettingField view={secretView} label={label("secret")} value={draft.valueOf(secretKey)} onChange={change(secretKey)} required={secretRequired} />
         ) : null}
         {draft.view(timeoutKey) ? (
           <SettingField view={draft.view(timeoutKey)!} label={label("timeout")} value={draft.valueOf(timeoutKey)} onChange={change(timeoutKey)} />
@@ -192,7 +203,7 @@ function IntegrationCard({ name, views }: { name: Integration; views: SettingVie
       </div>
       {test.isPending || !resultCurrent ? null : test.isSuccess ? (
         <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <StatusBadge state={test.data.ok ? "ok" : "bad"} label={test.data.ok ? t`Works` : t`Failed`} />
+          <span className={`text-small font-bold ${test.data.ok ? "text-ok" : "text-bad"}`}>{test.data.ok ? t`Works` : t`Failed`}</span>
           {test.data.ok ? null : (
             <>
               {test.data.status ? <span className="font-mono text-small text-ink-2">{t`HTTP ${test.data.status}`}</span> : null}
@@ -262,6 +273,23 @@ function ClientList() {
   );
 }
 
+/** What the public web address is for (M11): shown once above the cards, not repeated in each. */
+function WebAddressNote() {
+  const { t } = useLingui();
+  return (
+    <div role="note" className="flex gap-3 rounded-r2 bg-info-soft p-3 text-small text-ink">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false" className="mt-0.5 shrink-0 fill-none stroke-link" strokeWidth="1.6">
+        <circle cx="10" cy="10" r="8" />
+        <path d="M10 9v5M10 6.2v.1" />
+      </svg>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <strong>{t`Public web address`}</strong>
+        <span>{t`Where an item's page lives for people, for example on your own domain. Without it the hub shows no "Open in" link. It never changes the address the hub itself uses to reach the integration.`}</span>
+      </div>
+    </div>
+  );
+}
+
 export function Integrations() {
   const { t } = useLingui();
   return (
@@ -273,6 +301,7 @@ export function Integrations() {
         <WithSettings>
           {(views) => (
             <div className="flex flex-col gap-5">
+              <WebAddressNote />
               <div className="grid gap-5 xl:grid-cols-2">
                 {ORDER.map((name) => (
                   <IntegrationCard key={name} name={name} views={views} />

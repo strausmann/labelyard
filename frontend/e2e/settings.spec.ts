@@ -63,10 +63,10 @@ test.describe.serial("settings", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/settings/integrations");
     const grocy = page.getByRole("group", { name: "Grocy" });
-    const url = grocy.getByRole("textbox", { name: "URL" });
+    const url = grocy.getByRole("textbox", { name: "Address the hub uses" });
     await expect(url).toHaveValue("http://grocy.example.invalid");
     await expect(url).toHaveAttribute("readonly", "");
-    await expect(grocy.getByText("Set by the container")).toBeVisible();
+    await expect(grocy.getByText("Set by LABELYARD_GROCY_URL")).toBeVisible();
     await url.click({ force: true });
     await page.keyboard.type("x");
     await expect(url).toHaveValue("http://grocy.example.invalid");

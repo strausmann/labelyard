@@ -45,6 +45,8 @@ export interface Semantic {
   /** The lines of the hatch on reserved cells: 3:1 against accent-soft, which the plain accent misses in the light theme. */
   "reserved-line": string;
   link: string;
+  /** The ground of an informational note (M11); text on it is `ink`. */
+  "info-soft": string;
   ok: string;
   warn: string;
   bad: string;
@@ -66,6 +68,7 @@ export const themes: { light: Semantic; dark: Semantic } = {
     "cell-number": "#4F6490",
     "reserved-line": "#A5691A",
     link: primitives["stamp-600"],
+    "info-soft": primitives["stamp-100"],
     ok: primitives["green-600"],
     warn: primitives["orange-600"],
     bad: primitives["red-600"],
@@ -85,6 +88,7 @@ export const themes: { light: Semantic; dark: Semantic } = {
     "cell-number": "#93A6CC",
     "reserved-line": "#E2A445",
     link: "#8FAEE6",
+    "info-soft": "#25324D",
     ok: "#6CC58F",
     warn: "#E39A4F",
     bad: "#EE8579",

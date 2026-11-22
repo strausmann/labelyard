@@ -46,6 +46,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   --cell-number: #4F6490;
   --reserved-line: #A5691A;
   --link: var(--stamp-600);
+  --info-soft: var(--stamp-100);
   --ok: var(--green-600);
   --warn: var(--orange-600);
   --bad: var(--red-600);
@@ -85,6 +86,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
   --cell-number: #93A6CC;
   --reserved-line: #E2A445;
   --link: #8FAEE6;
+  --info-soft: #25324D;
   --ok: #6CC58F;
   --warn: #E39A4F;
   --bad: #EE8579;
@@ -107,6 +109,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
     --cell-number: #93A6CC;
     --reserved-line: #E2A445;
     --link: #8FAEE6;
+    --info-soft: #25324D;
     --ok: #6CC58F;
     --warn: #E39A4F;
     --bad: #EE8579;

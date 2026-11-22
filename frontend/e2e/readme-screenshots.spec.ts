@@ -29,7 +29,7 @@ import { signInWith } from "./fixtures";
  *   cart-sheet      cart-sheet
  *   cart-check      cart-check
  *   grocy-labels    grocy-labels
- *   web-address     (desktop only, no website shot) the Snipe-IT card with its public web address (#247)
+ *   web-address     (desktop only, no website shot) the integrations with the Public web address callout and the Snipe-IT card (#247)
  *   notifications   notifications
  *   spool-label     (desktop only, no website shot) the spool label of a Spoolman item on the QL with 62 mm tape
  *   activate-back-side  (desktop only, no website shot) a 3490 sheet's code on the back: the first step
@@ -343,8 +343,8 @@ const VIEWS: View[] = [
       const card = page.getByRole("group", { name: "Snipe-IT" });
       await expect(card.getByRole("textbox", { name: "Public web address" })).toHaveValue("https://assets.example.invalid");
       await expect(card.getByText("Links shown")).toBeVisible();
-      // Bring the card's top below the sticky top bar.
-      await card.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88));
+      // Bring the callout above the cards below the sticky top bar: it and the cards fill the view.
+      await page.getByRole("note").first().evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88));
     },
   },
   {

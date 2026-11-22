@@ -712,6 +712,10 @@ msgstr "Add reading"
 msgid "Add sheet"
 msgstr "Add sheet"
 
+#: src/features/settings/Integrations.tsx
+msgid "Add the host name after https://."
+msgstr "Add the host name after https://."
+
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Add these lines to Grocy's <0>data/config.php</0> and replace <1><print-key></1> with an API key of this hub."
 msgstr "Add these lines to Grocy's <0>data/config.php</0> and replace <1><print-key></1> with an API key of this hub."
@@ -747,6 +751,10 @@ msgstr "Added version {0} to {1}."
 #: src/features/printers/PrinterDetail.tsx
 msgid "Address"
 msgstr "Address"
+
+#: src/features/settings/Integrations.tsx
+msgid "Address the hub uses"
+msgstr "Address the hub uses"
 
 #: src/features/printers/wiring.tsx
 msgid "After a restart"
@@ -2256,6 +2264,10 @@ msgstr "Input tray missing"
 msgid "Integrations"
 msgstr "Integrations"
 
+#: src/features/settings/Integrations.tsx
+msgid "Internal. Only admins see this address."
+msgstr "Internal. Only admins see this address."
+
 #: src/features/printers/model.ts
 msgid "Interrupted by a restart"
 msgstr "Interrupted by a restart"
@@ -3088,6 +3100,10 @@ msgstr "Not ready"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Not reported"
 msgstr "Not reported"
+
+#: src/features/settings/Integrations.tsx
+msgid "Not saved"
+msgstr "Not saved"
 
 #: src/features/scan/GrocycodePage.tsx
 msgid "Not scheduled"
@@ -4392,6 +4408,10 @@ msgstr "Server unreachable"
 #: src/features/settings/SettingField.tsx
 msgid "Set"
 msgstr "Set"
+
+#: src/features/settings/SettingField.tsx
+msgid "Set by {envName}"
+msgstr "Set by {envName}"
 
 #: src/features/settings/SettingField.tsx
 msgid "Set by the container"
@@ -6447,10 +6467,6 @@ msgstr "Updating the preview…"
 msgid "Updating…"
 msgstr "Updating…"
 
-#: src/features/settings/Integrations.tsx
-msgid "URL"
-msgstr "URL"
-
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "Use {roomyCode} instead ({room} free)"
 msgstr "Use {roomyCode} instead ({room} free)"
@@ -6631,6 +6647,10 @@ msgstr "When you activate a new sheet, the hub asks you to turn it over and prin
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where a label corner would touch the scale, its corner mark is left out; the gap lines and the scale show the cut."
 msgstr "Where a label corner would touch the scale, its corner mark is left out; the gap lines and the scale show the cut."
+
+#: src/features/settings/Integrations.tsx
+msgid "Where an item's page lives for people, for example on your own domain. Without it the hub shows no \"Open in\" link. It never changes the address the hub itself uses to reach the integration."
+msgstr "Where an item's page lives for people, for example on your own domain. Without it the hub shows no \"Open in\" link. It never changes the address the hub itself uses to reach the integration."
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where gap line {s} and gap line {z} cross, read the small scales against the middle of the physical gap, in millimetres."

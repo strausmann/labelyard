@@ -712,6 +712,10 @@ msgstr "Messwert hinzufügen"
 msgid "Add sheet"
 msgstr "Bogen hinzufügen"
 
+#: src/features/settings/Integrations.tsx
+msgid "Add the host name after https://."
+msgstr "Ergänze den Hostnamen nach https://."
+
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Add these lines to Grocy's <0>data/config.php</0> and replace <1><print-key></1> with an API key of this hub."
 msgstr "Füge diese Zeilen in Grocys <0>data/config.php</0> ein und ersetze <1><print-key></1> durch einen API-Schlüssel dieses Hubs."
@@ -747,6 +751,10 @@ msgstr "Version {0} zu {1} hinzugefügt."
 #: src/features/printers/PrinterDetail.tsx
 msgid "Address"
 msgstr "Adresse"
+
+#: src/features/settings/Integrations.tsx
+msgid "Address the hub uses"
+msgstr "Adresse, die der Hub nutzt"
 
 #: src/features/printers/wiring.tsx
 msgid "After a restart"
@@ -2256,6 +2264,10 @@ msgstr "Zufuhrfach fehlt"
 msgid "Integrations"
 msgstr "Integrationen"
 
+#: src/features/settings/Integrations.tsx
+msgid "Internal. Only admins see this address."
+msgstr "Intern. Nur Admins sehen diese Adresse."
+
 #: src/features/printers/model.ts
 msgid "Interrupted by a restart"
 msgstr "Durch Neustart unterbrochen"
@@ -3088,6 +3100,10 @@ msgstr "Nicht bereit"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Not reported"
 msgstr "Nicht gemeldet"
+
+#: src/features/settings/Integrations.tsx
+msgid "Not saved"
+msgstr "Nicht gespeichert"
 
 #: src/features/scan/GrocycodePage.tsx
 msgid "Not scheduled"
@@ -4392,6 +4408,10 @@ msgstr "Server nicht erreichbar"
 #: src/features/settings/SettingField.tsx
 msgid "Set"
 msgstr "Gesetzt"
+
+#: src/features/settings/SettingField.tsx
+msgid "Set by {envName}"
+msgstr "Gesetzt durch {envName}"
 
 #: src/features/settings/SettingField.tsx
 msgid "Set by the container"
@@ -6447,10 +6467,6 @@ msgstr "Die Vorschau wird aktualisiert …"
 msgid "Updating…"
 msgstr "Wird aktualisiert…"
 
-#: src/features/settings/Integrations.tsx
-msgid "URL"
-msgstr "URL"
-
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "Use {roomyCode} instead ({room} free)"
 msgstr "Stattdessen {roomyCode} verwenden ({room} frei)"
@@ -6631,6 +6647,10 @@ msgstr "Wenn du einen neuen Bogen aktivierst, bittet dich der Hub, ihn umzudrehe
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where a label corner would touch the scale, its corner mark is left out; the gap lines and the scale show the cut."
 msgstr "Wo eine Etikettenecke die Skala berühren würde, entfällt ihre Eckmarke; die Lückenlinien und die Skala zeigen den Schnitt."
+
+#: src/features/settings/Integrations.tsx
+msgid "Where an item's page lives for people, for example on your own domain. Without it the hub shows no \"Open in\" link. It never changes the address the hub itself uses to reach the integration."
+msgstr "Wo die Seite eines Eintrags für Leute liegt, zum Beispiel auf deiner eigenen Domain. Ohne sie zeigt der Hub keinen \"In … öffnen\"-Link. Die Adresse, über die der Hub selbst die Integration erreicht, ändert sich dadurch nie."
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where gap line {s} and gap line {z} cross, read the small scales against the middle of the physical gap, in millimetres."

@@ -114,7 +114,8 @@ describe("ItemView", () => {
     mockApi(routes("snipeit", "42", { "GET /api/v1/lookup/snipeit/42": item("snipeit", "42", { url: null }) }));
     await renderApp({ path: "/asset/42" });
     await screen.findByRole("heading", { level: 1, name: "Cordless drill" });
-    expect(screen.queryByRole("link", { name: /^Open in/ })).toBeNull();
+    // By text, not by role: an anchor without an href has no link role and would hide a leftover "Open in".
+    expect(screen.queryByText(/Open in/)).toBeNull();
   });
 
   it("does not turn a script URL from the integration into a link", async () => {
