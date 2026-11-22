@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { apiFetch } from "../../api/client";
 import type { components } from "../../api/schema.gen";
 import { useDebounced, type LayoutOptions } from "../layout/ql";
@@ -51,9 +51,37 @@ export const CHECK_KEY = "render-check";
  * Counts the saves of a public web address (#247). The code a print carries follows that address, so a verdict
  * ("fits the label") given under the old one says nothing about the new one: the count is part of every verdict's
  * key and of the check's query key, and a save bumps it (`useSaveSettings`).
+ *
+ * The count lives beside the query cache, not in it: a query would be refetched by any global invalidation (reconnect,
+ * session check) and fall back to its start value, and a cart coming back would then find its old verdicts again
+ * (Codex review of #425). Here it only ever goes up. One count per QueryClient, so a fresh client starts at 0.
  */
-export const WEB_ADDRESS_VERSION_KEY = ["web-address-version"] as const;
-export const bumpWebAddressVersion = (client: QueryClient) => client.setQueryData<number>(WEB_ADDRESS_VERSION_KEY, (n) => (n ?? 0) + 1);
+type Counter = { value: number; listeners: Set<() => void> };
+const counters = new WeakMap<QueryClient, Counter>();
+function counterOf(client: QueryClient): Counter {
+  let counter = counters.get(client);
+  if (!counter) {
+    counter = { value: 0, listeners: new Set() };
+    counters.set(client, counter);
+  }
+  return counter;
+}
+export const webAddressVersion = (client: QueryClient) => counterOf(client).value;
+export function bumpWebAddressVersion(client: QueryClient) {
+  const counter = counterOf(client);
+  counter.value += 1;
+  for (const listener of counter.listeners) listener();
+}
+function useWebAddressVersion(client: QueryClient): number {
+  return useSyncExternalStore(
+    (listener) => {
+      const { listeners } = counterOf(client);
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => counterOf(client).value,
+  );
+}
 
 /** The verdicts one check run fetched, by verdict key: what the query caches. */
 type Verdicts = Record<string, RenderCheckResult>;
@@ -76,7 +104,7 @@ export function useCartCheck(
   const [kept] = useState(() => new Map<string, RenderCheckResult>());
   const layoutKey = JSON.stringify(layout ?? null);
   // Subscribed, so a cart that is open while the address is saved checks again.
-  const version = useQuery({ queryKey: WEB_ADDRESS_VERSION_KEY, queryFn: () => 0, initialData: 0, staleTime: Infinity }).data;
+  const version = useWebAddressVersion(client);
   const verdictKey = (item: CartItem) => `${tapeMm}|${layoutKey}|v${version}|${item.app}:${item.id}:${item.content_type}`;
   // The query cache outlives this component: verdicts fetched before (on an earlier visit of the cart, also for a
   // smaller cart) are taken from it, so coming back neither loses them nor asks for them again (Codex review, #399).

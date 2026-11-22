@@ -205,6 +205,46 @@ describe("useCartCheck", () => {
       expect(sent(calls)).toEqual([["1", "2"], ["1", "2"]]);
     });
 
+    // Codex review of #425 (04eba7cf): the count was a query, and any global invalidation (reconnect, session check)
+    // refetched it back to 0, so a cart coming back found its verdicts from before the save again.
+    it("coming back after the save and a global invalidation still checks every item again", async () => {
+      const { route, client, wrapper, flip } = withSave();
+      const { calls } = mockApi(route);
+      const layout = { orientation: "across", layout_preset: "compact" } as const;
+      const first = renderHook(() => useCartCheck(cart(2), 62, layout), { wrapper });
+      await waitFor(() => expect(first.result.current.flags.size).toBe(2));
+      first.unmount();
+
+      flip();
+      const saver = renderHook(() => useSaveSettings(), { wrapper });
+      await act(async () => saver.result.current.mutate(longer));
+      await waitFor(() => expect(saver.result.current.isSuccess).toBe(true));
+      await act(async () => client.invalidateQueries());
+
+      const again = renderHook(() => useCartCheck(cart(2), 62, layout), { wrapper });
+      await waitFor(() => expect([...again.result.current.flags.values()].every((v) => !v.ok)).toBe(true));
+      // Whatever the invalidation refetches once the cart is back must not bring the old verdicts with it.
+      await settle();
+      expect(again.result.current.flags.size).toBe(2);
+      expect([...again.result.current.flags.values()].every((v) => !v.ok)).toBe(true);
+      expect(sent(calls)).toEqual([["1", "2"], ["1", "2"]]);
+    });
+
+    it("a mounted cart keeps the new verdicts through a global invalidation", async () => {
+      const { route, client, wrapper, flip } = withSave();
+      const { calls } = mockApi(route);
+      const view = renderHook(() => ({ check: useCartCheck(cart(2), 62, { orientation: "across", layout_preset: "compact" }), save: useSaveSettings() }), { wrapper });
+      await waitFor(() => expect(view.result.current.check.flags.size).toBe(2));
+
+      flip();
+      await act(async () => view.result.current.save.mutate(longer));
+      await waitFor(() => expect([...view.result.current.check.flags.values()].every((v) => !v.ok)).toBe(true));
+      await act(async () => client.invalidateQueries());
+      await settle();
+      expect([...view.result.current.check.flags.values()].every((v) => !v.ok)).toBe(true);
+      expect(sent(calls)).toEqual([["1", "2"], ["1", "2"]]);
+    });
+
     it("saving another setting keeps the verdicts", async () => {
       const { route, wrapper } = withSave();
       const { calls } = mockApi(route);

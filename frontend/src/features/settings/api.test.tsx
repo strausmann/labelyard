@@ -6,6 +6,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useLookup } from "../lookup/api";
+import { webAddressVersion } from "../lookup/useCartCheck";
 import { mockApi, settingsList } from "../test-api";
 import { useSaveSettings } from "./api";
 
@@ -35,7 +36,7 @@ describe("saving a public web address (#247)", () => {
     expect(stale(["lookup", "snipeit", "42"])).toBe(true);
     expect(stale(["preview", "snipeit", "42", "Drill", "qr_two_lines", 12, "null", "null"])).toBe(true);
     // The cart's verdicts follow a counter the save bumps (useCartCheck.test covers what that does to a cart).
-    expect(client.getQueryData(["web-address-version"])).toBe(1);
+    expect(webAddressVersion(client)).toBe(1);
     // Another integration's items are untouched.
     expect(stale(["lookup", "grocy", "42"])).toBe(false);
     expect(stale(["preview", "grocy", "42", "Drill", "qr_two_lines", 12, "null", "null"])).toBe(false);
@@ -56,7 +57,7 @@ describe("saving a public web address (#247)", () => {
     await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
     expect(stale(["lookup", "snipeit", "42"])).toBe(false);
     expect(stale(["preview", "snipeit", "42", "Drill", "qr_two_lines", 12, "null", "null"])).toBe(false);
-    expect(client.getQueryData(["web-address-version"])).toBeUndefined();
+    expect(webAddressVersion(client)).toBe(0);
   });
 });
 
