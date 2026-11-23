@@ -628,3 +628,32 @@ async def test_a_catalog_write_that_would_leave_the_type_edited_is_rolled_back(
         await cs.install(session, K5160, as_new_key=None, prefix=None, actor="a")
     with pytest.raises(SheetTypeNotFoundError):
         await ts.get_type(session, K5160)
+
+
+async def test_a_second_design_revision_reaches_an_unedited_type(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Codex P2 on cd76b2a8: the installed revision's design is no longer in any entry.
+
+    Revision 2 renames and moves the design in every entry that embeds it, revision 3 moves it
+    again. The local design is then in the state of revision 2, which no document of the image
+    carries; the unedited type that links it proves that state.
+    """
+    from app.sheets import backing_design_service as bds
+
+    await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
+    second = _moved_design().model_copy(update={"name": "UltraGrip (2027)"})
+    for key in (K6121, K3490):
+        _offer(monkeypatch, key, 2, backing_design=second)
+    assert (await cs.apply_update(session, K6121, actor="a")).type.catalog_revision == 2
+
+    first = second.strips[0]
+    third = second.model_copy(
+        update={"strips": [first.model_copy(update={"x_mm": first.x_mm + 0.5}), *second.strips[1:]]}
+    )
+    for key in (K6121, K3490):
+        _offer(monkeypatch, key, 3, backing_design=third)
+    written = await cs.apply_update(session, K6121, actor="a")
+    assert written.type.catalog_revision == 3
+    assert bds.to_doc(await _design(session)) == third
+    assert await _unedited(session, K6121)

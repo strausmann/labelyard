@@ -258,14 +258,13 @@ async def _follow_the_catalog(
 ) -> None:
     """Bring a local design to the entry's state together with every type that shares it.
 
-    The design must still hold a state the hub shipped (else ``backing_design_differs``). Every
-    other type that links it must be an unedited catalog type whose newest catalog entry carries
-    the identical new design (else ``backing_design_shared`` naming the ones that are not); each
-    of them then gets its own catalog update in the same transaction, so none of them ends up
+    The design must still hold a state the hub shipped (else ``backing_design_differs``): proven
+    by an unedited catalog type that links it, or found among the shipped states. Every other
+    type that links it must be an unedited catalog type whose newest catalog entry carries the
+    identical new design (else ``backing_design_shared`` naming the ones that are not); each of
+    them then gets its own catalog update in the same transaction, so none of them ends up
     edited by a change of the design it shares.
     """
-    if bds.to_doc(design).model_dump_json() not in _shipped_design_states(design.key):
-        raise BackingDesignDiffersError(design.key)
     linked = (
         await session.execute(
             select(SheetType).where(
@@ -288,6 +287,15 @@ async def _follow_the_catalog(
         ready.append((other, entry[0], entry[1], current))
     if blocked:
         raise BackingDesignSharedError(design.key, blocked)
+    # The design still holds a shipped state when an unedited catalog type links it: that type's
+    # fields hash embeds the design, so it proves the state of its installed revision, also when
+    # no entry of the image embeds that state any more. ``t`` itself proves it on an update (its
+    # check ran before); otherwise the states of the image and of the 1.7.x seed decide.
+    proven = t.backing_design_id == design.id or bool(ready)
+    if not proven and bds.to_doc(design).model_dump_json() not in _shipped_design_states(
+        design.key
+    ):
+        raise BackingDesignDiffersError(design.key)
     strips = bds.strips_from_mm(wanted.strips)
     bds.validate_strips(strips, design.page_size)
     design.name = wanted.name
