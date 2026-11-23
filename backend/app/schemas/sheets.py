@@ -15,7 +15,13 @@ from uuid import UUID
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer
 
 from app.schemas._datetime import serialize_datetime_utc
-from app.sheets.exchange import MAX_STRIPS, GeometryMm, StripMm
+from app.sheets.exchange import (
+    MAX_STRIPS,
+    MAX_ZONES,
+    GeometryMm,
+    PreprintZoneMm,
+    StripMm,
+)
 from app.sheets.limits import PURGE_LIMIT_MAX
 from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN
 from app.sheets.text import check_http_url
@@ -34,14 +40,20 @@ __all__ = [
     "DeleteUnusedRequest",
     "DeleteUnusedResult",
     "GeometryMm",
+    "IdPlacementRow",
     "ImportResponse",
     "InstallRequest",
     "MarginBandsMm",
     "MarginCheckRead",
+    "MarginRectMm",
     "MarkRequest",
     "MarkedCellIn",
     "NextCode",
     "PageJobQueued",
+    "PreprintPresetCreate",
+    "PreprintPresetPatch",
+    "PreprintPresetRead",
+    "PreprintZoneMm",
     "ResolveRequest",
     "SheetBackPrint",
     "SheetCreate",
@@ -116,6 +128,75 @@ class BackingDesignPatch(_Body):
     strips: Annotated[list[StripMm], Field(max_length=MAX_STRIPS)] | None = None
 
 
+class PreprintPresetRead(BaseModel):
+    """A preprint preset: the vendor print on the front of a sheet, where nothing is printed."""
+
+    key: str
+    name: str
+    page_size: Literal["A4", "Letter"]
+    zones: list[PreprintZoneMm] = Field(
+        description="Keep-out zones on the front of the sheet in mm, from the page's top left."
+    )
+    origin: Literal["seed", "custom", "imported"]
+    types_in_use: int = Field(description="Sheet types that link this preset.")
+
+
+_Zones = Annotated[list[PreprintZoneMm], Field(max_length=MAX_ZONES)]
+
+
+class PreprintPresetCreate(_Body):
+    key: _Key
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    page_size: Literal["A4", "Letter"]
+    zones: _Zones = []
+
+
+class PreprintPresetPatch(_Body):
+    """Only the fields the client sends change; the page size of a preset is fixed."""
+
+    name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
+    zones: _Zones | None = None
+
+
+MarginBandRule = Literal["auto", "top", "bottom", "left", "right"]
+MarginAlign = Literal["start", "end"]
+_OffsetMm = Annotated[float, Field(ge=0, le=1000, allow_inf_nan=False)]
+
+
+class MarginRectMm(BaseModel):
+    """The rectangle the margin sheet code takes on the page, in mm from its top left (#246)."""
+
+    x_mm: float
+    y_mm: float
+    w_mm: float
+    h_mm: float
+    content: Literal["qr_code_type", "qr_code", "code"] = Field(
+        description=(
+            "What is drawn: QR, code and type; QR and code; or the text alone (`code`: the code "
+            "first, the type as far as it fits)."
+        )
+    )
+
+
+class IdPlacementRow(BaseModel):
+    """Whether and where the margin sheet code of a type fits one page printer (#246, #326)."""
+
+    printer_id: UUID
+    printer_name: str
+    tray: str = Field(description="The tray evaluated: the printer's default or `tray`.")
+    fits: bool
+    band: Literal["top", "bottom", "right", "left"] | None
+    offset_mm: float | None = Field(
+        description="Distance of the code's start from the grid's start along its band."
+    )
+    w_mm: float | None = Field(description="Width of the code's rectangle on the page.")
+    h_mm: float | None = Field(description="Height of the code's rectangle on the page.")
+    content: Literal["qr_code_type", "qr_code", "code"] | None
+    reason: (
+        Literal["outside_printable", "overlaps_preprint", "too_small", "no_margin_band"] | None
+    ) = Field(description="Why it does not fit, when `fits` is false.")
+
+
 _TypePlacement = Literal["auto", "margin", "back_side", "cell"]
 UsageState = Literal["in_use", "used_before", "unused"]
 _IdCell = Annotated[int, Field(ge=1, le=10000)]
@@ -180,6 +261,23 @@ class SheetTypeRead(BaseModel):
     )
     backing_design: BackingDesignRead | None = Field(
         description="The vendor print on the back of the liner; `null` for a plain liner."
+    )
+    id_margin_band: MarginBandRule = Field(
+        default="auto",
+        description="The band of the margin sheet code; `auto` lets the hub choose.",
+    )
+    id_margin_align: MarginAlign = Field(
+        default="start",
+        description="The end of the band the code starts from: `start` is left (or top).",
+    )
+    id_margin_offset_mm: float = Field(
+        default=0.0, description="Distance of the code's start from that end of the grid."
+    )
+    preprint_zones: list[PreprintZoneMm] = Field(
+        default=[], description="The type's own keep-out zones on the front of the sheet."
+    )
+    preprint_preset: PreprintPresetRead | None = Field(
+        default=None, description="A linked preprint preset; its zones count as well."
     )
     catalog_key: str | None = Field(
         default=None,
@@ -327,7 +425,17 @@ class SheetTypeCreate(_Body):
     geometry: GeometryMm
 
 
-_PATCH_NOT_NULLABLE = ("prefix", "product_codes", "allow_qr", "verified", "id_placement")
+_PATCH_NOT_NULLABLE = (
+    "prefix",
+    "product_codes",
+    "allow_qr",
+    "verified",
+    "id_placement",
+    "id_margin_band",
+    "id_margin_align",
+    "id_margin_offset_mm",
+    "preprint_zones",
+)
 
 
 def _patch_schema(schema: dict[str, Any]) -> None:
@@ -358,6 +466,21 @@ class SheetTypePatch(_Body):
     )
     backing_design: _Key | None = Field(
         default=None, description="Key of a backing design; `null` clears it (plain liner)."
+    )
+    id_margin_band: MarginBandRule | None = Field(
+        default=None,
+        description="A named band is a rule: without room there the page carries no margin code.",
+    )
+    id_margin_align: MarginAlign | None = None
+    id_margin_offset_mm: _OffsetMm | None = Field(
+        default=None, description="In mm, two decimals at most; checked against the sheet."
+    )
+    preprint_zones: _Zones | None = Field(
+        default=None,
+        description="Replaces the type's own zones; each lies on the page and off every cell.",
+    )
+    preprint_preset: _Key | None = Field(
+        default=None, description="Key of a preprint preset; `null` unlinks it."
     )
 
 
@@ -622,6 +745,16 @@ class MarginCheckRead(BaseModel):
             "Where the sheet code of a new sheet of the type goes on this printer: the type's "
             "setting, `auto` resolved by `printable`."
         )
+    )
+    rect: MarginRectMm | None = Field(
+        default=None, description="The rectangle the margin code takes, or `null`."
+    )
+    feed_mark_end: Literal["top_right", "top_left"] | None = Field(
+        default=None, description="The end of the top band the feed mark takes, or `null`."
+    )
+    feed_mark_reason: Literal["no_free_place"] | None = Field(
+        default=None,
+        description="`no_free_place`: the top band has room, but no end free of zones and code.",
     )
 
 

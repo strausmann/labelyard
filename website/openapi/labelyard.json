@@ -1506,6 +1506,35 @@
             "description": "The preferred cell of a `cell` sheet's code.",
             "title": "Id Cell"
           },
+          "id_margin_align": {
+            "default": "start",
+            "description": "The end of the band the code starts from: `start` is left (or top).",
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Id Margin Align",
+            "type": "string"
+          },
+          "id_margin_band": {
+            "default": "auto",
+            "description": "The band of the margin sheet code; `auto` lets the hub choose.",
+            "enum": [
+              "auto",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "title": "Id Margin Band",
+            "type": "string"
+          },
+          "id_margin_offset_mm": {
+            "default": 0.0,
+            "description": "Distance of the code's start from that end of the grid.",
+            "title": "Id Margin Offset Mm",
+            "type": "number"
+          },
           "id_placement": {
             "description": "Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).",
             "enum": [
@@ -1575,6 +1604,26 @@
           "prefix": {
             "title": "Prefix",
             "type": "string"
+          },
+          "preprint_preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreprintPresetRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A linked preprint preset; its zones count as well."
+          },
+          "preprint_zones": {
+            "default": [],
+            "description": "The type's own keep-out zones on the front of the sheet.",
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "title": "Preprint Zones",
+            "type": "array"
           },
           "product_codes": {
             "items": {
@@ -2032,7 +2081,8 @@
           "format_version": {
             "enum": [
               1,
-              2
+              2,
+              3
             ],
             "title": "Format Version",
             "type": "integer"
@@ -2546,6 +2596,130 @@
           "repository"
         ],
         "title": "Healthz",
+        "type": "object"
+      },
+      "IdPlacementRow": {
+        "description": "Whether and where the margin sheet code of a type fits one page printer (#246, #326).",
+        "properties": {
+          "band": {
+            "anyOf": [
+              {
+                "enum": [
+                  "top",
+                  "bottom",
+                  "right",
+                  "left"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "enum": [
+                  "qr_code_type",
+                  "qr_code",
+                  "code"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "fits": {
+            "title": "Fits",
+            "type": "boolean"
+          },
+          "h_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Height of the code's rectangle on the page.",
+            "title": "H Mm"
+          },
+          "offset_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Distance of the code's start from the grid's start along its band.",
+            "title": "Offset Mm"
+          },
+          "printer_id": {
+            "format": "uuid",
+            "title": "Printer Id",
+            "type": "string"
+          },
+          "printer_name": {
+            "title": "Printer Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "outside_printable",
+                  "overlaps_preprint",
+                  "too_small",
+                  "no_margin_band"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it does not fit, when `fits` is false.",
+            "title": "Reason"
+          },
+          "tray": {
+            "description": "The tray evaluated: the printer's default or `tray`.",
+            "title": "Tray",
+            "type": "string"
+          },
+          "w_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Width of the code's rectangle on the page.",
+            "title": "W Mm"
+          }
+        },
+        "required": [
+          "printer_id",
+          "printer_name",
+          "tray",
+          "fits",
+          "band",
+          "offset_mm",
+          "w_mm",
+          "h_mm",
+          "content",
+          "reason"
+        ],
+        "title": "IdPlacementRow",
         "type": "object"
       },
       "IdentityResolve": {
@@ -3115,6 +3289,35 @@
             "title": "Feed Mark",
             "type": "boolean"
           },
+          "feed_mark_end": {
+            "anyOf": [
+              {
+                "enum": [
+                  "top_right",
+                  "top_left"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The end of the top band the feed mark takes, or `null`.",
+            "title": "Feed Mark End"
+          },
+          "feed_mark_reason": {
+            "anyOf": [
+              {
+                "const": "no_free_place",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`no_free_place`: the top band has room, but no end free of zones and code.",
+            "title": "Feed Mark Reason"
+          },
           "printable": {
             "description": "Whether the margin ID fits somewhere at all.",
             "title": "Printable",
@@ -3136,6 +3339,17 @@
             ],
             "description": "Why not, when `printable` is false.",
             "title": "Reason"
+          },
+          "rect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginRectMm"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rectangle the margin code takes, or `null`."
           },
           "usable_mm": {
             "anyOf": [
@@ -3162,6 +3376,46 @@
           "default_placement"
         ],
         "title": "MarginCheckRead",
+        "type": "object"
+      },
+      "MarginRectMm": {
+        "description": "The rectangle the margin sheet code takes on the page, in mm from its top left (#246).",
+        "properties": {
+          "content": {
+            "description": "What is drawn: QR, code and type; QR and code; or the text alone (`code`: the code first, the type as far as it fits).",
+            "enum": [
+              "qr_code_type",
+              "qr_code",
+              "code"
+            ],
+            "title": "Content",
+            "type": "string"
+          },
+          "h_mm": {
+            "title": "H Mm",
+            "type": "number"
+          },
+          "w_mm": {
+            "title": "W Mm",
+            "type": "number"
+          },
+          "x_mm": {
+            "title": "X Mm",
+            "type": "number"
+          },
+          "y_mm": {
+            "title": "Y Mm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_mm",
+          "y_mm",
+          "w_mm",
+          "h_mm",
+          "content"
+        ],
+        "title": "MarginRectMm",
         "type": "object"
       },
       "Margins": {
@@ -3670,6 +3924,228 @@
         "title": "PlacementInModel",
         "type": "object"
       },
+      "PreprintPresetCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "page_size": {
+            "enum": [
+              "A4",
+              "Letter"
+            ],
+            "title": "Page Size",
+            "type": "string"
+          },
+          "zones": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "maxItems": 16,
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "page_size"
+        ],
+        "title": "PreprintPresetCreate",
+        "type": "object"
+      },
+      "PreprintPresetDoc": {
+        "additionalProperties": false,
+        "description": "A preprint preset inside a sheet type document (#246).",
+        "properties": {
+          "key": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "page_size": {
+            "enum": [
+              "A4",
+              "Letter"
+            ],
+            "title": "Page Size",
+            "type": "string"
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "maxItems": 16,
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "page_size",
+          "zones"
+        ],
+        "title": "PreprintPresetDoc",
+        "type": "object"
+      },
+      "PreprintPresetPatch": {
+        "additionalProperties": false,
+        "description": "Only the fields the client sends change; the page size of a preset is fixed.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "zones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PreprintZoneMm"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zones"
+          }
+        },
+        "title": "PreprintPresetPatch",
+        "type": "object"
+      },
+      "PreprintPresetRead": {
+        "description": "A preprint preset: the vendor print on the front of a sheet, where nothing is printed.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "seed",
+              "custom",
+              "imported"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "page_size": {
+            "enum": [
+              "A4",
+              "Letter"
+            ],
+            "title": "Page Size",
+            "type": "string"
+          },
+          "types_in_use": {
+            "description": "Sheet types that link this preset.",
+            "title": "Types In Use",
+            "type": "integer"
+          },
+          "zones": {
+            "description": "Keep-out zones on the front of the sheet in mm, from the page's top left.",
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "page_size",
+          "zones",
+          "origin",
+          "types_in_use"
+        ],
+        "title": "PreprintPresetRead",
+        "type": "object"
+      },
+      "PreprintZoneMm": {
+        "additionalProperties": false,
+        "description": "A keep-out zone on the front of the sheet, in mm, page coordinates (#246).",
+        "properties": {
+          "h_mm": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "H Mm",
+            "type": "number"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "w_mm": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "W Mm",
+            "type": "number"
+          },
+          "x_mm": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "X Mm",
+            "type": "number"
+          },
+          "y_mm": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Y Mm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_mm",
+          "y_mm",
+          "w_mm",
+          "h_mm"
+        ],
+        "title": "PreprintZoneMm",
+        "type": "object"
+      },
       "PreviewCell": {
         "properties": {
           "cell": {
@@ -3788,6 +4264,22 @@
             "title": "Feed Mark",
             "type": "boolean"
           },
+          "feed_mark_end": {
+            "anyOf": [
+              {
+                "enum": [
+                  "top_right",
+                  "top_left"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The end of the top band the feed mark takes, or `null`.",
+            "title": "Feed Mark End"
+          },
           "geometry": {
             "$ref": "#/components/schemas/GeometryMm"
           },
@@ -3829,6 +4321,17 @@
             "description": "The sheet ID is printed in a margin band on this page.",
             "title": "Margin Id",
             "type": "boolean"
+          },
+          "margin_id_rect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginRectMm"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rectangle the margin code takes on this page; the job stores the same."
           },
           "new_code_hint": {
             "anyOf": [
@@ -7003,6 +7506,35 @@
             "description": "The preferred cell of a `cell` sheet's code.",
             "title": "Id Cell"
           },
+          "id_margin_align": {
+            "default": "start",
+            "description": "The end of the band the code starts from: `start` is left (or top).",
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Id Margin Align",
+            "type": "string"
+          },
+          "id_margin_band": {
+            "default": "auto",
+            "description": "The band of the margin sheet code; `auto` lets the hub choose.",
+            "enum": [
+              "auto",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "title": "Id Margin Band",
+            "type": "string"
+          },
+          "id_margin_offset_mm": {
+            "default": 0.0,
+            "description": "Distance of the code's start from that end of the grid.",
+            "title": "Id Margin Offset Mm",
+            "type": "number"
+          },
           "id_placement": {
             "description": "Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).",
             "enum": [
@@ -7072,6 +7604,26 @@
           "prefix": {
             "title": "Prefix",
             "type": "string"
+          },
+          "preprint_preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreprintPresetRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A linked preprint preset; its zones count as well."
+          },
+          "preprint_zones": {
+            "default": [],
+            "description": "The type's own keep-out zones on the front of the sheet.",
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "title": "Preprint Zones",
+            "type": "array"
           },
           "product_codes": {
             "items": {
@@ -7320,6 +7872,33 @@
             "description": "Checked against the current version's cell count.",
             "title": "Id Cell"
           },
+          "id_margin_align": {
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Id Margin Align",
+            "type": "string"
+          },
+          "id_margin_band": {
+            "description": "A named band is a rule: without room there the page carries no margin code.",
+            "enum": [
+              "auto",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "title": "Id Margin Band",
+            "type": "string"
+          },
+          "id_margin_offset_mm": {
+            "description": "In mm, two decimals at most; checked against the sheet.",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Id Margin Offset Mm",
+            "type": "number"
+          },
           "id_placement": {
             "enum": [
               "auto",
@@ -7347,6 +7926,29 @@
             "pattern": "^[A-Z][A-Z0-9]{1,9}$",
             "title": "Prefix",
             "type": "string"
+          },
+          "preprint_preset": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Key of a preprint preset; `null` unlinks it.",
+            "title": "Preprint Preset"
+          },
+          "preprint_zones": {
+            "description": "Replaces the type's own zones; each lies on the page and off every cell.",
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "maxItems": 16,
+            "title": "Preprint Zones",
+            "type": "array"
           },
           "product_codes": {
             "items": {
@@ -7522,6 +8124,35 @@
             "description": "The preferred cell of a `cell` sheet's code.",
             "title": "Id Cell"
           },
+          "id_margin_align": {
+            "default": "start",
+            "description": "The end of the band the code starts from: `start` is left (or top).",
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Id Margin Align",
+            "type": "string"
+          },
+          "id_margin_band": {
+            "default": "auto",
+            "description": "The band of the margin sheet code; `auto` lets the hub choose.",
+            "enum": [
+              "auto",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "title": "Id Margin Band",
+            "type": "string"
+          },
+          "id_margin_offset_mm": {
+            "default": 0.0,
+            "description": "Distance of the code's start from that end of the grid.",
+            "title": "Id Margin Offset Mm",
+            "type": "number"
+          },
           "id_placement": {
             "description": "Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).",
             "enum": [
@@ -7591,6 +8222,26 @@
           "prefix": {
             "title": "Prefix",
             "type": "string"
+          },
+          "preprint_preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreprintPresetRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A linked preprint preset; its zones count as well."
+          },
+          "preprint_zones": {
+            "default": [],
+            "description": "The type's own keep-out zones on the front of the sheet.",
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "title": "Preprint Zones",
+            "type": "array"
           },
           "product_codes": {
             "items": {
@@ -8674,6 +9325,34 @@
             ],
             "title": "Id Cell"
           },
+          "id_margin_align": {
+            "default": "start",
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Id Margin Align",
+            "type": "string"
+          },
+          "id_margin_band": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "top",
+              "bottom",
+              "left",
+              "right"
+            ],
+            "title": "Id Margin Band",
+            "type": "string"
+          },
+          "id_margin_offset_mm": {
+            "default": 0.0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Id Margin Offset Mm",
+            "type": "number"
+          },
           "id_placement": {
             "default": "auto",
             "enum": [
@@ -8708,6 +9387,25 @@
             "pattern": "^[A-Z][A-Z0-9]{1,9}$",
             "title": "Prefix",
             "type": "string"
+          },
+          "preprint_preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreprintPresetDoc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preprint_zones": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PreprintZoneMm"
+            },
+            "maxItems": 16,
+            "title": "Preprint Zones",
+            "type": "array"
           },
           "product_codes": {
             "default": [],
@@ -11196,6 +11894,179 @@
         "summary": "List the hub's recent notices",
         "tags": [
           "notices"
+        ]
+      }
+    },
+    "/api/v1/preprint-presets": {
+      "get": {
+        "operationId": "list_preprint_presets_api_v1_preprint_presets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PreprintPresetRead"
+                  },
+                  "title": "Response List Preprint Presets Api V1 Preprint Presets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List preprint presets",
+        "tags": [
+          "sheet-types"
+        ]
+      },
+      "post": {
+        "operationId": "create_preprint_preset_api_v1_preprint_presets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreprintPresetCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreprintPresetRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "The key exists (`preprint_preset_exists`)."
+          },
+          "422": {
+            "description": "Invalid request: a zone is smaller than 1 mm (`invalid_geometry`, `error_detail.field` names it, e.g. `zones.0`), reaches outside the page (`preprint_zone_off_page`) or, on a change, covers a label cell of a type that links the preset (`preprint_zone_overlaps_cell`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Create a preprint preset",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/preprint-presets/{key}": {
+      "delete": {
+        "operationId": "delete_preprint_preset_api_v1_preprint_presets__key__delete",
+        "parameters": [
+          {
+            "description": "Preset key, e.g. `avery-zweckform`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Preset key, e.g. `avery-zweckform`.",
+              "maxLength": 64,
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Preprint preset not found."
+          },
+          "409": {
+            "description": "A sheet type links the preset (`preset_in_use`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete a preprint preset no sheet type links",
+        "tags": [
+          "sheet-types"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_preprint_preset_api_v1_preprint_presets__key__patch",
+        "parameters": [
+          {
+            "description": "Preset key, e.g. `avery-zweckform`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Preset key, e.g. `avery-zweckform`.",
+              "maxLength": 64,
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreprintPresetPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreprintPresetRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Preprint preset not found."
+          },
+          "422": {
+            "description": "Invalid request: a zone is smaller than 1 mm (`invalid_geometry`, `error_detail.field` names it, e.g. `zones.0`), reaches outside the page (`preprint_zone_off_page`) or, on a change, covers a label cell of a type that links the preset (`preprint_zone_overlaps_cell`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Change the name or the zones of a preprint preset",
+        "tags": [
+          "sheet-types"
         ]
       }
     },
@@ -14230,7 +15101,7 @@
         ]
       },
       "patch": {
-        "description": "`id_placement` sets where the sheet code of a new sheet goes, `id_cell` the preferred cell of a `cell` sheet (checked against the current version's cell count), `backing_design` the vendor print on the back of the liner (a design key; `null` clears it).",
+        "description": "`id_placement` sets where the sheet code of a new sheet goes, `id_cell` the preferred cell of a `cell` sheet (checked against the current version's cell count), `backing_design` the vendor print on the back of the liner (a design key; `null` clears it). `id_margin_band`, `id_margin_align` and `id_margin_offset_mm` place the margin sheet code; its smallest box (4 x 10 mm) must lie on the page and off every cell. `preprint_zones` (at most 16) and `preprint_preset` (a preset key; `null` unlinks it) are kept free of the code and the feed mark; a zone must lie on the page and off every cell.",
         "operationId": "patch_sheet_type_api_v1_sheet_types__key__patch",
         "parameters": [
           {
@@ -14284,7 +15155,7 @@
                 }
               }
             },
-            "description": "A field is invalid, `id_cell` is outside the sheet (`id_cell_out_of_range`) or the design is for another page size (`backing_design_page_size_mismatch`)."
+            "description": "A field is invalid, `id_cell` is outside the sheet (`id_cell_out_of_range`), the design or preset is for another page size (`backing_design_page_size_mismatch`, `preprint_preset_page_size_mismatch`), the code position leaves the page or covers a cell (`id_position_off_page`, `id_position_overlaps_cell`) or a zone does (`preprint_zone_off_page`, `preprint_zone_overlaps_cell`, `error_detail.field` names it)."
           }
         },
         "security": [
@@ -14499,6 +15370,88 @@
           }
         ],
         "summary": "Export one version of a sheet type as a JSON document",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/{key}/id-placement": {
+      "get": {
+        "description": "One row per enabled page printer the credentials may use, evaluated on its default tray or on `tray` (a printer without that tray: on its default; `tray` in the row names the tray used). The same decision the first job of a new sheet of the type makes: hardware margins, the tray's calibration, the type's keep-out zones and code position. `reason` says why it does not fit: `outside_printable` (the position lies outside the printable band), `overlaps_preprint` (zones leave no room), `too_small` (the band is shallower than 4 mm or too short) or `no_margin_band` (no margin on that side). Read-only.",
+        "operationId": "get_sheet_type_id_placement_api_v1_sheet_types__key__id_placement_get",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tray",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tray"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdPlacementRow"
+                  },
+                  "title": "Response Get Sheet Type Id Placement Api V1 Sheet Types  Key  Id Placement Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Whether and where the margin sheet code fits each page printer",
         "tags": [
           "sheet-types"
         ]

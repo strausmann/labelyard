@@ -81,6 +81,31 @@ function geometryText(version: VersionRead): string {
   }).join("\n");
 }
 
+type ZoneMm = { x_mm: number; y_mm: number; w_mm: number; h_mm: number };
+
+const zoneText = (z: ZoneMm) => `x ${z.x_mm} mm, y ${z.y_mm} mm, w ${z.w_mm} mm, h ${z.h_mm} mm`;
+
+/**
+ * The keep-out zones of the type (its own and its preset's) and the position of the margin sheet code, in mm
+ * (#246). Numbers only: a zone's note is typed in by a user and does not travel.
+ */
+function positionText(type: SheetTypeRead): string[] {
+  const lines: string[] = [];
+  const band = type.id_margin_band ?? "auto";
+  const align = type.id_margin_align ?? "start";
+  const offset = type.id_margin_offset_mm ?? 0;
+  if (band !== "auto" || align !== "start" || offset !== 0) {
+    lines.push(`sheet_code_position: ${band}, from the ${align}, offset ${offset} mm`);
+  }
+  for (const zone of type.preprint_zones ?? []) lines.push(`preprint_zone: ${zoneText(zone)}`);
+  const preset = type.preprint_preset;
+  if (preset) {
+    lines.push(`preprint_preset: ${preset.key}`);
+    for (const zone of preset.zones) lines.push(`preprint_preset_zone: ${zoneText(zone)}`);
+  }
+  return lines;
+}
+
 /**
  * The source name always; its URL only while it is the one shipped with the hub (`source_url_shipped`, computed
  * by the server). A `custom` or `imported` type's URL, and a seed type's URL after an admin edited it, was
@@ -147,7 +172,7 @@ export function buildFeedbackUrl(input: FeedbackInput): string {
     version_note: version.change_note ?? undefined,
     vendor: type.vendor ?? undefined,
     product_codes: type.product_codes.join("\n"),
-    geometry: geometryText(version),
+    geometry: [geometryText(version), ...positionText(type)].join("\n"),
     allow_qr: type.allow_qr ? "allowed" : "not allowed",
     verified: type.verified ? "yes" : "no",
     provenance: provenanceText(type),

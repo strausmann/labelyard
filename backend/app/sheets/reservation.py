@@ -48,6 +48,7 @@ from app.sheets.errors import (
 )
 from app.sheets.events import SheetTouched, publish_touched
 from app.sheets.geometry import cell_count
+from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
     FeedMarkPlacement,
     MarginContext,
@@ -59,6 +60,7 @@ from app.sheets.planner import (
     decide_margin_and_mark,
     plan,
 )
+from app.sheets.preprint_service import margin_rules
 from app.sheets.sheet_service import (
     HUB_SOURCE,
     ID_CELL_PURPOSE,
@@ -249,6 +251,7 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
     )
     cells = await repo.cells_of_many(session, ids)
     flags = await _in_flight_many(session, ids)
+    rules = await margin_rules(session, types.values())
     geometries = {vid: version_geometry(v) for vid, v in versions.items()}
     views: dict[str, SheetView] = {}
     for code, sheet in sheets.items():
@@ -274,6 +277,10 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
             feed_mark_printed=sheet.feed_mark_printed,
             feed_mark_in_flight=mark_in_flight,  # every placement
             id_cell_no=sheet.id_cell_no,
+            margin_rule=rules[sheet_type.id],
+            type_label=sheet_type_label(
+                sheet_type.vendor, sheet_type.product_codes, sheet_type.key
+            ),
         )
     return views
 
@@ -318,6 +325,8 @@ async def _create_sheet_view(batch: NewSheetBatch, new: NewSheetIn, actor: str) 
         feed_mark_printed=False,
         feed_mark_in_flight=False,
         id_cell_no=new.id_cell,
+        margin_rule=(await margin_rules(batch._session, [sheet_type]))[sheet_type.id],
+        type_label=sheet_type_label(sheet_type.vendor, sheet_type.product_codes, sheet_type.key),
     )
 
 

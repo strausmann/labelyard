@@ -54,6 +54,11 @@ TYPE_DEFAULTS: dict[str, Any] = {
     "id_placement": "auto",
     "id_cell": None,
     "backing_design": None,
+    "id_margin_band": "auto",
+    "id_margin_align": "start",
+    "id_margin_offset_mm": 0.0,
+    "preprint_zones": [],
+    "preprint_preset": None,
 }
 INDEX_FIELDS = (
     "key",

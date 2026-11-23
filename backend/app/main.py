@@ -119,6 +119,7 @@ from app.api.routes.admin_printers_api import router as admin_printers_api_route
 from app.api.routes.backing_designs import router as backing_designs_router
 from app.api.routes.calibration import router as calibration_router
 from app.api.routes.capabilities import router as capabilities_router
+from app.api.routes.preprint_presets import router as preprint_presets_router
 from app.api.routes.print import render_router
 from app.api.routes.print import router as print_router
 from app.api.routes.settings_api import router as settings_api_router
@@ -775,6 +776,7 @@ def create_app() -> _LifespanManager:
         sheet_types_router,
         sheet_catalog_router,
         backing_designs_router,
+        preprint_presets_router,
         sheets_router,
         sheet_print_routes.router,
         calibration_router,

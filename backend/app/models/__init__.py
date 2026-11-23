@@ -11,6 +11,7 @@ from app.models.api_key import ApiKey
 from app.models.app_setting import AppSetting
 from app.models.backing_design import BackingDesign
 from app.models.job import Job, JobState
+from app.models.preprint_preset import PreprintPreset
 from app.models.preset import Preset
 from app.models.print_batch import PrintBatch
 from app.models.printer import Printer, PrinterAudit
@@ -37,6 +38,7 @@ __all__ = [
     "BackingDesign",
     "Job",
     "JobState",
+    "PreprintPreset",
     "Preset",
     "PrintBatch",
     "Printer",

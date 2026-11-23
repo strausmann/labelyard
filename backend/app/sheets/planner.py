@@ -13,6 +13,7 @@ All lengths are hundredths of a millimetre (hmm).
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Final, Literal
@@ -29,6 +30,7 @@ from app.sheets.errors import (
     InvalidPlacementsError,
     SheetDiscardedError,
 )
+from app.sheets.free_rects import Rect, free_rects
 from app.sheets.geometry import Geometry, cell_count, cell_origin, remaining_margins
 
 __all__ = [
@@ -38,29 +40,43 @@ __all__ = [
     "FEED_MARK_PT",
     "FEED_MARK_TEXTS",
     "FeedMarkPlacement",
+    "FeedMarkReason",
+    "IdPlacementReason",
     "MarginBand",
+    "MarginBandRule",
+    "MarginContent",
     "MarginContext",
     "MarginCorner",
     "MarginDecision",
     "MarginPlacement",
+    "MarginRule",
     "PagePlan",
     "PlacementIn",
     "Plan",
     "SheetView",
     "band_length_hmm",
+    "band_rect",
     "choose_feed_mark",
     "choose_margin_placement",
     "decide_margin_and_mark",
     "feed_mark_text",
-    "feed_mark_top_taken_hmm",
+    "grown_zones",
     "margin_bands_hmm",
+    "margin_id_text",
+    "margin_placement_with_reason",
     "margin_qr_allowed",
     "margin_qr_fits",
+    "margin_text_start_pt",
     "plan",
 ]
 
 MarginBand = Literal["top", "bottom", "right", "left"]
 MarginCorner = Literal["top_left", "top_right", "bottom_left"]
+MarginBandRule = Literal["auto", "top", "bottom", "left", "right"]
+MarginContent = Literal["qr_code_type", "qr_code", "code"]
+FeedMarkEnd = Literal["top_right", "top_left"]
+FeedMarkReason = Literal["no_free_place"]
+IdPlacementReason = Literal["outside_printable", "overlaps_preprint", "too_small", "no_margin_band"]
 
 BAND_ORDER: Final[tuple[MarginBand, ...]] = ("top", "bottom", "right", "left")  # OC-46
 BAND_CORNER: Final[dict[MarginBand, MarginCorner]] = {  # OC-45
@@ -78,7 +94,6 @@ MIN_QR_MODULE_HMM: Final = 25  # 0.25 mm
 MARGIN_TEXT_GAP_HMM: Final = 200  # 2 mm between the margin QR and the text
 MIN_MARGIN_TEXT_RUN_HMM: Final = 1000  # 10 mm of text beside a QR (OC-48)
 MAX_MARGIN_ID_HMM: Final = 2000  # usable size cap, 20 mm (OC-52)
-MIN_SHARED_TOP_TEXT_HMM: Final = 500  # 5 mm of top band must stay after the feed mark
 VERTICAL_BAND_LEAD_HMM: Final = 200  # a side band must be 2 mm deeper to beat top or bottom
 _QUIET_MODULES: Final = 4
 _CAP_EM: Final = 0.72  # cap height as a fraction of the font size
@@ -89,6 +104,34 @@ FEED_MARK_TEXTS: Final[dict[str, str]] = {  # OC-55, ruling A-5; \u2013 is the e
 }
 FEED_MARK_PT: Final = 7.0  # OC-54
 FEED_MARK_MIN_PT: Final = 6.0
+MARGIN_TEXT_MAX_PT: Final = 11.0
+MARGIN_TEXT_MIN_PT: Final = 6.0
+
+
+def margin_text_start_pt(depth_hmm: int) -> float:
+    """The size the margin text starts at in a band of this depth (the renderer shrinks from it)."""
+    return min(MARGIN_TEXT_MAX_PT, max(7.0, depth_hmm / 100 * 1.4))
+
+
+def margin_id_text(code: str, type_label: str) -> str:
+    """The text of the margin ID: the code, then the type (spec 10.2)."""
+    return f"{code} · {type_label}"
+
+
+@dataclass(frozen=True)
+class MarginRule:
+    """How a sheet type places its margin ID (#246, D33).
+
+    ``zones`` are the effective keep-out zones (the preset's and the type's own, a union), in page
+    coordinates (hmm). ``band`` ``auto`` keeps the choice of 1.7.x; a named band is a rule: without
+    room there the page carries no margin ID. ``align`` ``start`` measures ``offset_hmm`` from the
+    grid's start along the band (left, or top for a side band), ``end`` from its end.
+    """
+
+    zones: tuple[Rect, ...] = ()
+    band: MarginBandRule = "auto"
+    align: Literal["start", "end"] = "start"
+    offset_hmm: int = 0
 
 
 @dataclass
@@ -120,6 +163,9 @@ class SheetView:
     feed_mark_in_flight: bool = False
     # The preferred ID cell of a ``cell`` sheet (#350, R-350-7), taken while it is free.
     id_cell_no: int | None = None
+    # The type's placement rule and zones (#246) and its label, which the margin text carries.
+    margin_rule: MarginRule = MarginRule()
+    type_label: str | None = None
 
 
 @dataclass
@@ -141,6 +187,7 @@ class PagePlan:
     margin_placement: MarginPlacement | None = None
     id_not_printed: bool = False
     feed_mark: FeedMarkPlacement | None = None
+    feed_mark_reason: FeedMarkReason | None = None
 
 
 @dataclass
@@ -165,23 +212,42 @@ class MarginContext:
 
 @dataclass(frozen=True)
 class FeedMarkPlacement:
-    """The feed-direction mark: ``x_hmm`` is the left end of the text."""
+    """The feed-direction mark: ``x_hmm`` is the left end of the text; ``end`` the end of the top
+    band it took (S15: the stored payload carries only ``x_hmm``)."""
 
     text: str
     x_hmm: int
     baseline_y_hmm: int
     size_pt: float
     width_hmm: int
+    end: FeedMarkEnd = "top_right"
 
 
 @dataclass(frozen=True)
 class MarginPlacement:
-    """Where the margin ID goes. ``depth_hmm`` is the usable size that is drawn (capped)."""
+    """Where the margin ID goes. ``depth_hmm`` is the usable size that is drawn (capped).
+
+    ``x_hmm``/``y_hmm`` are the top left corner of the ID's rectangle on the page, ``w_hmm`` its
+    length along the band (the QR, the gap and the text) and ``depth_hmm`` its depth across it;
+    ``content`` what is drawn: QR, code and type; QR and code; or the text alone (``code``: the
+    code first, the type as far as it fits, as 1.7.x).
+    """
 
     band: MarginBand
     corner: MarginCorner
     depth_hmm: int
     qr: bool
+    x_hmm: int = 0
+    y_hmm: int = 0
+    w_hmm: int = 0
+    content: MarginContent = "code"
+
+    @property
+    def rect(self) -> Rect:
+        """The rectangle on the page (a side band's rectangle is ``depth_hmm`` wide)."""
+        if self.band in ("top", "bottom"):
+            return Rect(self.x_hmm, self.y_hmm, self.w_hmm, self.depth_hmm)
+        return Rect(self.x_hmm, self.y_hmm, self.depth_hmm, self.w_hmm)
 
 
 def margin_bands_hmm(g: Geometry, *, hw: Margins | None, dev: Deviation) -> dict[MarginBand, int]:
@@ -248,37 +314,213 @@ def feed_mark_text(language: str | None) -> str:
     return FEED_MARK_TEXTS.get(language or "", FEED_MARK_TEXTS["en"])
 
 
-def choose_feed_mark(
-    g: Geometry, *, hw: Margins | None, dev: Deviation, text: str
-) -> FeedMarkPlacement | None:
-    """Where the feed-direction mark goes: the top band's top-right end, or nowhere (OC-53/54).
+def _hw(hw: Margins | None) -> Margins:
+    return (
+        hw
+        if hw is not None
+        else Margins(
+            top=DEFAULT_HW_HMM, left=DEFAULT_HW_HMM, bottom=DEFAULT_HW_HMM, right=DEFAULT_HW_HMM
+        )
+    )
 
-    Not printed when the top band is below 4 mm; never in another band. 7 pt, shrinking in
-    0.5 pt steps to 6 pt; never shortened, so it is dropped when 6 pt does not fit.
+
+def _width_hmm(text: str, size_pt: float) -> int:
+    return math.ceil(text_width_mm(text, size_pt) * 100)
+
+
+def grown_zones(zones: Sequence[Rect], dev: Deviation) -> list[Rect]:
+    """The zones as the placement keeps them free: grown by ``SAFETY_HMM`` and the calibration's
+    ``|offset|`` on each axis, like the bands (spec 5.2, 5.7)."""
+    dx = SAFETY_HMM + abs(dev.offset_x_hmm)
+    dy = SAFETY_HMM + abs(dev.offset_y_hmm)
+    return [z.grown(dx, dy) for z in zones]
+
+
+def band_rect(g: Geometry, band: MarginBand, *, hw: Margins | None, dev: Deviation) -> Rect:
+    """The room of a margin band on the page, uncapped (it can be empty).
+
+    Across the band it is ``margin_bands_hmm``: from the hardware margin and the calibration's
+    ``|offset|`` to ``SAFETY_HMM`` before the grid. Along the band it is the grid's length, cut at
+    the printable area (the hardware margin, ``|offset|`` and ``SAFETY_HMM``).
     """
-    depth = margin_bands_hmm(g, hw=hw, dev=dev)["top"]
-    if depth < MIN_MARGIN_TEXT_HMM:
-        return None
-    usable = min(depth, MAX_MARGIN_ID_HMM)
-    right_margin = hw.right if hw is not None else DEFAULT_HW_HMM
-    grid_right = g.page_w - remaining_margins(g)[0]
-    right_end = min(grid_right, g.page_w - right_margin - abs(dev.offset_x_hmm) - SAFETY_HMM)
-    room = right_end - g.margin_left
-    size = FEED_MARK_PT
-    while round(text_width_mm(text, size) * 100) > room and size > FEED_MARK_MIN_PT:
-        size -= 0.5
-    width = round(text_width_mm(text, size) * 100)
-    if width > room:
-        return None
-    centre = g.margin_top - SAFETY_HMM - usable / 2
-    baseline = round(centre + _CAP_EM * size / PT_PER_MM * 100 / 2)
-    return FeedMarkPlacement(text, right_end - width, baseline, size, width)
+    m = _hw(hw)
+    dx, dy = abs(dev.offset_x_hmm), abs(dev.offset_y_hmm)
+    right, bottom = remaining_margins(g)
+    grid_right, grid_bottom = g.page_w - right, g.page_h - bottom
+    x1 = max(g.margin_left, m.left + dx + SAFETY_HMM)
+    x2 = min(grid_right, g.page_w - m.right - dx - SAFETY_HMM)
+    y1 = max(g.margin_top, m.top + dy + SAFETY_HMM)
+    y2 = min(grid_bottom, g.page_h - m.bottom - dy - SAFETY_HMM)
+    depth = margin_bands_hmm(g, hw=hw, dev=dev)[band]
+    if band == "top":
+        return Rect(x1, g.margin_top - SAFETY_HMM - depth, x2 - x1, depth)
+    if band == "bottom":
+        return Rect(x1, grid_bottom + SAFETY_HMM, x2 - x1, depth)
+    if band == "right":
+        return Rect(grid_right + SAFETY_HMM, y1, depth, y2 - y1)
+    return Rect(g.margin_left - SAFETY_HMM - depth, y1, depth, y2 - y1)
 
 
-def feed_mark_top_taken_hmm(g: Geometry, mark: FeedMarkPlacement) -> int:
-    """Length of the top band the feed-direction mark takes: from its left end to the grid's right
-    end, plus the gap to a margin ID text (spec 10.2a). The margin ID chooses with the rest."""
-    return g.page_w - remaining_margins(g)[0] - mark.x_hmm + MARGIN_TEXT_GAP_HMM
+@dataclass(frozen=True)
+class _Candidate:
+    placement: MarginPlacement
+    text_hmm: int  # the length the text gets, for the area order
+
+
+def _content(
+    usable: int,
+    room: int,
+    *,
+    payload: str | None,
+    dpi: int,
+    text: str | None,
+    code_text: str | None,
+) -> tuple[MarginContent, int, int]:
+    """What the ID draws in a piece ``usable`` deep and ``room`` long: content, length, text length.
+
+    The degradation of #246: QR, code and type; QR and code; the text alone. The QR needs 9 mm of
+    depth, a module the printer draws and 10 mm of text beside it (OC-48), as in 1.7.x. Without
+    ``text`` (no type label known) the text is taken as the 10 mm run.
+    """
+    start = margin_text_start_pt(usable)
+    lead = usable + MARGIN_TEXT_GAP_HMM
+    qr = (
+        payload is not None
+        and margin_qr_allowed(usable, payload, dpi)
+        and room >= lead + MIN_MARGIN_TEXT_RUN_HMM
+    )
+    if qr:
+        run = room - lead
+        if text is None:
+            return "qr_code_type", lead + min(run, MIN_MARGIN_TEXT_RUN_HMM), MIN_MARGIN_TEXT_RUN_HMM
+        if _width_hmm(text, MARGIN_TEXT_MIN_PT) <= run:
+            length = min(run, _width_hmm(text, start))
+            return "qr_code_type", lead + length, length
+        if code_text is not None and _width_hmm(code_text, MARGIN_TEXT_MIN_PT) <= run:
+            length = min(run, _width_hmm(code_text, start))
+            return "qr_code", lead + length, length
+        return "qr_code_type", room, run  # shortened with an ellipsis, as 1.7.x
+    length = room if text is None else min(room, _width_hmm(text, start))
+    length = min(length, MIN_MARGIN_TEXT_RUN_HMM) if text is None else length
+    return "code", length, length
+
+
+def _pieces(
+    band: MarginBand,
+    free: Sequence[Rect],
+    *,
+    g: Geometry,
+    align: Literal["start", "end"],
+    offset_hmm: int,
+) -> list[tuple[int, int, int, int]]:
+    """The free rectangles as ``(along_lo, along_hi, across_lo, across_hi)``, cut at the requested
+    start point when an offset or ``align = end`` asks for one (spec 5.2 step 3)."""
+    horizontal = band in ("top", "bottom")
+    out: list[tuple[int, int, int, int]] = []
+    right, bottom = remaining_margins(g)
+    grid_lo = g.margin_left if horizontal else g.margin_top
+    grid_hi = (g.page_w - right) if horizontal else (g.page_h - bottom)
+    point = grid_lo + offset_hmm if align == "start" else grid_hi - offset_hmm
+    anchored = align == "end" or offset_hmm != 0
+    for r in free:
+        lo, hi = (r.x, r.x2) if horizontal else (r.y, r.y2)
+        across = (r.y, r.y2) if horizontal else (r.x, r.x2)
+        if anchored:
+            if align == "start":
+                if not lo <= point < hi:
+                    continue
+                lo = point
+            else:
+                if not lo < point <= hi:
+                    continue
+                hi = point
+        out.append((lo, hi, *across))
+    return out
+
+
+def margin_placement_with_reason(
+    g: Geometry,
+    *,
+    hw: Margins | None,
+    dev: Deviation,
+    payload: str | None,
+    dpi: int,
+    zones: Sequence[Rect] = (),
+    band_rule: MarginBandRule = "auto",
+    align: Literal["start", "end"] = "start",
+    offset_hmm: int = 0,
+    taken: Sequence[Rect] = (),
+    text: str | None = None,
+    code_text: str | None = None,
+) -> tuple[MarginPlacement | None, IdPlacementReason | None]:
+    """The rectangle the margin ID goes into, or ``None`` with the reason (spec 5.2, D33).
+
+    Each band (``band_rect``) is cut into free rectangles around the zones and ``taken`` (grown
+    by ``SAFETY_HMM`` and ``|offset|``); a piece at least 4 mm deep and 10 mm long is a
+    candidate. ``band_rule`` other than ``auto`` keeps only that band. Candidates are ordered: one
+    with a QR first; then the area the ID uses (its capped depth times the length of its text, a
+    side band's depth counted ``VERTICAL_BAND_LEAD_HMM`` less, ruling A-2); then the band order
+    of 1.7.x. The ID sits on the grid side of its piece, at the piece's start (``align`` ``end``:
+    ending at the requested point).
+    """
+    blocked = grown_zones(zones, dev) + [
+        t.grown(MARGIN_TEXT_GAP_HMM, MARGIN_TEXT_GAP_HMM) for t in taken
+    ]
+    depths = margin_bands_hmm(g, hw=hw, dev=dev)
+    bands = BAND_ORDER if band_rule == "auto" else (band_rule,)
+    best: tuple[tuple[int, int, int], _Candidate] | None = None
+    seen_deep = seen_shallow = seen_clear = seen_point = False
+    for order, band in enumerate(BAND_ORDER):
+        if band not in bands:
+            continue
+        depth = depths[band]
+        if depth <= 0:
+            continue
+        if depth < MIN_MARGIN_TEXT_HMM:
+            seen_shallow = True
+            continue
+        seen_deep = True
+        rect = band_rect(g, band, hw=hw, dev=dev)
+        horizontal = band in ("top", "bottom")
+        clear = free_rects(rect, [], min_depth=MIN_MARGIN_TEXT_HMM, horizontal=horizontal)
+        free = free_rects(rect, blocked, min_depth=MIN_MARGIN_TEXT_HMM, horizontal=horizontal)
+        anchored_clear = _pieces(band, clear, g=g, align=align, offset_hmm=offset_hmm)
+        if anchored_clear:
+            seen_point = True
+        for lo, hi, a_lo, a_hi in _pieces(band, free, g=g, align=align, offset_hmm=offset_hmm):
+            room = hi - lo
+            if room < MIN_MARGIN_TEXT_RUN_HMM:
+                continue
+            seen_clear = True
+            usable = min(a_hi - a_lo, MAX_MARGIN_ID_HMM)
+            content, length, text_len = _content(
+                usable, room, payload=payload, dpi=dpi, text=text, code_text=code_text
+            )
+            start = lo if align == "start" else hi - length
+            if band == "top":
+                x, y = start, a_hi - usable
+            elif band == "bottom":
+                x, y = start, a_lo
+            elif band == "right":
+                x, y = a_lo, start
+            else:
+                x, y = a_hi - usable, start
+            placement = MarginPlacement(
+                band, BAND_CORNER[band], usable, content != "code", x, y, length, content
+            )
+            lead = 0 if horizontal else VERTICAL_BAND_LEAD_HMM - 1
+            key = (int(content != "code"), (usable - lead) * text_len, -order)
+            if best is None or key > best[0]:
+                best = (key, _Candidate(placement, text_len))
+    if best is not None:
+        return best[1].placement, None
+    if not seen_deep:
+        return None, "too_small" if seen_shallow else "no_margin_band"
+    if not seen_point:
+        return None, "outside_printable"
+    if not seen_clear or zones or taken:
+        return None, "overlaps_preprint" if (zones or taken) else "too_small"
+    return None, "too_small"
 
 
 def choose_margin_placement(
@@ -288,60 +530,84 @@ def choose_margin_placement(
     dev: Deviation,
     payload: str | None,
     dpi: int,
-    top_taken_hmm: int = 0,
+    zones: Sequence[Rect] = (),
+    band_rule: MarginBandRule = "auto",
+    align: Literal["start", "end"] = "start",
+    offset_hmm: int = 0,
+    taken: Sequence[Rect] = (),
+    text: str | None = None,
+    code_text: str | None = None,
 ) -> MarginPlacement | None:
-    """The band the margin ID goes into, or ``None`` if no band is deep enough (OC-46).
+    """The rectangle the margin ID goes into, or ``None`` (``margin_placement_with_reason``).
 
-    A band with a QR beats any text-only band; then depth decides, with the tie-break top,
-    bottom, right, left. A side band beats the best of top and bottom only if it is
-    ``VERTICAL_BAND_LEAD_HMM`` deeper (ruling A-2). Decided once, at render dpi.
-    ``top_taken_hmm`` is the length of the top band the feed-direction mark takes (from its left
-    end to the grid's right end, plus the gap); the top band's length rule sees the rest.
+    One function for the plan, the preview, the margin check, the per-printer view and the
+    probe print (spec 5.2). Decided once, at render dpi.
     """
-    usable = {
-        band: min(depth, MAX_MARGIN_ID_HMM)
-        for band, depth in margin_bands_hmm(g, hw=hw, dev=dev).items()
-    }
-    qr_of: dict[MarginBand, bool] = {}
-    for band in BAND_ORDER:
-        if usable[band] < MIN_MARGIN_TEXT_HMM:
-            continue
-        if (
-            band == "top"
-            and top_taken_hmm > 0
-            and band_length_hmm(g, band) - top_taken_hmm < MIN_SHARED_TOP_TEXT_HMM
-        ):
-            # Spec 10.2a: the mark goes first and the ID chooses with the shorter band like
-            # any other. Left with less than 5 mm the top band cannot carry even a cut text,
-            # so it is not a candidate (another band, or no ID on this page).
-            continue
-        qr_of[band] = (
-            payload is not None
-            and margin_qr_allowed(usable[band], payload, dpi)
-            and band_length_hmm(g, band) - (top_taken_hmm if band == "top" else 0)
-            >= usable[band] + MARGIN_TEXT_GAP_HMM + MIN_MARGIN_TEXT_RUN_HMM
-        )
-    if not qr_of:
-        return None
-    if any(qr_of.values()):
-        qr_of = {band: qr for band, qr in qr_of.items() if qr}
+    return margin_placement_with_reason(
+        g,
+        hw=hw,
+        dev=dev,
+        payload=payload,
+        dpi=dpi,
+        zones=zones,
+        band_rule=band_rule,
+        align=align,
+        offset_hmm=offset_hmm,
+        taken=taken,
+        text=text,
+        code_text=code_text,
+    )[0]
 
-    def deepest(bands: tuple[MarginBand, ...]) -> MarginBand | None:
-        best_of: MarginBand | None = None
-        for b in bands:  # strict ">" keeps the first of equal bands
-            if b in qr_of and (best_of is None or usable[b] > usable[best_of]):
-                best_of = b
-        return best_of
 
-    h = deepest(("top", "bottom"))
-    v = deepest(("right", "left"))
-    if h is not None and v is not None:
-        best: MarginBand = v if usable[v] >= usable[h] + VERTICAL_BAND_LEAD_HMM else h
-    else:
-        only = h or v
-        assert only is not None  # qr_of is not empty
-        best = only
-    return MarginPlacement(best, BAND_CORNER[best], usable[best], qr_of[best])
+def choose_feed_mark(
+    g: Geometry,
+    *,
+    hw: Margins | None,
+    dev: Deviation,
+    text: str,
+    zones: Sequence[Rect] = (),
+    taken: Sequence[Rect] = (),
+) -> tuple[FeedMarkPlacement | None, FeedMarkReason | None]:
+    """Where the feed-direction mark goes: the top band's right end, else its left end (#246).
+
+    Not printed when the top band is below 4 mm; never in another band. 7 pt, shrinking in
+    0.5 pt steps to 6 pt; never shortened, so it is dropped when 6 pt does not fit (OC-53/54);
+    the reason is then ``None``. An end is free when the mark's box overlaps no zone (grown like
+    the ID's) and no rectangle of ``taken`` (the margin ID's, grown by the text gap); with
+    neither end free the mark is not printed and the reason is ``no_free_place`` (spec 5.7).
+    """
+    depth = margin_bands_hmm(g, hw=hw, dev=dev)["top"]
+    if depth < MIN_MARGIN_TEXT_HMM:
+        return None, None
+    usable = min(depth, MAX_MARGIN_ID_HMM)
+    m = _hw(hw)
+    grid_right = g.page_w - remaining_margins(g)[0]
+    right_end = min(grid_right, g.page_w - m.right - abs(dev.offset_x_hmm) - SAFETY_HMM)
+    left_end = max(g.margin_left, m.left + abs(dev.offset_x_hmm) + SAFETY_HMM)
+    room = right_end - g.margin_left
+    size = FEED_MARK_PT
+    while round(text_width_mm(text, size) * 100) > room and size > FEED_MARK_MIN_PT:
+        size -= 0.5
+    width = round(text_width_mm(text, size) * 100)
+    if width > room:
+        return None, None
+    centre = g.margin_top - SAFETY_HMM - usable / 2
+    baseline = round(centre + _CAP_EM * size / PT_PER_MM * 100 / 2)
+    top = g.margin_top - SAFETY_HMM - usable
+    blocked = grown_zones(zones, dev) + [
+        t.grown(MARGIN_TEXT_GAP_HMM, MARGIN_TEXT_GAP_HMM) for t in taken
+    ]
+    ends: tuple[tuple[FeedMarkEnd, int], ...] = (
+        ("top_right", right_end - width),
+        ("top_left", left_end),
+    )
+    for end, x in ends:
+        if x + width > right_end or x < left_end:
+            continue
+        box = Rect(x, top, width, usable)
+        if not any(box.overlaps(b) for b in blocked):
+            return FeedMarkPlacement(text, x, baseline, size, width, end), None
+    return None, "no_free_place"
 
 
 @dataclass(frozen=True)
@@ -354,6 +620,13 @@ class MarginDecision:
     id_not_printed: bool
     mark_was_due: bool
     feed_mark: FeedMarkPlacement | None
+    feed_mark_reason: FeedMarkReason | None = None
+
+
+FeedMarkMemo = dict[
+    tuple[Geometry, tuple[Rect, ...], tuple[Rect, ...]],
+    tuple[FeedMarkPlacement | None, FeedMarkReason | None],
+]
 
 
 def decide_margin_and_mark(
@@ -363,20 +636,25 @@ def decide_margin_and_mark(
     *,
     id_done: bool = False,
     mark_done: bool = False,
-    feed_marks: dict[Geometry, FeedMarkPlacement | None] | None = None,
+    feed_marks: FeedMarkMemo | None = None,
 ) -> MarginDecision:
     """The one rule for the margin ID and the feed mark of a page, shared by ``plan`` and by the
-    retry of a page job (which re-decides both for the printer it is sent to).
+    retry of a page job (which re-decides both for the printer it is sent to and stores its own
+    decision, spec S2).
 
-    The mark has its own flag and is due for every ID placement (OC-56, OC-58). It is decided
-    before the margin ID, which then sees the shorter top band (OC-57). ``margin=None`` means
-    there is no printer context: the ID is still due, but no band is chosen.
+    The mark has its own flag and is due for every ID placement (OC-56, OC-58). The **ID is
+    placed first** and the mark in what is left (#246, D33; reverses OC-57's "mark first"): the
+    ID identifies the sheet, the mark is a convenience. ``margin=None`` means there is no printer
+    context: the ID is still due, but no band is chosen.
 
-    ``feed_marks`` memoises the mark by geometry for one planning pass: the hardware margins,
-    the calibration and the language are the same for all of its pages, so fifty new sheets of
-    one type measure the mark's text once (the plan runs under the write lock, R10-2).
+    ``feed_marks`` memoises the mark for one planning pass by geometry, effective zones and the
+    ID's rectangle: the hardware margins, the calibration and the language are the same for all
+    of its pages, so fifty new sheets of one type measure the mark's text once (the plan runs
+    under the write lock, R10-2), and two types with equal geometry but other zones, or a sheet
+    whose ID is not due, never share a mark.
     """
     g = view.geometry
+    rule = view.margin_rule
     due = (
         view.id_placement == "margin"
         and not view.id_printed
@@ -388,21 +666,7 @@ def decide_margin_and_mark(
     id_not_printed = False
     mark_due = not view.feed_mark_printed and not view.feed_mark_in_flight and not mark_done
     feed_mark: FeedMarkPlacement | None = None
-    top_taken = 0
-    if mark_due and margin is not None:
-        if feed_marks is not None and g in feed_marks:
-            feed_mark = feed_marks[g]
-        else:
-            feed_mark = choose_feed_mark(
-                g,
-                hw=hw_margins_hmm,
-                dev=margin.deviation,
-                text=feed_mark_text(margin.language),
-            )
-            if feed_marks is not None:
-                feed_marks[g] = feed_mark
-        if feed_mark is not None:
-            top_taken = feed_mark_top_taken_hmm(g, feed_mark)
+    reason: FeedMarkReason | None = None
     if due and margin is not None:
         code = view.code or view.code_hint
         placement = choose_margin_placement(
@@ -411,11 +675,32 @@ def decide_margin_and_mark(
             dev=margin.deviation,
             payload=margin.scan_payload(code) if code else None,
             dpi=margin.render_dpi,
-            top_taken_hmm=top_taken,
+            zones=rule.zones,
+            band_rule=rule.band,
+            align=rule.align,
+            offset_hmm=rule.offset_hmm,
+            text=margin_id_text(code, view.type_label) if code and view.type_label else None,
+            code_text=code,
         )
         margin_id = placement is not None
         id_not_printed = placement is None
-    return MarginDecision(due, margin_id, placement, id_not_printed, mark_due, feed_mark)
+    if mark_due and margin is not None:
+        taken = (placement.rect,) if placement is not None else ()
+        key = (g, rule.zones, taken)
+        if feed_marks is not None and key in feed_marks:
+            feed_mark, reason = feed_marks[key]
+        else:
+            feed_mark, reason = choose_feed_mark(
+                g,
+                hw=hw_margins_hmm,
+                dev=margin.deviation,
+                text=feed_mark_text(margin.language),
+                zones=rule.zones,
+                taken=taken,
+            )
+            if feed_marks is not None:
+                feed_marks[key] = (feed_mark, reason)
+    return MarginDecision(due, margin_id, placement, id_not_printed, mark_due, feed_mark, reason)
 
 
 def _hw_margin_cells(g: Geometry, cells: Sequence[int], hw: Margins | None) -> list[int]:
@@ -480,6 +765,7 @@ class _Draft:
     id_was_due: bool = False
     feed_mark: FeedMarkPlacement | None = None
     mark_was_due: bool = False
+    feed_mark_reason: FeedMarkReason | None = None
 
 
 def _draft(
@@ -490,7 +776,7 @@ def _draft(
     id_done: bool,
     mark_done: bool,
     hw_margins_hmm: Margins | None,
-    feed_marks: dict[Geometry, FeedMarkPlacement | None],
+    feed_marks: FeedMarkMemo,
 ) -> _Draft:
     """Plan one placement. ``id_done``: this sheet's ID label already went to an earlier page;
     ``mark_done``: so did its feed-direction mark."""
@@ -574,6 +860,7 @@ def _draft(
         id_was_due=due,
         feed_mark=feed_mark,
         mark_was_due=mark_due,
+        feed_mark_reason=decision.feed_mark_reason,
     )
 
 
@@ -606,7 +893,7 @@ def plan(
     id_done: set[int] = set()
     mark_done: set[int] = set()
     drafts: list[_Draft] = []
-    feed_marks: dict[Geometry, FeedMarkPlacement | None] = {}
+    feed_marks: FeedMarkMemo = {}
     for p, count in zip(placements, counts, strict=True):
         key = id(p.sheet)
         taken = taken_by_sheet.setdefault(key, set())
@@ -662,6 +949,7 @@ def plan(
             margin_placement=d.margin_placement,
             id_not_printed=d.id_not_printed,
             feed_mark=d.feed_mark,
+            feed_mark_reason=d.feed_mark_reason,
         )
         for i, d in enumerate(drafts)
     ]

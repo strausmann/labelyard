@@ -838,13 +838,16 @@ def _detail_for(g: Geometry, mid: Any, mark: Any) -> SheetPageDetail:
 def test_narrow_top_band_collapsed_ellipsis_is_not_drawn_over_the_mark() -> None:
     """The reviewer's repro: 40 mm page, default hardware margins. The mark starts at 685; the
     ID text used to collapse to an ellipsis drawn from 500 to 712."""
+    from app.page_render.transform import Deviation
+    from app.sheets.planner import choose_feed_mark
     from app.sheets.sheet_page import feed_mark_payload
 
     g = _narrow(4000)
-    placement, mark = _decide(g)
+    placement, after = _decide(g)
+    # #246 (D33): the ID goes first and keeps the top band; the mark finds no free end.
+    assert placement is not None and placement.band == "top" and after is None
+    mark, _ = choose_feed_mark(g, hw=None, dev=Deviation(), text="▲ Top \u2013 this edge first")
     assert mark is not None and mark.x_hmm == 685
-    # Spec 10.2a: the ID chooses with the shorter band like any other; the top has no room left.
-    assert placement is None or placement.band != "top"
     # Whatever a stored payload says, the text never passes text_end_hmm.
     forced = MarginIdPayload(
         text="L4736-0001 · Avery", usable_hmm=1100, text_end_hmm=mark.x_hmm - 200

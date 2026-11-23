@@ -198,11 +198,12 @@ def test_script_type_defaults_are_the_type_doc_defaults() -> None:
 
 
 def test_adding_a_defaulted_type_field_keeps_the_hash() -> None:
-    """Task 10a adds defaulted fields to ``TypeDoc``; no shipped hash may change through that."""
+    """A later release adds defaulted fields to ``TypeDoc`` (as Task 10a did with the sheet code
+    position); no shipped hash may change through that."""
 
     class LaterTypeDoc(TypeDoc):
-        id_margin_band: str | None = None
-        id_margin_offset: float = 0.0
+        later_band: str | None = None
+        later_offset: float = 0.0
 
     for doc in _docs().values():
         data = doc.type.model_dump(mode="json")

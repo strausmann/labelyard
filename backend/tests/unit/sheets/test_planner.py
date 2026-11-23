@@ -40,6 +40,27 @@ L4731 = Geometry("A4", 21000, 29700, 2540, 1000, 7, 27, 2790, 1000, 1350, 860, 1
 TYPE_VERSION = uuid.UUID(int=1)
 
 
+class MP:
+    """Compares band, corner, depth and QR of a ``MarginPlacement`` (the rectangle has its own
+    tests in ``test_margin_placement_zones``)."""
+
+    def __init__(self, band: str, corner: str, depth_hmm: int, qr: bool) -> None:
+        self.want = (band, corner, depth_hmm, qr)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MarginPlacement):
+            return NotImplemented
+        return (other.band, other.corner, other.depth_hmm, other.qr) == self.want
+
+    def __repr__(self) -> str:
+        return f"MP{self.want}"
+
+
+def _mark(g: Geometry, **kw: object) -> object:
+    """The placement of ``choose_feed_mark`` without its reason."""
+    return choose_feed_mark(g, **kw)[0]  # type: ignore[arg-type]
+
+
 def sheet(
     geometry: Geometry = L4736,
     used: set[int] | None = None,
@@ -407,10 +428,10 @@ def test_margin_bands_dy_minus_0_8() -> None:
     assert _bands(L4731, None, dev) == [670, 670, 260, 260]
     assert _bands(L4731, full, dev) == [747, 747, 337, 337]
     cases = [
-        (L4736, None, MarginPlacement("top", "top_left", 1450, True)),
-        (L4736, full, MarginPlacement("top", "top_left", 1527, True)),
-        (L4731, None, MarginPlacement("top", "top_left", 670, False)),
-        (L4731, full, MarginPlacement("top", "top_left", 747, False)),
+        (L4736, None, MP("top", "top_left", 1450, True)),
+        (L4736, full, MP("top", "top_left", 1527, True)),
+        (L4731, None, MP("top", "top_left", 670, False)),
+        (L4731, full, MP("top", "top_left", 747, False)),
     ]
     for g, hw, want in cases:
         got = choose_margin_placement(g, hw=hw, dev=dev, payload=PAYLOAD, dpi=600)
@@ -437,14 +458,14 @@ def _choose(
 
 
 def test_choose_top_on_l4736_with_qr() -> None:
-    assert _choose(L4736) == MarginPlacement("top", "top_left", 1530, True)
+    assert _choose(L4736) == MP("top", "top_left", 1530, True)
 
 
 def test_choose_bottom_when_the_printer_clips_more_at_the_top() -> None:
     hw = Margins(top=600, left=500, bottom=423, right=500)
-    assert _choose(L4736, hw) == MarginPlacement("bottom", "bottom_left", 1607, True)
+    assert _choose(L4736, hw) == MP("bottom", "bottom_left", 1607, True)
     got = _choose(L4736, hw, Deviation(offset_y_hmm=-80))
-    assert got == MarginPlacement("bottom", "bottom_left", 1527, True)
+    assert got == MP("bottom", "bottom_left", 1527, True)
 
 
 def test_vertical_band_needs_a_two_mm_lead() -> None:
@@ -452,25 +473,25 @@ def test_vertical_band_needs_a_two_mm_lead() -> None:
     assert margin_qr_allowed(1800, payload, 600) is True
     g = _syn(margin_top=2401)
     assert _bands(g, None) == [1801, 99, 2000, 0]
-    assert _choose(g, payload=payload) == MarginPlacement("top", "top_left", 1801, True)
+    assert _choose(g, payload=payload) == MP("top", "top_left", 1801, True)
     g = _syn(margin_top=2400)
     assert _bands(g, None)[:3] == [1800, 100, 2000]
-    assert _choose(g, payload=payload) == MarginPlacement("right", "top_right", 2000, True)
+    assert _choose(g, payload=payload) == MP("right", "top_right", 2000, True)
 
 
 def test_usable_size_capped_at_twenty_mm() -> None:
     g = replace(L4736, rows=10)
     assert _bands(g, None)[:2] == [1530, 5770]
-    assert _choose(g) == MarginPlacement("bottom", "bottom_left", 2000, True)
+    assert _choose(g) == MP("bottom", "bottom_left", 2000, True)
     g = replace(g, margin_top=3000)
     assert _bands(g, None)[:2] == [2400, 4900]
-    assert _choose(g) == MarginPlacement("top", "top_left", 2000, True)
+    assert _choose(g) == MP("top", "top_left", 2000, True)
 
 
 def test_choose_right_on_wide_right_margin() -> None:
     g = _syn(rows=14, margin_top=600, margin_left=600)
     assert _bands(g, None) == [0, -150, 2000, 0]
-    assert _choose(g) == MarginPlacement("right", "top_right", 2000, True)
+    assert _choose(g) == MP("right", "top_right", 2000, True)
 
 
 def test_qr_band_beats_a_larger_text_only_band() -> None:
@@ -487,33 +508,33 @@ def test_qr_band_beats_a_larger_text_only_band() -> None:
     )
     assert margin_qr_allowed(1100, payload, 600) is True
     assert _bands(g, None) == [1100, 24900, 16900, 400]
-    assert _choose(g, payload=payload) == MarginPlacement("top", "top_left", 1100, True)
+    assert _choose(g, payload=payload) == MP("top", "top_left", 1100, True)
 
 
 def test_text_only_from_four_mm() -> None:
     hw = Margins(top=1630, left=500, bottom=1630, right=500)
-    assert _choose(L4736, hw) == MarginPlacement("top", "top_left", 400, False)
+    assert _choose(L4736, hw) == MP("top", "top_left", 400, False)
     hw = Margins(top=1631, left=500, bottom=1631, right=500)
     assert _choose(L4736, hw) is None
 
 
 def test_l4731_text_only_on_typical_laser() -> None:
     got = _choose(L4731, Margins(top=423, left=423, bottom=423, right=423))
-    assert got == MarginPlacement("top", "top_left", 827, False)
+    assert got == MP("top", "top_left", 827, False)
     assert margin_qr_allowed(950, PAYLOAD, 600) is True
     got = _choose(L4731, Margins(top=300, left=300, bottom=300, right=300))
-    assert got == MarginPlacement("top", "top_left", 950, True)
+    assert got == MP("top", "top_left", 950, True)
 
 
 def test_no_payload_means_text_only() -> None:
-    assert _choose(L4736, payload=None) == MarginPlacement("top", "top_left", 1530, False)
+    assert _choose(L4736, payload=None) == MP("top", "top_left", 1530, False)
 
 
 def test_plan_carries_margin_placement() -> None:
     view = sheet(id_placement="margin")
     page = plan([first_free(view, 1)], 1, hw_margins_hmm=None, margin=margin_ctx()).pages[0]
     assert page.margin_id is True
-    assert page.margin_placement == MarginPlacement("top", "top_left", 1530, True)
+    assert page.margin_placement == MP("top", "top_left", 1530, True)
     assert page.id_not_printed is False
 
 
@@ -706,34 +727,23 @@ def test_feed_mark_text_per_language() -> None:
 def test_feed_mark_l4736() -> None:
     from app.sheets import planner
 
-    got = planner.choose_feed_mark(L4736, hw=None, dev=Deviation(), text=EN_MARK)
+    got = _mark(L4736, hw=None, dev=Deviation(), text=EN_MARK)
     assert got == planner.FeedMarkPlacement(EN_MARK, 17300, 1354, 7.0, 2715)
 
 
 def test_feed_mark_l4736_de() -> None:
     from app.sheets import planner
 
-    got = planner.choose_feed_mark(L4736, hw=None, dev=Deviation(), text=DE_MARK)
+    got = _mark(L4736, hw=None, dev=Deviation(), text=DE_MARK)
     assert got == planner.FeedMarkPlacement(DE_MARK, 16508, 1354, 7.0, 3507)
-    seen: list[int] = []
-    real = planner.choose_margin_placement
-
-    def spy(*a: object, **kw: object) -> object:
-        seen.append(planner.band_length_hmm(L4736, "top") - int(kw.get("top_taken_hmm", 0)))
-        return real(*a, **kw)  # type: ignore[arg-type]
-
-    import pytest as _pytest
-
-    with _pytest.MonkeyPatch.context() as mp:
-        mp.setattr(planner, "choose_margin_placement", spy)
-        page = plan(
-            [first_free(sheet(id_placement="margin"), 1)],
-            1,
-            hw_margins_hmm=None,
-            margin=margin_ctx(language="de"),
-        ).pages[0]
+    page = plan(
+        [first_free(sheet(id_placement="margin"), 1)],
+        1,
+        hw_margins_hmm=None,
+        margin=margin_ctx(language="de"),
+    ).pages[0]
     assert page.feed_mark is not None and page.feed_mark.text == DE_MARK
-    assert seen == [19030 - 3507 - 200]
+    assert page.feed_mark.x_hmm == 16508 and page.feed_mark.end == "top_right"
     assert page.margin_placement is not None and page.margin_placement.qr is True
     fr = plan(
         [first_free(sheet(), 1)], 1, hw_margins_hmm=None, margin=margin_ctx(language="fr")
@@ -742,12 +752,11 @@ def test_feed_mark_l4736_de() -> None:
 
 
 def test_feed_mark_stops_at_the_right_hardware_margin() -> None:
-    from app.sheets import planner
 
     wide = Margins(top=500, left=500, bottom=500, right=1000)
-    got = planner.choose_feed_mark(L4736, hw=wide, dev=Deviation(), text=EN_MARK)
+    got = _mark(L4736, hw=wide, dev=Deviation(), text=EN_MARK)
     assert got is not None and got.x_hmm == 17185  # right end 19900
-    got = planner.choose_feed_mark(
+    got = _mark(
         L4736,
         hw=Margins(top=500, left=500, bottom=500, right=500),
         dev=Deviation(offset_x_hmm=-120),
@@ -757,10 +766,9 @@ def test_feed_mark_stops_at_the_right_hardware_margin() -> None:
 
 
 def test_feed_mark_not_printed_below_four_mm() -> None:
-    from app.sheets import planner
 
     thin = Margins(top=1631, left=500, bottom=500, right=500)
-    assert planner.choose_feed_mark(L4736, hw=thin, dev=Deviation(), text=EN_MARK) is None
+    assert _mark(L4736, hw=thin, dev=Deviation(), text=EN_MARK) is None
     got = plan(
         [first_free(sheet(id_placement="margin"), 1)],
         1,
@@ -768,9 +776,9 @@ def test_feed_mark_not_printed_below_four_mm() -> None:
         margin=margin_ctx(),
     ).pages[0]
     assert got.feed_mark is None
-    assert got.margin_placement == MarginPlacement("bottom", "bottom_left", 1530, True)
+    assert got.margin_placement == MP("bottom", "bottom_left", 1530, True)
     ok = Margins(top=1630, left=500, bottom=500, right=500)
-    mark = planner.choose_feed_mark(L4736, hw=ok, dev=Deviation(), text=EN_MARK)
+    mark = _mark(L4736, hw=ok, dev=Deviation(), text=EN_MARK)
     assert mark is not None and mark.baseline_y_hmm == round(1830 + 88.9) == 1919
 
 
@@ -778,9 +786,7 @@ def test_feed_mark_shrinks_then_drops() -> None:
     from app.sheets import planner
 
     def mark(label_w: int, text: str) -> object:
-        return planner.choose_feed_mark(
-            _one_cell_type(label_w), hw=None, dev=Deviation(), text=text
-        )
+        return _mark(_one_cell_type(label_w), hw=None, dev=Deviation(), text=text)
 
     en = mark(2400, EN_MARK)
     assert en == planner.FeedMarkPlacement(EN_MARK, 1073, en.baseline_y_hmm, 6.0, 2327)
@@ -792,13 +798,15 @@ def test_feed_mark_shrinks_then_drops() -> None:
 
 
 def test_id_shares_the_top_band_with_the_mark() -> None:
+    """#246 (D33, reverses OC-57): the ID is placed first and keeps its QR; the mark takes what is
+    left, and with no free end it is not printed (``no_free_place``) and stays due."""
     from app.sheets import planner
 
     page = plan(
         [first_free(sheet(id_placement="margin"), 1)], 1, hw_margins_hmm=None, margin=margin_ctx()
     ).pages[0]
-    assert page.feed_mark.x_hmm == 17300
-    assert page.margin_placement == MarginPlacement("top", "top_left", 1530, True)
+    assert page.feed_mark is not None and page.feed_mark.x_hmm == 17300
+    assert page.margin_placement == MP("top", "top_left", 1530, True)
 
     def tight(label_w: int, label_h: int = 27000) -> Geometry:
         return Geometry(
@@ -811,28 +819,12 @@ def test_id_shares_the_top_band_with_the_mark() -> None:
     assert margin_bands_hmm(g, hw=hw, dev=Deviation()) == {
         "top": 1100, "bottom": 400, "right": -700, "left": 400,
     }  # fmt: skip
-    mark = planner.choose_feed_mark(g, hw=hw, dev=Deviation(), text=EN_MARK)
-    assert mark == planner.FeedMarkPlacement(EN_MARK, 2185, 1139, 7.0, 2715)
-    args = {"hw": hw, "dev": Deviation(), "payload": "https://hub.example/sheet/X", "dpi": 600}
-    assert choose_margin_placement(g, **args) == MarginPlacement("top", "top_left", 1100, True)
-    taken = 5600 - 2185 + 200
-    got = choose_margin_placement(g, **args, top_taken_hmm=taken)  # type: ignore[arg-type]
-    assert got == MarginPlacement("top", "top_left", 1100, False)  # 4600 - 3615 = 985
-
-    g2 = tight(6000)
-    hw2 = Margins(top=500, left=500, bottom=500, right=14900)
-    assert margin_bands_hmm(g2, hw=hw2, dev=Deviation()) == {
-        "top": 1100, "bottom": 400, "right": -1000, "left": 400,
-    }  # fmt: skip
-    mark2 = planner.choose_feed_mark(g2, hw=hw2, dev=Deviation(), text=EN_MARK)
-    assert mark2 is not None and mark2.x_hmm == 3285
-    result = plan(
-        [first_free(sheet(g2, id_placement="margin"), 1)], 1, hw_margins_hmm=hw2,
-        margin=margin_ctx(),
-    ).pages[0]  # fmt: skip
-    assert result.margin_placement == MarginPlacement("top", "top_left", 1100, False)
-    # 7000 - 3285 + 200 = 3915 -> 2085 < 2300; "width + gap" would leave 3085 and a QR
-    assert 6000 - (7000 - 3285 + 200) == 2085
+    alone = _mark(g, hw=hw, dev=Deviation(), text=EN_MARK)
+    assert alone == planner.FeedMarkPlacement(EN_MARK, 2185, 1139, 7.0, 2715)
+    decision = decide_margin_and_mark(sheet(g, id_placement="margin"), margin_ctx(), hw)
+    assert decision.placement == MP("top", "top_left", 1100, True)  # 1.7.x: no QR, the mark first
+    assert decision.feed_mark is None and decision.feed_mark_reason == "no_free_place"
+    assert decision.mark_was_due is True
 
 
 def test_feed_mark_for_every_placement() -> None:
@@ -867,8 +859,9 @@ def test_margin_context_language_is_required() -> None:
         MarginContext(deviation=Deviation(), scan_payload=str, render_dpi=600)  # type: ignore[call-arg]
 
 
-def test_id_leaves_a_top_band_the_mark_has_used_up() -> None:
-    """Fix round 1, I1 (spec 10.2a: the ID chooses with the shorter band like any other)."""
+def test_id_keeps_a_top_band_the_mark_would_have_used_up() -> None:
+    """#246 (D33): on a narrow page the ID takes the top band first; 1.7.x gave it to the mark and
+    sent the ID to the bottom band (fix round 1, I1)."""
     narrow = Geometry(
         "A4", 4000, 29700, 3000, 2600, 1, 10, 3000, 2700, 1700, 500, None, "rectangle"
     )
@@ -878,16 +871,16 @@ def test_id_leaves_a_top_band_the_mark_has_used_up() -> None:
         hw_margins_hmm=None,
         margin=margin_ctx(),
     ).pages[0]
-    assert page.feed_mark is not None and page.feed_mark.x_hmm == 685
-    assert page.margin_placement is not None and page.margin_placement.band == "bottom"
-    # without the mark (already printed) the top band is the ID's again
+    assert page.margin_placement is not None and page.margin_placement.band == "top"
+    assert page.feed_mark is None and page.feed_mark_reason == "no_free_place"
+    # without a due ID (printed already) the mark gets the top band
     again = plan(
-        [first_free(sheet(narrow, id_placement="margin", feed_mark_printed=True), 1)],
+        [first_free(sheet(narrow, id_placement="margin", id_printed=True), 1)],
         1,
         hw_margins_hmm=None,
         margin=margin_ctx(),
     ).pages[0]
-    assert again.margin_placement is not None and again.margin_placement.band == "top"
+    assert again.feed_mark is not None and again.feed_mark.x_hmm == 685
 
 
 # ---- R10-2: planning is cheap enough to run while the write lock is held -----------------
@@ -1039,7 +1032,7 @@ def test_seeded_3490_plans_without_margin_id(hw: Margins | None) -> None:
     g = _seeded_3490()
     assert g.margin_top == 450 and g.margin_left == 0
     assert choose_margin_placement(g, hw=hw, dev=Deviation(), payload=PAYLOAD, dpi=600) is None
-    assert choose_feed_mark(g, hw=hw, dev=Deviation(), text=feed_mark_text("en")) is None
+    assert _mark(g, hw=hw, dev=Deviation(), text=feed_mark_text("en")) is None
     decision = decide_margin_and_mark(sheet(g, id_placement="margin"), margin_ctx(), hw)
     assert decision.margin_id is False and decision.placement is None
     assert decision.id_not_printed is True and decision.feed_mark is None

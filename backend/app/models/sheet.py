@@ -45,6 +45,14 @@ class SheetType(SQLModel, table=True):
             "id_placement IN ('auto','margin','back_side','cell')",
             name="ck_sheet_types_id_placement",
         ),
+        CheckConstraint(
+            "id_margin_band IN ('auto','top','bottom','left','right')",
+            name="ck_sheet_types_id_margin_band",
+        ),
+        CheckConstraint(
+            "id_margin_align IN ('start','end')", name="ck_sheet_types_id_margin_align"
+        ),
+        CheckConstraint("id_margin_offset_hmm >= 0", name="ck_sheet_types_id_margin_offset"),
     )
 
     id: UUID = Field(default_factory=uuid4, sa_column=Column(Uuid, primary_key=True))
@@ -80,6 +88,26 @@ class SheetType(SQLModel, table=True):
     catalog_key: str | None = Field(default=None, sa_column=Column(String, nullable=True))
     catalog_revision: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
     catalog_fields_hash: str | None = Field(default=None, sa_column=Column(String, nullable=True))
+    # Where the margin sheet code goes and what it keeps clear of (#246, ADR 0023 D33): the band
+    # (``auto`` is the choice of 1.7.x), the end it starts from, the offset along the band in
+    # hundredths of a millimetre (D16), the type's own keep-out zones on the front (``{"x", "y",
+    # "w", "h", "note"}``, at most 16) and a linked preprint preset, whose zones add to them.
+    id_margin_band: str = Field(
+        default="auto", sa_column=Column(String, nullable=False, server_default="auto")
+    )
+    id_margin_align: str = Field(
+        default="start", sa_column=Column(String, nullable=False, server_default="start")
+    )
+    id_margin_offset_hmm: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    preprint_zones: list[dict[str, Any]] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
+    )
+    preprint_preset_id: UUID | None = Field(
+        default=None, sa_column=Column(Uuid, ForeignKey("preprint_presets.id"), nullable=True)
+    )
 
 
 class SheetTypeVersion(SQLModel, table=True):
