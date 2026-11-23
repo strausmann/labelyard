@@ -68,11 +68,16 @@ test.describe.serial("sheet catalog", () => {
     await dialog.getByRole("button", { name: "Add sheet" }).click();
     const added = dialog.getByRole("status").filter({ hasText: /^Sheet .+ was added\.$/ });
     await expect(added).toBeVisible();
+    const addedText = (await added.textContent())!;
     await dialog.getByRole("button", { name: "Close" }).filter({ hasText: "Close" }).click();
 
     const after = (await (await page.request.get(`/api/v1/sheet-types/${key}`, { headers: KEY() })).json()) as TypeRead & { catalog_key: string };
     expect(after.catalog_key).toBe(key);
     expect(after.usage_state).toBe("in_use");
+
+    // The new sheet has every cell free: left active, the planner of later specs would pick it over the seeded sheets.
+    const code = /^Sheet (.+) was added\.$/.exec(addedText)![1]!;
+    expect((await page.request.post(`/api/v1/sheets/${code}/discard`, { headers: KEY() })).status()).toBe(200);
   });
 
   test("type ↔ sheets links both ways", async () => {
