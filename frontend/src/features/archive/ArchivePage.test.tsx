@@ -22,7 +22,20 @@ const VERSION = {
   sheets: 3,
 };
 const DETAIL = { ...SHEET_TYPE, sheets_in_use: 3, versions: [VERSION] };
-const CUSTOM = { ...SHEET_TYPE, key: "my-custom", origin: "custom" as const, sheets_in_use: 0, verified: false, vendor: null, product_codes: [], description: null };
+const CUSTOM = {
+  ...SHEET_TYPE,
+  key: "my-custom",
+  origin: "custom" as const,
+  sheets_in_use: 0,
+  sheets_total: 0,
+  sheets_with_free_cells: 0,
+  free_labels: 0,
+  usage_state: "unused" as const,
+  verified: false,
+  vendor: null,
+  product_codes: [],
+  description: null,
+};
 const EXPORT_DOC = {
   format: "label-printer-hub.sheet-type",
   format_version: 1,
@@ -115,7 +128,8 @@ describe("archive list and filters", () => {
   });
 
   it("says so when nothing matches, and when the list cannot be loaded", async () => {
-    mockApi({ "GET /api/v1/sheet-types": [] });
+    // The hub has types (the unfiltered count), the filter matches none of them.
+    mockApi({ "GET /api/v1/sheet-types": (_init: RequestInit, url: URL) => (url.searchParams.has("q") ? [] : [SHEET_TYPE]) });
     const first = await renderApp({ path: "/sheets/archive?q=zzz" });
     expect(await screen.findByText("No sheet type matches.")).toBeVisible();
     first.unmount();
@@ -139,7 +153,7 @@ describe("type detail", () => {
       },
     });
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
-    expect(await screen.findByRole("heading", { name: "L4736REV" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Example Labels L4736REV-25" })).toBeVisible();
     expect(screen.getByText("Label size")).toBeVisible();
     const versions = screen.getByRole("table", { name: "Versions" });
     expect(within(versions).getByText("Measured again")).toBeVisible();
@@ -185,21 +199,26 @@ describe("type detail", () => {
     expect(screen.queryByRole("link", { name: "Vendor datasheet" })).toBeNull();
   });
 
-  it("offers delete only for a custom type without sheets", async () => {
-    mockApi({ ...LIST, "GET /api/v1/sheet-types/L4736REV": DETAIL, "GET /api/v1/sheet-types/my-custom": { ...CUSTOM, versions: [VERSION] } });
+  it("delete waits while the type has sheets, whatever its origin (#335)", async () => {
+    mockApi({
+      ...LIST,
+      "GET /api/v1/sheet-types/L4736REV": DETAIL,
+      "GET /api/v1/sheet-types/seed-unused": { ...CUSTOM, key: "seed-unused", origin: "seed", versions: [VERSION] },
+    });
     const first = await renderApp({ path: "/sheets/archive?type=L4736REV" });
-    await screen.findByRole("heading", { name: "L4736REV" });
-    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    await screen.findByRole("heading", { name: "Example Labels L4736REV-25" });
+    expect(screen.getByRole("button", { name: "Delete type" })).toBeDisabled();
     first.unmount();
-    await renderApp({ path: "/sheets/archive?type=my-custom" });
-    await screen.findByRole("heading", { name: "my-custom" });
-    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible();
+    // A catalog type without sheets can go too: the server dropped the "own types only" rule (OC-10).
+    await renderApp({ path: "/sheets/archive?type=seed-unused" });
+    await screen.findByRole("heading", { name: "seed-unused" });
+    expect(screen.getByRole("button", { name: "Delete type" })).toBeEnabled();
   });
 
   it("deleting asks first, then deletes and leaves the type", async () => {
     const { calls } = mockApi({ ...LIST, "GET /api/v1/sheet-types/my-custom": { ...CUSTOM, versions: [VERSION] }, "DELETE /api/v1/sheet-types/my-custom": null });
     const { router } = await renderApp({ path: "/sheets/archive?type=my-custom" });
-    await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Delete type" }));
     const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Delete type" }));
     await waitFor(() => expect(calls.some((c) => c.method === "DELETE")).toBe(true));
@@ -592,8 +611,8 @@ describe("a session that may only read and print", () => {
   it("non-admin sees no write buttons", async () => {
     mockApi(LIST);
     await renderApp({ path: "/sheets/archive?type=L4736REV", session: PRINT_SESSION });
-    await screen.findByRole("heading", { name: "L4736REV" });
-    for (const name of ["New type", "Import type", "Edit geometry", "Edit details", "Archive", "Unarchive", "Delete"]) {
+    await screen.findByRole("heading", { name: "Example Labels L4736REV-25" });
+    for (const name of ["New type", "Import type", "Remove unused types", "Edit geometry", "Edit details", "Archive", "Unarchive", "Delete type", "Update to catalog version 2"]) {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
     // Reading stays possible: the diagram, the versions and the export download.

@@ -31,6 +31,11 @@ msgstr "{0, plural, one {# Feld als benutzt markiert} other {# Felder als benutz
 msgid "{0, plural, one {# column} other {# columns}}"
 msgstr "{0, plural, one {# Spalte} other {# Spalten}}"
 
+#. placeholder {0}: type.free_labels
+#: src/features/archive/ArchivePage.tsx
+msgid "{0, plural, one {# free label} other {# free labels}}"
+msgstr "{0, plural, one {# freies Etikett} other {# freie Etiketten}}"
+
 #. placeholder {0}: failing.length
 #: src/features/lookup/CartPage.tsx
 msgid "{0, plural, one {# item will not print.} other {# items will not print.}}"
@@ -69,15 +74,30 @@ msgstr "{0, plural, one {# Produktcode} other {# Produktcodes}}"
 msgid "{0, plural, one {# row} other {# rows}}"
 msgstr "{0, plural, one {# Zeile} other {# Zeilen}}"
 
+#. placeholder {0}: type.sheets_with_free_cells
+#: src/features/archive/ArchivePage.tsx
+msgid "{0, plural, one {# sheet with free cells} other {# sheets with free cells}}"
+msgstr "{0, plural, one {# Bogen mit freien Zellen} other {# Bögen mit freien Zellen}}"
+
 #. placeholder {0}: codes.length
 #: src/features/sheets/PurgeDialog.tsx
 msgid "{0, plural, one {# sheet would be purged:} other {# sheets would be purged:}}"
 msgstr "{0, plural, one {# Bogen würde gelöscht:} other {# Bögen würden gelöscht:}}"
 
+#. placeholder {0}: type.sheets_total
+#: src/features/archive/ArchivePage.tsx
+msgid "{0, plural, one {# sheet} other {# sheets}}"
+msgstr "{0, plural, one {# Bogen} other {# Bögen}}"
+
 #. placeholder {0}: Number(values.count) || 0
 #: src/features/notifications/useEntryText.ts
 msgid "{0, plural, one {# unconfirmed cell} other {# unconfirmed cells}}"
 msgstr "{0, plural, one {# unbestätigtes Feld} other {# unbestätigte Felder}}"
+
+#. placeholder {0}: type.sheets_total
+#: src/features/archive/TypeDetail.tsx
+msgid "{0, plural, one {Delete is only possible while no sheet uses the type. This type has # sheet: archive it instead, or discard and purge it first.} other {Delete is only possible while no sheet uses the type. This type has # sheets: archive it instead, or discard and purge them first.}}"
+msgstr "{0, plural, one {Löschen geht nur, solange kein Bogen den Typ verwendet. Dieser Typ hat # Bogen: Archiviere ihn stattdessen, oder verwirf und bereinige den Bogen zuerst.} other {Löschen geht nur, solange kein Bogen den Typ verwendet. Dieser Typ hat # Bögen: Archiviere ihn stattdessen, oder verwirf und bereinige die Bögen zuerst.}}"
 
 #. placeholder {0}: chosen.length
 #: src/features/sheets/SheetDetail.tsx
@@ -88,6 +108,11 @@ msgstr "{0, plural, one {# Zelle als belegt markieren} other {# Zellen als beleg
 #: src/features/sheets/PurgeDialog.tsx
 msgid "{0, plural, one {Purge # sheet} other {Purge # sheets}}"
 msgstr "{0, plural, one {# Bogen löschen} other {# Bögen löschen}}"
+
+#. placeholder {0}: keys.length
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "{0, plural, one {Remove # type} other {Remove # types}}"
+msgstr "{0, plural, one {# Typ entfernen} other {# Typen entfernen}}"
 
 #. placeholder {0}: resolvingAll.cells.length
 #: src/features/sheets/SheetDetail.tsx
@@ -121,6 +146,11 @@ msgstr "{0, plural, one {# Zelle anzeigen} other {# Zellen anzeigen}}"
 msgid "{0, plural, one {The oldest # sheet goes in this step; more follow.} other {The oldest # sheets go in this step; more follow.}}"
 msgstr "{0, plural, one {In diesem Schritt geht der älteste Bogen; weitere folgen.} other {In diesem Schritt gehen die ältesten # Bögen; weitere folgen.}}"
 
+#. placeholder {0}: types.length
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "{0, plural, one {This type has no sheets. Nothing is selected: tick the ones to remove.} other {These # types have no sheets. Nothing is selected: tick the ones to remove.}}"
+msgstr "{0, plural, one {Dieser Typ hat keine Bögen. Nichts ist ausgewählt: Hake die Typen an, die weg sollen.} other {Diese # Typen haben keine Bögen. Nichts ist ausgewählt: Hake die Typen an, die weg sollen.}}"
+
 #. placeholder {0}: chosen.length
 #: src/features/sheets/SheetDetail.tsx
 msgid "{0, plural, one {Un-mark # cell} other {Un-mark # cells}}"
@@ -136,6 +166,18 @@ msgstr "{0} hat keine Bögen. Beim Löschen verschwinden der Typ und alle seine 
 #: src/features/about/DependencyLicences.tsx
 msgid "{0} of {1} packages"
 msgstr "{0} von {1} Paketen"
+
+#. placeholder {0}: s.used
+#. placeholder {1}: s.total
+#. placeholder {2}: s.free
+#: src/features/archive/TypeSheetsList.tsx
+msgid "{0} of {1} used · {2} free"
+msgstr "{0} von {1} belegt · {2} frei"
+
+#. placeholder {0}: list.data.items.length
+#: src/features/archive/CatalogTab.tsx
+msgid "{0} of {total} entries"
+msgstr "{0} von {total} Einträgen"
 
 #: src/features/printers/PrinterDetail.tsx
 #: src/features/sheets/print/PrinterRow.tsx
@@ -594,6 +636,10 @@ msgstr "Ein markiertes Feld liegt außerhalb des Bogens."
 msgid "A name that tells you who uses it, for example “Kept”."
 msgstr "Ein Name, der verrät, wer den Schlüssel nutzt, zum Beispiel „Kept“."
 
+#: src/features/archive/ArchivePage.tsx
+msgid "A new hub starts with no sheet types. Add the ones you use from the catalog; each takes one click. You can also import a type from a file."
+msgstr "Ein neuer Hub startet ohne Bogentypen. Füge die, die du verwendest, aus dem Katalog hinzu; jeder braucht einen Klick. Du kannst einen Typ auch aus einer Datei importieren."
+
 #: src/features/sheets/print/SheetSection.tsx
 msgid "a new sheet"
 msgstr "ein neuer Bogen"
@@ -646,6 +692,15 @@ msgstr "Ein Text ist zu lang."
 #: src/features/settings/feedback.tsx
 msgid "A tray is set that the printer does not report. Read the printer again."
 msgstr "Es ist ein Fach eingestellt, das der Drucker nicht meldet. Lies den Drucker noch einmal aus."
+
+#. placeholder {0}: entry.key
+#: src/features/archive/CatalogTab.tsx
+msgid "A type with the key {0} exists already. Add this entry under a new key and code prefix; it is then your own copy without catalog updates."
+msgstr "Einen Typ mit dem Schlüssel {0} gibt es schon. Füge diesen Eintrag unter einem neuen Schlüssel und Code-Präfix hinzu; er ist dann deine eigene Kopie ohne Katalog-Aktualisierungen."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "A type you changed yourself shows \"The catalog has a newer version\" without this button. Export it, compare, or delete it and add it again."
+msgstr "Ein Typ, den du selbst geändert hast, zeigt „Der Katalog hat eine neuere Version“ ohne diese Schaltfläche. Exportiere ihn, vergleiche, oder lösche ihn und füge ihn neu hinzu."
 
 #: src/features/settings/AccessKeys.tsx
 msgid "A webhook key needs at least {MIN_WEBHOOK_KEY} characters."
@@ -707,6 +762,10 @@ msgstr "Aktionen"
 msgid "Activate new sheet"
 msgstr "Neuen Bogen aktivieren"
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Add"
+msgstr "Hinzufügen"
+
 #: src/features/settings/PrinterForm.tsx
 msgid "Add a printer"
 msgstr "Drucker hinzufügen"
@@ -756,6 +815,18 @@ msgstr "In den Warenkorb"
 msgid "Add to print queue"
 msgstr "In die Druckwarteschlange legen"
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Add under this key"
+msgstr "Unter diesem Schlüssel hinzufügen"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Add with this prefix"
+msgstr "Mit diesem Präfix hinzufügen"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Added as {installedAs}."
+msgstr "Als {installedAs} hinzugefügt."
+
 #: src/features/sheets/SheetCodePanel.tsx
 msgctxt "sheet code placement"
 msgid "Added by hand"
@@ -775,6 +846,10 @@ msgstr "In den Warenkorb gelegt."
 msgid "Added version {0} to {1}."
 msgstr "Version {0} zu {1} hinzugefügt."
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Added."
+msgstr "Hinzugefügt."
+
 #: src/features/printers/PrinterDetail.tsx
 msgid "Address"
 msgstr "Adresse"
@@ -787,6 +862,7 @@ msgstr "Adresse, die der Hub nutzt"
 msgid "After a restart"
 msgstr "Nach einem Neustart"
 
+#: src/features/archive/ArchivePage.tsx
 #: src/features/jobs/JobsPage.tsx
 msgid "All"
 msgstr "Alle"
@@ -795,9 +871,21 @@ msgstr "Alle"
 msgid "All readings lie on one line. Read crossings that are far apart, in both directions."
 msgstr "Alle Messwerte liegen auf einer Linie. Lies Kreuzungen ab, die weit auseinander liegen, in beide Richtungen."
 
+#. placeholder {0}: vendors.length
+#: src/features/archive/CatalogTab.tsx
+msgid "All vendors ({0})"
+msgstr "Alle Hersteller ({0})"
+
 #: src/features/layout/LayoutPicker.tsx
 msgid "Along"
 msgstr "Längs"
+
+#. placeholder {0}: also.join(", ")
+#. placeholder {0}: install.data.also_updated.join(", ")
+#: src/features/archive/CatalogTab.tsx
+#: src/features/archive/TypeDetail.tsx
+msgid "Also updated: {0}"
+msgstr "Ebenfalls aktualisiert: {0}"
 
 #: src/features/settings/sections.tsx
 msgid "An IANA name such as Europe/Berlin."
@@ -831,6 +919,10 @@ msgstr "Ein anderer Rechner hat Zellen auf {changedSheet} belegt, während du ge
 msgid "Another computer used some of the cells while you were looking. Check the new plan, then confirm."
 msgstr "Ein anderer Rechner hat einige der Zellen belegt, während du geschaut hast. Prüfe den neuen Plan und bestätige dann noch einmal."
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Another type already uses the code prefix of this entry. Add it with a new prefix:"
+msgstr "Ein anderer Typ verwendet das Code-Präfix dieses Eintrags schon. Füge ihn mit einem neuen Präfix hinzu:"
+
 #: src/features/archive/errors.ts
 msgid "Another type already uses this code prefix."
 msgstr "Ein anderer Typ verwendet dieses Code-Präfix schon."
@@ -840,6 +932,7 @@ msgid "Another type already uses this code prefix. Choose another one."
 msgstr "Ein anderer Typ verwendet dieses Code-Präfix schon. Wähle ein anderes."
 
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/CatalogTab.tsx
 msgid "Any page size"
 msgstr "Jede Papiergröße"
 
@@ -1096,6 +1189,7 @@ msgstr "Lässt sich mit dem aktuellen Geheimschlüssel nicht lesen — bitte ern
 #: src/features/archive/FeedbackLinks.tsx
 #: src/features/archive/IdPlacementSection.tsx
 #: src/features/archive/ImportDialog.tsx
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 #: src/features/calibration/CalibrationPage.tsx
@@ -1135,6 +1229,22 @@ msgstr "Warenkorb"
 #: src/shell/CartButton.tsx
 msgid "Cart, empty"
 msgstr "Warenkorb, leer"
+
+#: src/features/archive/ArchivePage.tsx
+msgid "Catalog"
+msgstr "Katalog"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Catalog (v{revision})"
+msgstr "Katalog (v{revision})"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Catalog entries"
+msgstr "Katalogeinträge"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Catalog version {revision}"
+msgstr "Katalogversion {revision}"
 
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Cell"
@@ -1206,6 +1316,11 @@ msgstr "Zertifikatsprüfung"
 #: src/features/printers/RollColourPrompt.tsx
 msgid "Change colour"
 msgstr "Farbe ändern"
+
+#. placeholder {0}: entry.revision
+#: src/features/archive/CatalogTab.tsx
+msgid "Changed here; the catalog has a newer version ({0})."
+msgstr "Hier geändert; der Katalog hat eine neuere Version ({0})."
 
 #: src/features/scan/GrocycodePage.tsx
 msgid "Charge cycles"
@@ -1374,6 +1489,7 @@ msgstr "Nur der Code auf diesem Bogentyp"
 msgid "Code only, no QR code"
 msgstr "Nur Code, ohne QR-Code"
 
+#: src/features/archive/CatalogTab.tsx
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Code prefix"
@@ -1387,6 +1503,7 @@ msgstr "Farbmodi"
 msgid "colour not given"
 msgstr "Farbe nicht angegeben"
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Columns"
 msgstr "Spalten"
@@ -1500,6 +1617,7 @@ msgstr "Schlüssel kopieren"
 msgid "Copy lines"
 msgstr "Zeilen kopieren"
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Corner radius"
 msgstr "Eckenradius"
@@ -1642,10 +1760,6 @@ msgid "Degraded"
 msgstr "Eingeschränkt"
 
 #: src/features/archive/TypeDetail.tsx
-msgid "Delete"
-msgstr "Löschen"
-
-#: src/features/archive/TypeDetail.tsx
 msgid "Delete this type?"
 msgstr "Diesen Typ löschen?"
 
@@ -1764,6 +1878,11 @@ msgstr "Den Rest verwerfen"
 msgctxt "sheet state"
 msgid "discarded"
 msgstr "verworfen"
+
+#: src/features/archive/TypeSheetsList.tsx
+msgctxt "sheet state"
+msgid "Discarded"
+msgstr "Verworfen"
 
 #: src/features/sheets/PurgeDialog.tsx
 msgid "Discarded more than (days) ago"
@@ -1938,6 +2057,10 @@ msgstr "Fehler"
 msgid "Every crossing should be within 0.5 mm of the cut."
 msgstr "Jede Kreuzung sollte höchstens 0,5 mm neben dem Schnitt liegen."
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "Every installed type has sheets. There is nothing to remove."
+msgstr "Jeder installierte Typ hat Bögen. Es gibt nichts zu entfernen."
+
 #: src/features/sheets/SheetsPage.tsx
 msgid "Every sheet is used up."
 msgstr "Alle Bögen sind aufgebraucht."
@@ -1946,9 +2069,17 @@ msgstr "Alle Bögen sind aufgebraucht."
 msgid "Every tray needs a label."
 msgstr "Jedes Fach braucht eine Bezeichnung."
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Evidence"
+msgstr "Beleg"
+
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "Example: the middle of the gap lies 0.6 mm left of the printed line and the cut 0.4 mm above it. The scale reads +0.6 and +0.4 there, so across is +0.6 and down is +0.4."
 msgstr "Beispiel: Die Mitte der Lücke liegt 0,6 mm links von der gedruckten Linie und der Schnitt 0,4 mm darüber. Die Skala zeigt dort +0,6 und +0,4, also ist quer +0,6 und abwärts +0,4."
+
+#: src/features/archive/ArchivePage.tsx
+msgid "Existing installations keep every type they have. The catalog only adds entries and offers updates; it never changes an installed type by itself."
+msgstr "Bestehende Installationen behalten alle ihre Typen. Der Katalog fügt nur Einträge hinzu und bietet Aktualisierungen an; einen installierten Typ ändert er nie von selbst."
 
 #: src/features/archive/TypeDetail.tsx
 msgid "Export"
@@ -1977,6 +2108,14 @@ msgstr "Einzugsmarke gedruckt"
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Filament name"
 msgstr "Filamentname"
+
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "Filter"
+msgstr "Filter"
+
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "Filter by name"
+msgstr "Nach Namen filtern"
 
 #: src/features/about/DependencyLicences.tsx
 msgid "Filter by package or licence"
@@ -2069,6 +2208,10 @@ msgstr "Zum Beispiel: mit dem Lineal neu gemessen."
 msgctxt "sheet cell state"
 msgid "free"
 msgstr "frei"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Free labels"
+msgstr "Freie Etiketten"
 
 #: src/features/archive/TypeForm.tsx
 msgid "From the left edge of one label to the left edge of the next."
@@ -2163,6 +2306,10 @@ msgstr "Gesund"
 msgid "Heavy solid line: the printed S line. Heavy dashed line: the printed Z line (dotted on a sheet without a gap between the rows, as in the drawing)."
 msgstr "Dicke durchgezogene Linie: die gedruckte S-Linie. Dicke gestrichelte Linie: die gedruckte Z-Linie (punktiert bei einem Bogen ohne Lücke zwischen den Zeilen, wie in der Zeichnung)."
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Hide details"
+msgstr "Details ausblenden"
+
 #. placeholder {0}: entry.name
 #: src/features/about/DependencyLicences.tsx
 msgctxt "action"
@@ -2173,6 +2320,10 @@ msgstr "Lizenztext von {0} ausblenden"
 msgid "Hide used-up sheets"
 msgstr "Aufgebrauchte Bögen ausblenden"
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Hides entries nobody has checked on a real sheet."
+msgstr "Blendet Einträge aus, die noch niemand an einem echten Bogen geprüft hat."
+
 #: src/features/jobs/JobDetail.tsx
 msgid "History"
 msgstr "Verlauf"
@@ -2180,6 +2331,10 @@ msgstr "Verlauf"
 #: src/features/scan/CameraScanner.tsx
 msgid "Hold a label's code inside the corners. QR, Code 128 and Data Matrix are read."
 msgstr "Halte den Code eines Etiketts in die Ecken. QR, Code 128 und Data Matrix werden gelesen."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Horizontal pitch"
+msgstr "Horizontaler Abstand"
 
 #: src/features/archive/TypeForm.tsx
 msgid "Horizontal pitch (mm)"
@@ -2281,6 +2436,15 @@ msgstr "Im Rand"
 msgid "in the printer's unprintable margin"
 msgstr "im nicht bedruckbaren Rand des Druckers"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "In use"
+msgstr "In Gebrauch"
+
+#: src/features/archive/TypeSheetsList.tsx
+msgctxt "sheet state"
+msgid "In use"
+msgstr "In Gebrauch"
+
 #: src/features/sheets/SheetDetail.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "In use by a running job"
@@ -2305,6 +2469,15 @@ msgstr "Zufuhrfach leer"
 #: src/features/printers/flags.ts
 msgid "Input tray missing"
 msgstr "Zufuhrfach fehlt"
+
+#: src/features/archive/ArchivePage.tsx
+#: src/features/archive/CatalogTab.tsx
+msgid "Installed"
+msgstr "Installiert"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Installed (v{installed})"
+msgstr "Installiert (v{installed})"
 
 #: src/features/integrations/IntegrationPage.tsx
 #: src/features/integrations/IntegrationTiles.tsx
@@ -2345,6 +2518,10 @@ msgstr "Es ist der Papiereinzug: Leg das Blatt an die Führung an und drucke ein
 msgid "It will probably become <0>{hintCode}</0>."
 msgstr "Er bekommt voraussichtlich die Nummer <0>{hintCode}</0>."
 
+#: src/features/archive/TypeSheetsList.tsx
+msgid "Its sheets"
+msgstr "Seine Bögen"
+
 #: src/features/jobs/JobsPage.tsx
 #: src/features/search/jobsSource.ts
 #: src/features/settings/sections.tsx
@@ -2381,6 +2558,7 @@ msgstr "Kept / Hangar / Grocy"
 msgid "Kept only in this browser. Print adds the label to the cart."
 msgstr "Nur in diesem Browser gespeichert. „Drucken“ legt das Etikett in den Warenkorb."
 
+#: src/features/archive/ArchivePage.tsx
 #: src/features/archive/TypeForm.tsx
 #: src/features/settings/AccessKeys.tsx
 msgid "Key"
@@ -2416,6 +2594,10 @@ msgstr "Etikettenzähler – IPP wird nicht versucht: Der Drucker hat den IPP-Au
 msgid "Label fields"
 msgstr "Etikettenfelder"
 
+#: src/features/archive/TypeDetail.tsx
+msgid "Label height"
+msgstr "Etikettenhöhe"
+
 #: src/features/archive/ArchivePage.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Label height (mm)"
@@ -2429,6 +2611,7 @@ msgstr "Etikettenlayout auf 62-mm-Band"
 msgid "Label preview"
 msgstr "Etikettenvorschau"
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Label shape"
 msgstr "Etikettenform"
@@ -2436,6 +2619,10 @@ msgstr "Etikettenform"
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Label size"
 msgstr "Etikettengröße"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Label width"
+msgstr "Etikettenbreite"
 
 #: src/features/archive/ArchivePage.tsx
 #: src/features/archive/TypeForm.tsx
@@ -2480,10 +2667,20 @@ msgstr "Zuletzt erledigt"
 msgid "Last status {ageWord}"
 msgstr "Letzter Status {ageWord}"
 
+#. placeholder {0}: day(s.last_used_at)
+#: src/features/archive/TypeSheetsList.tsx
+msgid "last use {0}"
+msgstr "zuletzt benutzt {0}"
+
+#: src/features/archive/ArchivePage.tsx
 #: src/features/sheets/SheetDetail.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "Last used"
 msgstr "Zuletzt benutzt"
+
+#: src/features/archive/ArchivePage.tsx
+msgid "last used {last}"
+msgstr "zuletzt benutzt {last}"
 
 #: src/features/settings/LastUsed.tsx
 msgid "Last used {when}"
@@ -2515,6 +2712,7 @@ msgstr "Lass den Teil ab „?“ oder „#“ weg; den Pfad des Eintrags ergänz
 msgid "left margin"
 msgstr "linken Rand"
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Left margin"
 msgstr "Linker Rand"
@@ -2645,7 +2843,10 @@ msgstr "Hersteller werden geladen …"
 #: src/app/router.tsx
 #: src/features/about/DependencyLicences.tsx
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/CatalogTab.tsx
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeSheetsList.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/JobsPage.tsx
@@ -2770,6 +2971,10 @@ msgid "Measured a sheet? Tell us what you found. The link opens a prepared issue
 msgstr "Hast du einen Bogen ausgemessen? Sag uns, was du gefunden hast. Der Link öffnet ein vorbereitetes Issue auf GitHub, das nur die Daten dieses Bogentyps enthält: keine Adresse deines Hubs, keinen Drucker, keine Schlüssel."
 
 #: src/features/archive/TypeDetail.tsx
+msgid "Measurement"
+msgstr "Maß"
+
+#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Measurements"
 msgstr "Maße"
@@ -2840,6 +3045,11 @@ msgstr "Braucht Aufmerksamkeit"
 msgid "Never"
 msgstr "Nie"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "never used"
+msgstr "nie benutzt"
+
+#: src/features/archive/ArchivePage.tsx
 #: src/features/settings/LastUsed.tsx
 msgid "Never used"
 msgstr "Nie benutzt"
@@ -2861,6 +3071,7 @@ msgstr "Neuer Bogen {typeLabel}"
 msgid "New {typeLabel} sheet, becomes {newCode}"
 msgstr "Neuer Bogen {typeLabel}, wird {newCode}"
 
+#: src/features/archive/CatalogTab.tsx
 #: src/features/archive/ImportDialog.tsx
 msgid "New code prefix"
 msgstr "Neues Code-Präfix"
@@ -2869,6 +3080,7 @@ msgstr "Neues Code-Präfix"
 msgid "New code prefix (optional)"
 msgstr "Neues Code-Präfix (optional)"
 
+#: src/features/archive/CatalogTab.tsx
 #: src/features/archive/ImportDialog.tsx
 msgid "New key"
 msgstr "Neuer Schlüssel"
@@ -2930,6 +3142,10 @@ msgstr "Keine Kamera"
 #: src/features/scan/CameraScanner.tsx
 msgid "No camera was found on this device. Choose a photo of the code instead."
 msgstr "Auf diesem Gerät wurde keine Kamera gefunden. Wähle stattdessen ein Foto des Codes."
+
+#: src/features/archive/CatalogTab.tsx
+msgid "No catalog entry matches."
+msgstr "Kein Katalogeintrag passt."
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "No cell is in use."
@@ -3042,6 +3258,10 @@ msgstr "Kein zweiter Durchgang. Eine Zelle trägt den Code und kann kein Etikett
 msgid "No sheet matches."
 msgstr "Kein Bogen passt."
 
+#: src/features/archive/TypeSheetsList.tsx
+msgid "No sheet of this type yet."
+msgstr "Noch kein Bogen dieses Typs."
+
 #: src/features/archive/ArchivePage.tsx
 #: src/features/sheets/SheetTypeCombobox.tsx
 msgid "No sheet type matches."
@@ -3050,6 +3270,14 @@ msgstr "Kein Bogentyp passt."
 #: src/features/archive/NoTypesInstalled.tsx
 msgid "No sheet types are installed yet. <0>Add one from the catalog in the sheet archive</0>."
 msgstr "Es sind noch keine Bogentypen installiert. <0>Füge einen aus dem Katalog im Bogenarchiv hinzu</0>."
+
+#: src/features/archive/ArchivePage.tsx
+msgid "No sheet types yet"
+msgstr "Noch keine Bogentypen"
+
+#: src/features/archive/ArchivePage.tsx
+msgid "No sheet with free cells"
+msgstr "Kein Bogen mit freien Zellen"
 
 #: src/features/sheets/SheetsPage.tsx
 msgid "No sheets yet."
@@ -3078,6 +3306,10 @@ msgstr "Kein Band oder Papier – zum Drucken einlegen"
 #: src/features/printers/PrinterDetail.tsx
 msgid "No tray to calibrate."
 msgstr "Kein Fach zum Kalibrieren."
+
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "No unused type matches the filter."
+msgstr "Kein unbenutzter Typ passt zum Filter."
 
 #: src/features/settings/System.tsx
 msgid "No warnings or errors recorded."
@@ -3188,6 +3420,10 @@ msgstr "Nicht eingerichtet"
 msgid "Not tested yet — a test print finds out"
 msgstr "Noch nicht getestet – ein Testdruck findet es heraus"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Not used since"
+msgstr "Nicht benutzt seit"
+
 #: src/features/sheets/SheetDetail.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "Not used yet"
@@ -3205,6 +3441,10 @@ msgstr "Nicht angebunden: {reason}"
 #: src/features/printers/wiring.tsx
 msgid "Not wired: {reason}."
 msgstr "Nicht angebunden: {reason}."
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Not yet validated"
+msgstr "Noch nicht geprüft"
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "Note"
@@ -3412,6 +3652,10 @@ msgstr "Nur ein Bogentyp liegt daneben; andere Bögen sitzen mit derselben Korre
 msgid "Only the first {listed} of {reported} trays are listed."
 msgstr "Aufgelistet sind nur die ersten {listed} von {reported} Fächern."
 
+#: src/features/archive/TypeSheetsList.tsx
+msgid "Only the first 500 sheets are listed here; the sheets list shows them all."
+msgstr "Hier stehen nur die ersten 500 Bögen; die Bogenliste zeigt alle."
+
 #: src/features/printers/printErrorText.ts
 msgid "Only the spool label prints on {tapeMm} mm tape. Remove the other labels from the cart or load 62 mm tape."
 msgstr "Auf {tapeMm}-mm-Band druckt nur das Spulenetikett. Nimm die anderen Etiketten aus dem Warenkorb oder leg 62-mm-Band ein."
@@ -3419,10 +3663,6 @@ msgstr "Auf {tapeMm}-mm-Band druckt nur das Spulenetikett. Nimm die anderen Etik
 #: src/features/lookup/CartPage.tsx
 msgid "Only the spool label prints on {tapeMm} mm tape. Remove this label or load 62 mm tape."
 msgstr "Auf {tapeMm}-mm-Band druckt nur das Spulenetikett. Nimm dieses Etikett heraus oder leg 62-mm-Band ein."
-
-#: src/features/archive/errors.ts
-msgid "Only your own types can be deleted. Archive this one instead."
-msgstr "Nur eigene Typen lassen sich löschen. Archiviere diesen stattdessen."
 
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Open"
@@ -3468,6 +3708,10 @@ msgstr "Drucker öffnen"
 msgid "Open Settings › Integrations"
 msgstr "Einstellungen › Integrationen öffnen"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Open the catalog"
+msgstr "Katalog öffnen"
+
 #: src/features/printers/TestPrintButton.tsx
 #: src/shell/PrintToasts.tsx
 msgid "Open the job"
@@ -3506,6 +3750,14 @@ msgstr "Oder die Werte direkt eingeben"
 msgid "Other apps that print through this hub. They are recognised by the name of their API key."
 msgstr "Andere Apps, die über diesen Hub drucken. Sie werden am Namen ihres API-Schlüssels erkannt."
 
+#: src/features/archive/errors.ts
+msgid "Other types use the same backing design and cannot take the catalog's change: {types}. Nothing was changed."
+msgstr "Andere Typen verwenden denselben Rückseitendruck und können die Änderung des Katalogs nicht übernehmen: {types}. Nichts wurde geändert."
+
+#: src/features/archive/errors.ts
+msgid "Other types use the same backing design and cannot take the catalog's change. Nothing was changed."
+msgstr "Andere Typen verwenden denselben Rückseitendruck und können die Änderung des Katalogs nicht übernehmen. Nichts wurde geändert."
+
 #: src/features/printers/flags.ts
 msgid "Output tray full"
 msgstr "Ausgabefach voll"
@@ -3524,6 +3776,7 @@ msgctxt "column"
 msgid "Package"
 msgstr "Paket"
 
+#: src/features/archive/CatalogTab.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Page"
 msgstr "Seite"
@@ -3562,6 +3815,7 @@ msgid "Page printers"
 msgstr "Seitendrucker"
 
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/TypeDetail.tsx
 msgid "Page size"
 msgstr "Papiergröße"
 
@@ -4143,6 +4397,11 @@ msgstr "Gespeicherten Wert entfernen"
 msgid "Remove the correction of {trayLabel} on {printerName}? Prints on this tray are then not corrected."
 msgstr "Korrektur von {trayLabel} an {printerName} entfernen? Drucke aus diesem Fach werden dann nicht mehr korrigiert."
 
+#: src/features/archive/ArchivePage.tsx
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "Remove unused types"
+msgstr "Unbenutzte Typen entfernen"
+
 #: src/features/printers/IdentityMismatchBanner.tsx
 msgid "Replace the device?"
 msgstr "Gerät ersetzen?"
@@ -4289,6 +4548,7 @@ msgstr "Rund"
 msgid "Round labels must be as high as they are wide."
 msgstr "Runde Etiketten müssen so hoch wie breit sein."
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Rows"
 msgstr "Zeilen"
@@ -4421,6 +4681,7 @@ msgid "Scopes"
 msgstr "Berechtigungen"
 
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/CatalogTab.tsx
 #: src/features/search/SearchDialog.tsx
 #: src/features/search/useSearch.ts
 msgid "Search"
@@ -4433,6 +4694,10 @@ msgstr "Nach Code suchen"
 #: src/features/search/SearchResults.tsx
 msgid "Search results"
 msgstr "Suchergebnisse"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Search the catalog"
+msgstr "Katalog durchsuchen"
 
 #: src/features/lookup/CartPage.tsx
 msgid "See the jobs"
@@ -4595,6 +4860,10 @@ msgstr "Bogencode auf der Rückseite"
 msgid "Sheet code on the back · {code}"
 msgstr "Bogencode auf der Rückseite · {code}"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "Sheet codes are never issued twice: the counter of a prefix stays, so a type you add back continues its numbering. A linked backing design is kept."
+msgstr "Bogencodes werden nie doppelt vergeben: Der Zähler eines Präfixes bleibt, ein wieder hinzugefügter Typ setzt seine Nummerierung fort. Ein verknüpfter Rückseitendruck bleibt erhalten."
+
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx
 msgid "Sheet page"
@@ -4635,9 +4904,21 @@ msgstr "Bögen"
 msgid "Sheets already made keep printing with the old measurements."
 msgstr "Schon angelegte Bögen drucken weiter mit den alten Maßen."
 
+#: src/features/archive/TypeDetail.tsx
+msgid "Sheets in all, last used {last}"
+msgstr "Bögen insgesamt, zuletzt benutzt {last}"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Sheets in all, never used"
+msgstr "Bögen insgesamt, nie benutzt"
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Sheets last printed from {sheetsLabel}; this correction applies to {trayLabel} only."
 msgstr "Bogen wurden zuletzt aus {sheetsLabel} gedruckt; diese Korrektur gilt nur für {trayLabel}."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Sheets with free cells"
+msgstr "Bögen mit freien Zellen"
 
 #. placeholder {0}: matches.length
 #: src/features/about/DependencyLicences.tsx
@@ -4657,6 +4938,14 @@ msgstr "Alle Bogentypen anzeigen"
 msgid "Show archived types"
 msgstr "Archivierte Typen anzeigen"
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Show details"
+msgstr "Details zeigen"
+
+#: src/features/archive/TypeSheetsList.tsx
+msgid "Show discarded ({discarded})"
+msgstr "Verworfene zeigen ({discarded})"
+
 #: src/features/sheets/SheetsPage.tsx
 msgid "Show discarded sheets"
 msgstr "Verworfene Bögen anzeigen"
@@ -4664,6 +4953,14 @@ msgstr "Verworfene Bögen anzeigen"
 #: src/features/jobs/PageJobInfo.tsx
 msgid "Show fewer"
 msgstr "Weniger anzeigen"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Show in the catalog"
+msgstr "Im Katalog zeigen"
+
+#: src/features/archive/TypeSheetsList.tsx
+msgid "Show in the sheets list"
+msgstr "In der Bogenliste zeigen"
 
 #. placeholder {0}: entry.name
 #: src/features/about/DependencyLicences.tsx
@@ -4749,6 +5046,10 @@ msgstr "Snipe-IT"
 msgid "SNMP community"
 msgstr "SNMP-Community"
 
+#: src/features/archive/errors.ts
+msgid "Some of these types have sheets now. Nothing was removed."
+msgstr "Einige dieser Typen haben inzwischen Bögen. Nichts wurde entfernt."
+
 #: src/features/printers/MarkerSwatch.tsx
 msgid "some remaining"
 msgstr "Rest vorhanden"
@@ -4770,6 +5071,11 @@ msgstr "etwas Unerwartetes hat die Verbindung gestoppt"
 msgid "Something went wrong."
 msgstr "Etwas ist schiefgelaufen."
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Sort by"
+msgstr "Sortieren nach"
+
+#: src/features/archive/CatalogTab.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/settings/System.tsx
 msgid "Source"
@@ -4820,6 +5126,7 @@ msgstr "Kamera wird gestartet …"
 msgid "Starts every sheet code, for example L4736."
 msgstr "Steht am Anfang jedes Bogencodes, zum Beispiel L4736."
 
+#: src/features/archive/ArchivePage.tsx
 #: src/features/printers/wiring.tsx
 #: src/features/settings/IppPrinterFields.tsx
 msgid "State"
@@ -5148,6 +5455,10 @@ msgstr "Die App dieses Eintrags ist nicht bekannt."
 msgid "The app of this item is not set up."
 msgstr "Die App dieses Eintrags ist nicht eingerichtet."
 
+#: src/features/archive/errors.ts
+msgid "The backing design of this type was changed here and differs from the catalog's. Nothing was changed."
+msgstr "Der Rückseitendruck dieses Typs wurde hier geändert und weicht vom Katalog ab. Nichts wurde geändert."
+
 #: src/shell/SignIn.tsx
 msgid "The bootstrap key no longer works because an admin key exists. Sign in with that key."
 msgstr "Der Bootstrap-Schlüssel gilt nicht mehr, weil ein Admin-Schlüssel existiert. Melde dich mit diesem an."
@@ -5188,6 +5499,22 @@ msgstr "Die Kamera braucht eine sichere Verbindung (HTTPS) oder localhost. Öffn
 #: src/features/lookup/CartPage.tsx
 msgid "The cart is empty."
 msgstr "Der Warenkorb ist leer."
+
+#: src/features/archive/CatalogTab.tsx
+msgid "The catalog could not be loaded."
+msgstr "Der Katalog konnte nicht geladen werden."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "The catalog entry could not be loaded."
+msgstr "Der Katalogeintrag konnte nicht geladen werden."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "The catalog has a newer version of this type. It was changed here, so the update is not offered: export it to compare, or delete it and add it again."
+msgstr "Der Katalog hat eine neuere Version dieses Typs. Er wurde hier geändert, deshalb wird die Aktualisierung nicht angeboten: Exportiere ihn zum Vergleich, oder lösche ihn und füge ihn neu hinzu."
+
+#: src/features/archive/errors.ts
+msgid "The catalog has no newer version of this type."
+msgstr "Der Katalog hat keine neuere Version dieses Typs."
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "The cell could not be resolved."
@@ -5282,6 +5609,10 @@ msgstr "Das Gerät an dieser Adresse hat gewechselt, während du die Seite anges
 msgid "The download holds the settings that are not secret and not set by the container, as JSON. Keys and tokens are never included."
 msgstr "Der Download enthält die Einstellungen, die weder geheim noch vom Container gesetzt sind, als JSON. Schlüssel und Token sind nie enthalten."
 
+#: src/features/archive/CatalogTab.tsx
+msgid "The entry could not be loaded."
+msgstr "Der Eintrag konnte nicht geladen werden."
+
 #: src/features/archive/ImportDialog.tsx
 msgid "The file is larger than 64 KB."
 msgstr "Die Datei ist größer als 64 KB."
@@ -5305,6 +5636,14 @@ msgstr "Das Raster passt nicht auf die Seite: Es ist breiter als die Seite."
 #: src/features/archive/errors.ts
 msgid "The grid has too many labels: at most 400 per sheet."
 msgstr "Das Raster hat zu viele Etiketten: höchstens 400 pro Bogen."
+
+#: src/features/archive/errors.ts
+msgid "The Grocy label settings use {key}. Choose another sheet type there first."
+msgstr "Die Grocy-Etiketteneinstellungen verwenden {key}. Wähle dort zuerst einen anderen Bogentyp."
+
+#: src/features/archive/errors.ts
+msgid "The Grocy label settings use this type. Choose another sheet type there first."
+msgstr "Die Grocy-Etiketteneinstellungen verwenden diesen Typ. Wähle dort zuerst einen anderen Bogentyp."
 
 #: src/features/archive/errors.ts
 msgid "The horizontal pitch"
@@ -5982,10 +6321,12 @@ msgid "The sheet type could not be loaded."
 msgstr "Der Bogentyp konnte nicht geladen werden."
 
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "The sheet types could not be loaded."
 msgstr "Die Bogentypen konnten nicht geladen werden."
 
+#: src/features/archive/TypeSheetsList.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "The sheets could not be loaded."
 msgstr "Die Bögen konnten nicht geladen werden."
@@ -6159,6 +6500,10 @@ msgstr "Diese Etiketten gingen an den Drucker, aber niemand hat das Ergebnis bes
 #: src/features/calibration/errors.ts
 msgid "These readings cannot be fitted. Check them and add crossings that are further apart."
 msgstr "Aus diesen Messwerten lässt sich nichts berechnen. Prüfe sie und füge weiter auseinander liegende Kreuzungen hinzu."
+
+#: src/features/archive/errors.ts
+msgid "These types have sheets now: {keys}. Nothing was removed."
+msgstr "Diese Typen haben inzwischen Bögen: {keys}. Nichts wurde entfernt."
 
 #: src/features/about/DependencyLicences.tsx
 msgctxt "heading"
@@ -6337,12 +6682,24 @@ msgid "This tape width cannot print this label. Load another tape."
 msgstr "Diese Bandbreite kann dieses Etikett nicht drucken. Lege ein anderes Band ein."
 
 #: src/features/archive/errors.ts
+msgid "This type cannot be deleted. Archive it instead."
+msgstr "Dieser Typ lässt sich nicht löschen. Archiviere ihn stattdessen."
+
+#: src/features/archive/errors.ts
 msgid "This type has sheets. Archive it instead."
 msgstr "Dieser Typ hat Bögen. Archiviere ihn stattdessen."
 
 #: src/features/archive/errors.ts
 msgid "This type is archived. Bring it back first."
 msgstr "Dieser Typ ist archiviert. Hole ihn zuerst zurück."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "This type is no longer in the catalog. It keeps working as it is."
+msgstr "Dieser Typ ist nicht mehr im Katalog. Er funktioniert weiter wie bisher."
+
+#: src/features/archive/errors.ts
+msgid "This type was changed here, so the catalog update is not applied. Export it to compare, or delete it and add it again."
+msgstr "Dieser Typ wurde hier geändert, deshalb wird die Katalog-Aktualisierung nicht angewendet. Exportiere ihn zum Vergleich, oder lösche ihn und füge ihn neu hinzu."
 
 #: src/features/sheets/errors.ts
 msgid "Those cells are no longer waiting for confirmation."
@@ -6412,6 +6769,7 @@ msgstr "Die obere Kante geht zuerst hinein. Ein falsch eingelegter Bogen funktio
 msgid "top margin"
 msgstr "oberen Rand"
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Top margin"
 msgstr "Oberer Rand"
@@ -6540,9 +6898,38 @@ msgstr "Nicht bedruckbare Ränder"
 msgid "Unsupported roll loaded: {inline}"
 msgstr "Nicht unterstützte Rolle eingelegt: {inline}"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Unused"
+msgstr "Unbenutzt"
+
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "Unused types"
+msgstr "Unbenutzte Typen"
+
 #: src/features/archive/TypeDetail.tsx
 msgid "unverified"
 msgstr "ungeprüft"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Update"
+msgstr "Aktualisieren"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Update available"
+msgstr "Aktualisierung verfügbar"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Update to catalog version {revision}"
+msgstr "Auf Katalogversion {revision} aktualisieren"
+
+#. placeholder {0}: entry.revision
+#: src/features/archive/CatalogTab.tsx
+msgid "Update: catalog version {0}"
+msgstr "Aktualisierung: Katalogversion {0}"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Updated to the catalog version."
+msgstr "Auf die Katalogversion aktualisiert."
 
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Updating the preview…"
@@ -6552,6 +6939,10 @@ msgstr "Die Vorschau wird aktualisiert …"
 #: src/shell/UpdateNotice.tsx
 msgid "Updating…"
 msgstr "Wird aktualisiert…"
+
+#: src/features/archive/ArchivePage.tsx
+msgid "Usage"
+msgstr "Nutzung"
 
 #: src/features/sheets/print/CapacityAlert.tsx
 msgid "Use {roomyCode} instead ({room} free)"
@@ -6587,16 +6978,26 @@ msgstr "belegt"
 msgid "Used"
 msgstr "Benutzt"
 
+#: src/features/archive/ArchivePage.tsx
+msgid "Used before"
+msgstr "Früher benutzt"
+
 #: src/features/sheets/SheetsPage.tsx
 msgctxt "sheet state"
 msgid "used up"
 msgstr "aufgebraucht"
+
+#: src/features/archive/TypeSheetsList.tsx
+msgctxt "sheet state"
+msgid "Used up"
+msgstr "Aufgebraucht"
 
 #: src/features/settings/PrinterForm.tsx
 msgid "Usually public."
 msgstr "Meist public."
 
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/CatalogTab.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Vendor"
 msgstr "Hersteller"
@@ -6605,9 +7006,25 @@ msgstr "Hersteller"
 msgid "Vendor, key, description or product code"
 msgstr "Hersteller, Schlüssel, Beschreibung oder Produktcode"
 
+#: src/features/archive/CatalogTab.tsx
+msgid "Vendor, product code or size."
+msgstr "Hersteller, Produktcode oder Größe."
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Verified"
+msgstr "Geprüft"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Verified {day}"
+msgstr "Geprüft {day}"
+
 #: src/features/archive/TypeForm.tsx
 msgid "Verified against a real sheet"
 msgstr "An einem echten Bogen geprüft"
+
+#: src/features/archive/CatalogTab.tsx
+msgid "Verified only"
+msgstr "Nur geprüfte"
 
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Verify the printer certificate"
@@ -6630,6 +7047,10 @@ msgstr "Version {version}"
 #: src/features/archive/TypeDetail.tsx
 msgid "Versions"
 msgstr "Versionen"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "Vertical pitch"
+msgstr "Vertikaler Abstand"
 
 #: src/features/archive/TypeForm.tsx
 msgid "Vertical pitch (mm)"
@@ -6717,6 +7138,10 @@ msgstr "Was die Markierungen bedeuten"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "What the printer reports"
 msgstr "Das meldet der Drucker"
+
+#: src/features/archive/TypeDetail.tsx
+msgid "What the update changes"
+msgstr "Was die Aktualisierung ändert"
 
 #: src/features/jobs/JobDetail.tsx
 msgid "What was printed"
@@ -6807,6 +7232,14 @@ msgstr "Ja, die Rückseite ist gedruckt"
 #: src/features/printers/RollColourPrompt.tsx
 msgid "You can set the colour later on this page."
 msgstr "Du kannst die Farbe später auf dieser Seite festlegen."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "You installed catalog version {installed} and have not changed this type. Version {revision} changes these measurements. Sheets you already made keep the version they were created with."
+msgstr "Du hast Katalogversion {installed} installiert und diesen Typ nicht geändert. Version {revision} ändert diese Maße. Bereits angelegte Bögen behalten die Version, mit der sie angelegt wurden."
+
+#: src/features/archive/TypeDetail.tsx
+msgid "You installed catalog version {installed} and have not changed this type. Version {revision} keeps the measurements and changes the description or the source."
+msgstr "Du hast Katalogversion {installed} installiert und diesen Typ nicht geändert. Version {revision} behält die Maße und ändert die Beschreibung oder die Quelle."
 
 #: src/features/settings/SettingsPage.tsx
 msgid "You need an admin key"

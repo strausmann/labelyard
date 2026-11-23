@@ -229,7 +229,9 @@ function SheetBody({ sheet, canWrite }: { sheet: SheetRead; canWrite: boolean })
               <Fact label={t`Feed mark printed`}>{sheet.feed_mark_printed ? t`yes` : t`no`}</Fact>
               <Fact label={t`Last used`}>{sheet.last_used_at ? <Time iso={sheet.last_used_at} withTime /> : t`Not used yet`}</Fact>
               <Fact label={t`Sheet type`}>
-                {typeName} (v{sheet.version})
+                <Link to="/sheets/archive" search={{ type: sheet.type_key }} className="text-link underline underline-offset-2 [overflow-wrap:anywhere]">
+                  {typeName} (v{sheet.version})
+                </Link>
               </Fact>
               {sheet.note ? <Fact label={t`Note`}>{sheet.note}</Fact> : null}
             </dl>

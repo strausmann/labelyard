@@ -45,7 +45,7 @@ test.describe.serial("sheet archive", () => {
     await setLanguage(page, "en");
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`/sheets/archive?type=${SEED}`);
-    await expect(page.getByRole("heading", { name: SEED })).toBeVisible();
+    await expect(page.getByRole("article", { name: SEED })).toBeVisible();
 
     const download = page.waitForEvent("download");
     await page.getByRole("link", { name: "Export", exact: true }).click();
@@ -108,7 +108,7 @@ test.describe.serial("sheet archive", () => {
         await shot("list");
 
         await page.goto(`/sheets/archive?type=${SEED}`);
-        await expect(page.getByRole("heading", { name: SEED })).toBeVisible();
+        await expect(page.getByRole("article", { name: SEED })).toBeVisible();
         await expect(page.getByRole("table")).toBeVisible();
         expect(await noSideScroll(page)).toBe(true);
         await shot("detail");
@@ -152,7 +152,7 @@ test.describe.serial("sheet archive", () => {
       for (const size of [{ width: 360, height: 780 }, { width: 1280, height: 800 }]) {
         await page.setViewportSize(size);
         await page.goto(`/sheets/archive?type=${key}`);
-        await expect(page.getByRole("heading", { name: key })).toBeVisible();
+        await expect(page.getByRole("article", { name: key })).toBeVisible();
         expect(await noSideScroll(page)).toBe(true);
         await page.screenshot({ path: testInfo.outputPath(`worst-${size.width}-en-light.png`), fullPage: true });
         await page.goto("/sheets/archive?q=worst");
@@ -280,7 +280,7 @@ test.describe.serial("sheet archive", () => {
         }),
       ).toBe(201);
       await page.goto(`/sheets/archive?type=${key}`);
-      await expect(page.getByRole("heading", { name: key })).toBeVisible();
+      await expect(page.getByRole("article", { name: key })).toBeVisible();
 
       // Both links, for the admin we are signed in as.
       const report = page.getByRole("link", { name: REPORT });

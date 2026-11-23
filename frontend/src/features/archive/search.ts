@@ -13,6 +13,16 @@ export interface ArchiveSearch {
   archived?: true | undefined;
   /** The key of the open type. */
   type?: string | undefined;
+  /** The tab: the installed types (no value) or the catalog. */
+  tab?: "catalog" | undefined;
+  /** Catalog: only entries checked on a real sheet. */
+  verified?: true | undefined;
+  /** Installed: usage state filter. */
+  state?: "in_use" | "used_before" | "unused" | undefined;
+  /** Installed: sort order (the server's default is by key). */
+  sort?: "usage" | "last_used" | undefined;
+  /** Installed: not used since this day (YYYY-MM-DD). */
+  since?: string | undefined;
 }
 
 /** What the API accepts (`GET /api/v1/sheet-types`): longer values answer 422. */
@@ -33,6 +43,9 @@ const size = (value: unknown): number | undefined => {
 /** Every key stays in the result even when rejected: the router merges it over the raw query string. */
 export function parseArchiveSearch(search: Record<string, unknown>): ArchiveSearch {
   const page = text(search.page);
+  const state = text(search.state);
+  const sort = text(search.sort);
+  const since = text(search.since);
   return {
     q: text(search.q)?.slice(0, MAX_QUERY),
     page: page === "A4" || page === "Letter" ? page : undefined,
@@ -41,7 +54,28 @@ export function parseArchiveSearch(search: Record<string, unknown>): ArchiveSear
     h: size(search.h),
     archived: search.archived === true || search.archived === "true" || search.archived === 1 ? true : undefined,
     type: text(search.type),
+    tab: search.tab === "catalog" ? "catalog" : undefined,
+    verified: search.verified === true || search.verified === "true" || search.verified === 1 ? true : undefined,
+    state: state === "in_use" || state === "used_before" || state === "unused" ? state : undefined,
+    sort: sort === "usage" || sort === "last_used" ? sort : undefined,
+    since: since && /^\d{4}-\d{2}-\d{2}$/.test(since) && !Number.isNaN(Date.parse(since)) ? since : undefined,
   };
+}
+
+/**
+ * The catalog search box takes text or a label size: "45,7 x 21.2" asks for width and height (±0.5 mm) instead of
+ * matching the text.
+ */
+export function catalogQuery(value: string | undefined): { q?: string; w?: number; h?: number } {
+  const text = value?.trim();
+  if (!text) return {};
+  const size = /^(\d+(?:[.,]\d+)?)\s*(?:mm)?\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(?:mm)?$/i.exec(text);
+  if (size) {
+    const w = parseDecimal(size[1]!);
+    const h = parseDecimal(size[2]!);
+    if (w !== null && h !== null && w > 0 && h > 0 && w <= 1000 && h <= 1000) return { w, h };
+  }
+  return { q: text.slice(0, MAX_QUERY) };
 }
 
 /** A decimal typed by a person ("45,7" or "45.7"); null when it is not a number. */

@@ -116,15 +116,42 @@ export function useArchiveErrorText(): (error: unknown, fallback?: string) => st
       }
       const inUse = typeInUse(error);
       if (inUse) {
-        return inUse.reason === "has_sheets"
-          ? t`This type has sheets. Archive it instead.`
-          : t`Only your own types can be deleted. Archive this one instead.`;
+        if (inUse.reason === "has_sheets") return t`This type has sheets. Archive it instead.`;
+        if (inUse.reason === "type_in_settings") {
+          const key = typeof error.errorDetail?.key === "string" ? error.errorDetail.key : null;
+          return key
+            ? t`The Grocy label settings use ${key}. Choose another sheet type there first.`
+            : t`The Grocy label settings use this type. Choose another sheet type there first.`;
+        }
+        return t`This type cannot be deleted. Archive it instead.`;
       }
+      const listed = (field: string): string | null => {
+        const value = error.errorDetail?.[field];
+        return Array.isArray(value) && value.every((v) => typeof v === "string") && value.length > 0 ? value.join(", ") : null;
+      };
       switch (error.code) {
         case "network_error":
           return t`The server cannot be reached.`;
         case "type_exists":
           return t`A sheet type with this key already exists.`;
+        case "prefix_taken":
+          return t`Another type already uses this code prefix.`;
+        case "not_unused": {
+          const keys = listed("keys");
+          return keys ? t`These types have sheets now: ${keys}. Nothing was removed.` : t`Some of these types have sheets now. Nothing was removed.`;
+        }
+        case "locally_edited":
+          return t`This type was changed here, so the catalog update is not applied. Export it to compare, or delete it and add it again.`;
+        case "no_update":
+          return t`The catalog has no newer version of this type.`;
+        case "backing_design_differs":
+          return t`The backing design of this type was changed here and differs from the catalog's. Nothing was changed.`;
+        case "backing_design_shared": {
+          const types = listed("types");
+          return types
+            ? t`Other types use the same backing design and cannot take the catalog's change: ${types}. Nothing was changed.`
+            : t`Other types use the same backing design and cannot take the catalog's change. Nothing was changed.`;
+        }
         case "sheet_type_archived":
           return t`This type is archived. Bring it back first.`;
         case "sheet_type_not_found":

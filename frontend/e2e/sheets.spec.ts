@@ -230,7 +230,7 @@ test.describe.serial("sheets", () => {
     await page.goto(`/sheets/archive?type=${type}`);
     await page.getByRole("tab", { name: "Where the code goes" }).click();
     await page.getByText("Reserved cell", { exact: true }).click();
-    await choose(page.getByRole("tabpanel"), / Cell$/, /^2$/);
+    await choose(page.getByRole("tabpanel", { name: "Where the code goes" }), / Cell$/, /^2$/);
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 

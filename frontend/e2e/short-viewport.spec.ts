@@ -426,6 +426,45 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await page.keyboard.press("Escape");
       });
 
+      test("catalog search list stays inside the viewport", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive?tab=catalog");
+        const field = page.getByRole("textbox", { name: "Search" });
+        await field.click();
+        await keyboard(mode);
+        await page.keyboard.type("avery");
+        await expectInSight(page, field, "the search field");
+        const list = page.getByTestId("catalog-results");
+        await expect(list).toBeVisible();
+        // The list is never taller than what is visible above the keyboard, and scrolls inside itself.
+        await expect
+          .poll(async () => {
+            const box = await list.boundingBox();
+            const view = await visible(page);
+            return box !== null && box.height <= view.bottom - view.top + 1;
+          }, { message: "the result list fits the visible height" })
+          .toBe(true);
+        expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight), "the list scrolls inside").toBe(true);
+        expect(await list.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
+      });
+
+      test("remove unused dialog footer stays in view", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive");
+        await page.getByRole("button", { name: "Remove unused types" }).click();
+        const dialog = dialogOf(page);
+        await expect(dialog).toBeVisible();
+        const filter = dialog.getByLabel("Filter");
+        await filter.click();
+        await keyboard(mode);
+        await page.keyboard.type("a");
+        await expectInSight(page, frameOf(dialog), "the dialog");
+        // The buttons sit in a sticky footer: in sight without scrolling the list.
+        await expectInSightOnceSettled(page, buttonIn(dialog, "Cancel"), "the Cancel button");
+        await expectInSightOnceSettled(page, dialog.locator("button").filter({ hasText: /^Remove \d+ types?$/ }), "the Remove button");
+        await page.keyboard.press("Escape");
+      });
+
       /** #350: the add dialog with the 3490 type (its code goes on the back), handed over to the activation steps. */
       async function openActivation() {
         const dialog = await openAddSheet();

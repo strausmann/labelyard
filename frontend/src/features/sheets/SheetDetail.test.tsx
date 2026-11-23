@@ -43,6 +43,13 @@ describe("the sheet detail page", () => {
     expect(await screen.findAllByText(/^Example Labels L4736REV-25 · 48 labels, 45\.7 x 21\.2 mm/)).toHaveLength(2);
   });
 
+  it("sheet detail links its type to /sheets/archive?type=<key> with the version", async () => {
+    await open({ ...sheetRead(CODE), version: 3 }, { "GET /api/v1/sheet-types": [SHEET_TYPE] });
+    const links = await screen.findAllByRole("link", { name: /Example Labels L4736REV-25 .*\(v3\)/ });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(link).toHaveAttribute("href", "/sheets/archive?type=L4736REV");
+  });
+
   it("falls back to the label of the server for a type the list does not know", async () => {
     await open({ ...sheetRead(CODE), type_key: "gone-type", type_label: "Gone Type 1" }, { "GET /api/v1/sheet-types": [SHEET_TYPE] });
     expect(await screen.findAllByText(/^Gone Type 1/)).toHaveLength(2);
