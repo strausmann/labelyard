@@ -87,33 +87,63 @@ function EntryDetails({ entry }: { entry: CatalogEntryRead }) {
   );
 }
 
-/** `409 prefix_taken` / `type_exists`: the entry can still go in under another prefix (and key). */
-function ConflictForm({ entry, error, onInstall, pending }: { entry: CatalogEntryRead; error: ApiError; onInstall: (prefix: string, asNewKey?: string) => void; pending: boolean }) {
+/**
+ * How an entry is added after a conflict: `prefix` keeps the entry's key with another prefix (`409 prefix_taken`),
+ * `copy` installs it under a new key (`409 type_exists`). Once `copy` was entered it stays until cancelled: a later
+ * `prefix_taken` for the copy only asks for another prefix, never drops the new key.
+ */
+type ConflictMode = "prefix" | "copy";
+
+function ConflictForm({
+  entry,
+  mode,
+  newKey,
+  setNewKey,
+  prefix,
+  setPrefix,
+  prefixTakenAgain,
+  onInstall,
+  onCancel,
+  pending,
+}: {
+  entry: CatalogEntryRead;
+  mode: ConflictMode;
+  newKey: string;
+  setNewKey: (v: string) => void;
+  prefix: string;
+  setPrefix: (v: string) => void;
+  /** The last answer was `prefix_taken` while adding under a new key. */
+  prefixTakenAgain: boolean;
+  onInstall: () => void;
+  onCancel: () => void;
+  pending: boolean;
+}) {
   const { t } = useLingui();
-  const keyTaken = error.code === "type_exists";
-  const suggested = typeof error.errorDetail?.suggested_prefix === "string" ? error.errorDetail.suggested_prefix : "";
-  const [prefix, setPrefix] = useState(suggested);
-  const [key, setKey] = useState(keyTaken ? `${entry.key}-2` : "");
+  const copy = mode === "copy";
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (prefix.trim()) onInstall(prefix.trim(), keyTaken ? key.trim() : undefined);
+        if (prefix.trim() && (!copy || newKey.trim())) onInstall();
       }}
       className="flex flex-col gap-3 rounded-r2 bg-info-soft p-3"
     >
       <p className="m-0 text-small">
-        {keyTaken
+        {copy
           ? t`A type with the key ${entry.key} exists already. Add this entry under a new key and code prefix; it is then your own copy without catalog updates.`
           : t`Another type already uses the code prefix of this entry. Add it with a new prefix:`}
       </p>
+      {copy && prefixTakenAgain ? <p role="alert" className="m-0 text-small font-bold">{t`Another type already uses this code prefix. Choose another one.`}</p> : null}
       <div className="grid gap-3 sm:grid-cols-2">
-        {keyTaken ? <TextInput label={t`New key`} value={key} onChange={setKey} mono /> : null}
+        {copy ? <TextInput label={t`New key`} value={newKey} onChange={setNewKey} mono /> : null}
         <TextInput label={t`New code prefix`} value={prefix} onChange={setPrefix} mono maxLength={10} />
       </div>
-      <Button type="submit" isDisabled={pending || !prefix.trim() || (keyTaken && !key.trim())} className={`${PRIMARY_BUTTON} self-start`}>
-        {keyTaken ? t`Add under this key` : t`Add with this prefix`}
-      </Button>
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" isDisabled={pending || !prefix.trim() || (copy && !newKey.trim())} className={PRIMARY_BUTTON}>
+          {copy ? t`Add under this key` : t`Add with this prefix`}
+        </Button>
+        <Button onPress={onCancel} isDisabled={pending} className={SECONDARY_BUTTON}>{t`Cancel`}</Button>
+      </div>
     </form>
   );
 }
@@ -126,8 +156,43 @@ function EntryCard({ entry, admin }: { entry: CatalogEntryRead; admin: boolean }
   const detailsId = useId();
   const mm = (v: number) => formatMm(v, i18n.locale);
   const title = typeLabel({ key: entry.key, vendor: entry.vendor, product_codes: entry.product_codes });
-  const conflict = install.error instanceof ApiError && (install.error.code === "prefix_taken" || install.error.code === "type_exists") ? install.error : null;
-  const run = (prefix?: string, asNewKey?: string) => install.mutate({ key: entry.key, prefix, asNewKey });
+  // The conflict form lives here, not in the form: a retry clears the mutation's error while it runs, and the chosen
+  // mode, new key and prefix must survive that.
+  const [mode, setMode] = useState<ConflictMode | null>(null);
+  const [newKey, setNewKey] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [prefixTakenAgain, setPrefixTakenAgain] = useState(false);
+  const conflictCode = (error: unknown) =>
+    error instanceof ApiError && (error.code === "prefix_taken" || error.code === "type_exists") ? error : null;
+  const run = (body: { prefix?: string; asNewKey?: string } = {}) =>
+    install.mutate(
+      { key: entry.key, ...body },
+      {
+        onError: (error) => {
+          const conflict = conflictCode(error);
+          if (!conflict) return;
+          const suggested = typeof conflict.errorDetail?.suggested_prefix === "string" ? conflict.errorDetail.suggested_prefix : null;
+          if (conflict.code === "type_exists") {
+            // The copy: a new key, and from here on every retry carries it.
+            if (mode !== "copy") setNewKey(`${entry.key}-2`);
+            setMode("copy");
+            setPrefixTakenAgain(false);
+          } else {
+            if (mode !== "copy") setMode("prefix");
+            setPrefixTakenAgain(mode === "copy");
+          }
+          if (suggested) setPrefix(suggested);
+        },
+      },
+    );
+  const cancelConflict = () => {
+    setMode(null);
+    setNewKey("");
+    setPrefix("");
+    setPrefixTakenAgain(false);
+    install.reset();
+  };
+  const conflictShown = mode !== null && !install.isSuccess;
   const installedAs = install.data && install.data.key !== entry.key ? install.data.key : null;
 
   let action = null;
@@ -149,7 +214,7 @@ function EntryCard({ entry, admin }: { entry: CatalogEntryRead; admin: boolean }
     );
   } else if (admin && !install.isSuccess) {
     action = (
-      <Button isDisabled={install.isPending} onPress={() => run()} className={`${PRIMARY_BUTTON} gap-1.5 px-4`}>
+      <Button isDisabled={install.isPending || conflictShown} onPress={() => run()} className={`${PRIMARY_BUTTON} gap-1.5 px-4`}>
         <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" className="fill-none stroke-current stroke-2">
           <path d="M6 1.5v9M1.5 6h9" />
         </svg>
@@ -194,8 +259,21 @@ function EntryCard({ entry, admin }: { entry: CatalogEntryRead; admin: boolean }
           </Button>
         </div>
       </div>
-      {conflict ? <ConflictForm entry={entry} error={conflict} onInstall={(p, k) => run(p, k)} pending={install.isPending} /> : null}
-      {install.error && !conflict ? <p role="alert" className="m-0">{errorText(install.error)}</p> : null}
+      {conflictShown ? (
+        <ConflictForm
+          entry={entry}
+          mode={mode}
+          newKey={newKey}
+          setNewKey={setNewKey}
+          prefix={prefix}
+          setPrefix={setPrefix}
+          prefixTakenAgain={prefixTakenAgain}
+          onInstall={() => run({ prefix: prefix.trim(), asNewKey: mode === "copy" ? newKey.trim() : undefined })}
+          onCancel={cancelConflict}
+          pending={install.isPending}
+        />
+      ) : null}
+      {install.error && !conflictCode(install.error) ? <p role="alert" className="m-0">{errorText(install.error)}</p> : null}
       <div id={detailsId} hidden={!open}>
         {open ? <EntryDetails entry={entry} /> : null}
       </div>

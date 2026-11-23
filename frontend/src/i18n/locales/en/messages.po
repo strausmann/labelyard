@@ -931,6 +931,7 @@ msgstr "Another type already uses the code prefix of this entry. Add it with a n
 msgid "Another type already uses this code prefix."
 msgstr "Another type already uses this code prefix."
 
+#: src/features/archive/CatalogTab.tsx
 #: src/features/archive/ImportDialog.tsx
 msgid "Another type already uses this code prefix. Choose another one."
 msgstr "Another type already uses this code prefix. Choose another one."
@@ -1190,6 +1191,7 @@ msgstr "Camera view"
 msgid "Can't be read with the current secret key — enter it again"
 msgstr "Can't be read with the current secret key — enter it again"
 
+#: src/features/archive/CatalogTab.tsx
 #: src/features/archive/FeedbackLinks.tsx
 #: src/features/archive/IdPlacementSection.tsx
 #: src/features/archive/ImportDialog.tsx

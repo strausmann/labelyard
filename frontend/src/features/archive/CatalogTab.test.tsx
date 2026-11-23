@@ -188,6 +188,54 @@ describe("catalog tab", () => {
     expect(await within(card).findByText("Added as avery-zweckform-l4736rev-2.")).toBeVisible();
   });
 
+  it("a copy keeps its new key when the prefix is taken next (Codex P2)", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    mockApi({
+      "GET /api/v1/sheet-catalog": page([ENTRY]),
+      "GET /api/v1/sheet-types": [],
+      "POST /api/v1/sheet-catalog/avery-zweckform-l4736rev/install": (init: RequestInit) => {
+        const body = JSON.parse(String(init.body ?? "{}"));
+        bodies.push(body);
+        if (!body.as_new_key) return respond(409, apiErrorBody("type_exists", "taken"));
+        if (body.prefix !== "L4736D") return respond(409, apiErrorBody("prefix_taken", "taken", { suggested_prefix: "L4736D" }));
+        return respond(201, { ...SHEET_TYPE, key: body.as_new_key, prefix: body.prefix, origin: "imported", also_updated: [] });
+      },
+    });
+    await renderApp({ path: "/sheets/archive?tab=catalog" });
+    const card = await screen.findByRole("article", { name: ENTRY.key });
+    await userEvent.click(within(card).getByRole("button", { name: "Add" }));
+    const key = await within(card).findByRole("textbox", { name: "New key" });
+    await userEvent.clear(key);
+    await userEvent.type(key, "my-copy");
+    await userEvent.type(within(card).getByRole("textbox", { name: "New code prefix" }), "L4736C");
+    await userEvent.click(within(card).getByRole("button", { name: "Add under this key" }));
+
+    // The prefix of the copy is taken: the new key stays, the free prefix is filled in.
+    expect(await within(card).findByRole("alert")).toHaveTextContent("Another type already uses this code prefix.");
+    expect(within(card).getByRole("textbox", { name: "New key" })).toHaveValue("my-copy");
+    await waitFor(() => expect(within(card).getByRole("textbox", { name: "New code prefix" })).toHaveValue("L4736D"));
+    await userEvent.click(within(card).getByRole("button", { name: "Add under this key" }));
+    await waitFor(() => expect(bodies).toHaveLength(3));
+    expect(bodies[2]).toEqual({ as_new_key: "my-copy", prefix: "L4736D" });
+    expect(await within(card).findByText("Added as my-copy.")).toBeVisible();
+  });
+
+  it("cancel leaves the conflict and offers Add again", async () => {
+    mockApi({
+      "GET /api/v1/sheet-catalog": page([ENTRY]),
+      "GET /api/v1/sheet-types": [],
+      "POST /api/v1/sheet-catalog/avery-zweckform-l4736rev/install": respond(409, apiErrorBody("type_exists", "taken")),
+    });
+    await renderApp({ path: "/sheets/archive?tab=catalog" });
+    const card = await screen.findByRole("article", { name: ENTRY.key });
+    await userEvent.click(within(card).getByRole("button", { name: "Add" }));
+    await within(card).findByRole("textbox", { name: "New key" });
+    expect(within(card).getByRole("button", { name: "Add" })).toBeDisabled();
+    await userEvent.click(within(card).getByRole("button", { name: "Cancel" }));
+    expect(within(card).queryByRole("textbox", { name: "New key" })).toBeNull();
+    expect(within(card).getByRole("button", { name: "Add" })).toBeEnabled();
+  });
+
   it("opening an entry shows its grid and where the values come from", async () => {
     mockApi({
       "GET /api/v1/sheet-catalog": page([ENTRY]),
