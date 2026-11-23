@@ -105,8 +105,35 @@ class SheetTypeInUseError(SheetApiError):
     error_code = "type_in_use"
     message = "Sheet type cannot be deleted."
 
-    def __init__(self, reason: str) -> None:
-        super().__init__(detail={"reason": reason})
+    def __init__(self, reason: str, **extra: Any) -> None:
+        super().__init__(detail={"reason": reason, **extra})
+
+
+class TypeNotUnusedError(SheetApiError):
+    """``delete-unused`` named types that are not in state ``unused`` (spec 6.1.5)."""
+
+    status = 409
+    error_code = "not_unused"
+    message = "Some of these sheet types are not unused; nothing was deleted."
+
+    def __init__(self, keys: list[str]) -> None:
+        super().__init__(detail={"keys": keys})
+
+
+class TypeLocallyEditedError(SheetApiError):
+    """The type differs from what the catalog installed; its update is not applied (6.1.3)."""
+
+    status = 409
+    error_code = "locally_edited"
+    message = "This sheet type was edited here; the catalog update is not applied."
+
+
+class NoCatalogUpdateError(SheetApiError):
+    """The catalog has no newer revision for this type, or the type is not from the catalog."""
+
+    status = 409
+    error_code = "no_update"
+    message = "The catalog has no update for this sheet type."
 
 
 class InvalidGeometryError(SheetApiError):

@@ -25,7 +25,7 @@ import asyncio
 import logging
 import os
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Any
 
@@ -122,6 +122,7 @@ from app.api.routes.capabilities import router as capabilities_router
 from app.api.routes.print import render_router
 from app.api.routes.print import router as print_router
 from app.api.routes.settings_api import router as settings_api_router
+from app.api.routes.sheet_catalog import router as sheet_catalog_router
 from app.api.routes.sheet_types import router as sheet_types_router
 from app.api.routes.sheets import router as sheets_router
 from app.api.routes.tray_loading import router as tray_loading_router
@@ -649,6 +650,23 @@ def _may_name_default_printer(auth: AuthContext | None, state: Any) -> bool:
     return str(pid) in auth.allowed_printer_ids
 
 
+def _route_paths(routes: Any, prefix: str = "") -> Iterator[str]:
+    """Every route path, also inside included routers.
+
+    FastAPI 0.165 keeps an included router as one ``_IncludedRouter`` entry without a ``path``;
+    its routes sit in ``original_router`` under the include's ``prefix``. Reading only
+    ``app.routes`` saw none of them, so no segment beyond the floor in ``naming`` was reserved.
+    """
+    for route in routes:
+        path = getattr(route, "path", "")
+        if path:
+            yield prefix + path
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            context = getattr(route, "include_context", None)
+            yield from _route_paths(inner.routes, prefix + (getattr(context, "prefix", "") or ""))
+
+
 def create_app() -> _LifespanManager:
     """Build the FastAPI app. Kept as a factory so tests can re-instantiate."""
     install_log_buffer()
@@ -757,6 +775,7 @@ def create_app() -> _LifespanManager:
     app.include_router(admin_printers_api_router)
     app.include_router(settings_api_router)
     app.include_router(sheet_types_router)
+    app.include_router(sheet_catalog_router)
     app.include_router(backing_designs_router)
     app.include_router(sheets_router)
     app.include_router(sheet_print_routes.router)
@@ -769,7 +788,7 @@ def create_app() -> _LifespanManager:
     # A type key equal to a fixed path segment under /api/v1/sheet-types/ would be shadowed by that
     # route. Derived from every registered route (not only one router), so a route added later
     # reserves its segment too; the floor in ``naming`` covers callers without routes.
-    reserve_static_segments("/api/v1/sheet-types", [getattr(r, "path", "") for r in app.routes])
+    reserve_static_segments("/api/v1/sheet-types", list(_route_paths(app.routes)))
 
     # #164: inside the security headers and the access log, around every router.
     install_body_limit(app)

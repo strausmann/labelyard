@@ -331,21 +331,6 @@ async def test_delete_type_with_sheets_is_type_in_use(api_client_with_seed, admi
     assert err["error_detail"] == {"reason": "has_sheets"}
 
 
-async def test_delete_imported_type_is_type_in_use(api_client_with_seed, admin):
-    await _create(api_client_with_seed, admin)
-    doc = (
-        await api_client_with_seed.get("/api/v1/sheet-types/acme-t1/export", headers=admin)
-    ).json()
-    await api_client_with_seed.delete("/api/v1/sheet-types/acme-t1", headers=admin)
-    imported = await api_client_with_seed.post(
-        "/api/v1/sheet-types/import", json=doc, headers=admin
-    )
-    assert imported.status_code == 201, imported.text
-    resp = await api_client_with_seed.delete("/api/v1/sheet-types/acme-t1", headers=admin)
-    assert resp.status_code == 409
-    assert _err(resp)["error_detail"] == {"reason": "imported_type"}
-
-
 # ---------------------------------------------------------------------------
 # Export and import
 # ---------------------------------------------------------------------------
@@ -543,6 +528,8 @@ async def test_openapi_lists_sheet_type_routes(api_client_with_seed):
         ("post", "/api/v1/sheet-types/{key}/archive"),
         ("post", "/api/v1/sheet-types/{key}/unarchive"),
         ("get", "/api/v1/sheet-types/{key}/export"),
+        ("post", "/api/v1/sheet-types/delete-unused"),
+        ("post", "/api/v1/sheet-types/{key}/catalog-update"),
     }
     present = {
         (method, path)

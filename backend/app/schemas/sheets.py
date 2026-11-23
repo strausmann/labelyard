@@ -8,7 +8,7 @@ Lengths are millimetres with at most two decimals (D16); the services store hund
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -24,11 +24,17 @@ __all__ = [
     "BackingDesignCreate",
     "BackingDesignPatch",
     "BackingDesignRead",
+    "CatalogEntryDetail",
+    "CatalogEntryRead",
+    "CatalogPage",
     "CellHitRead",
     "CellNumbers",
     "CellRead",
+    "DeleteUnusedRequest",
+    "DeleteUnusedResult",
     "GeometryMm",
     "ImportResponse",
+    "InstallRequest",
     "MarginBandsMm",
     "MarginCheckRead",
     "MarkRequest",
@@ -110,6 +116,7 @@ class BackingDesignPatch(_Body):
 
 
 _TypePlacement = Literal["auto", "margin", "back_side", "cell"]
+UsageState = Literal["in_use", "used_before", "unused"]
 _IdCell = Annotated[int, Field(ge=1, le=10000)]
 
 
@@ -144,7 +151,13 @@ class SheetTypeRead(BaseModel):
     current_version: int
     geometry: GeometryMm = Field(description="Geometry of the current version.")
     hints: list[str] = Field(description="Advisory codes about the current geometry.")
-    sheets_in_use: int = Field(description="Sheets of any state of this type.")
+    sheets_in_use: int = Field(
+        description=(
+            "Sheets of any state of this type (kept as it was). For what is left on them see "
+            "`sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and "
+            "`usage_state`."
+        )
+    )
     id_placement: _TypePlacement = Field(
         description=(
             "Where the sheet code of a new sheet goes. `auto` resolves to `margin` or "
@@ -167,6 +180,48 @@ class SheetTypeRead(BaseModel):
     backing_design: BackingDesignRead | None = Field(
         description="The vendor print on the back of the liner; `null` for a plain liner."
     )
+    catalog_key: str | None = Field(
+        default=None,
+        description="The catalog entry this type was installed from; `null` when it is not one.",
+    )
+    catalog_revision: int | None = Field(
+        default=None, description="The catalog revision installed; `null` without `catalog_key`."
+    )
+    update_available: bool = Field(
+        default=False,
+        description=(
+            "The catalog has a higher revision and the type was not edited here: "
+            "`POST /api/v1/sheet-types/{key}/catalog-update` applies it."
+        ),
+    )
+    catalog_newer: bool = Field(
+        default=False,
+        description="The catalog has a higher revision, but the type was edited here.",
+    )
+    catalog_missing: bool = Field(
+        default=False, description="The type came from the catalog; the image no longer has it."
+    )
+    sheets_with_free_cells: int = Field(
+        default=0, description="Active sheets of this type with at least one free cell."
+    )
+    free_labels: int = Field(default=0, description="Free cells on those sheets.")
+    sheets_total: int = Field(
+        default=0, description="Sheets of this type in any state; purged sheets are not counted."
+    )
+    last_used_at: datetime | None = Field(
+        default=None, description="When a sheet of this type was last used."
+    )
+    usage_state: UsageState = Field(
+        default="unused",
+        description=(
+            "`in_use`: a sheet has free cells; `used_before`: sheets exist, none with free "
+            "cells; `unused`: no sheets (the type can be deleted)."
+        ),
+    )
+
+    @field_serializer("last_used_at")
+    def _ser_last_used(self, dt: datetime | None, info: Any) -> str | None:
+        return _utc(dt, info)
 
     @field_serializer("archived_at", "created_at", "updated_at")
     def _ser_dt(self, dt: datetime | None, info: Any) -> str | None:
@@ -175,6 +230,72 @@ class SheetTypeRead(BaseModel):
 
 class SheetTypeDetail(SheetTypeRead):
     versions: list[VersionRead]
+
+
+class CatalogEntryRead(BaseModel):
+    """One entry of the catalog that ships in the image (ADR 0028, spec 6.1.2)."""
+
+    key: str
+    vendor: str | None
+    product_codes: list[str]
+    page_size: Literal["A4", "Letter"]
+    cols: int
+    rows: int
+    label_w_mm: float
+    label_h_mm: float
+    verified: bool = Field(description="Checked on paper by the maintainer (`verified_on`).")
+    verified_on: date | None
+    evidence: str | None
+    source_name: str | None
+    source_url: str | None
+    revision: int = Field(description="The entry's catalog revision, from 1.")
+    geometry_hash: str
+    installed: bool = Field(
+        description="A type with this key, or installed from this entry, exists here."
+    )
+    update_available: bool = Field(
+        description="The type installed from this entry is unedited and an older revision."
+    )
+    catalog_newer: bool = Field(
+        description="The type installed from this entry was edited and is an older revision."
+    )
+
+
+class CatalogEntryDetail(CatalogEntryRead):
+    prefix: str
+    description: str | None
+    notes: str | None
+    allow_qr: bool
+    geometry: GeometryMm = Field(description="The entry's geometry (for the grid preview).")
+
+
+class CatalogPage(BaseModel):
+    items: list[CatalogEntryRead]
+    total: int = Field(description="Entries matching every filter (before `limit`/`offset`).")
+    facets: SheetTypeFacets = Field(
+        description="Vendor and page-size counts under every filter except `vendor`."
+    )
+
+
+class InstallRequest(_Body):
+    as_new_key: _Key | None = Field(
+        default=None,
+        description=(
+            "Install under this key instead: the type is then `imported`, without catalog "
+            "provenance."
+        ),
+    )
+    prefix: _Prefix | None = Field(
+        default=None, description="The sheet code prefix; left out: the entry's."
+    )
+
+
+class DeleteUnusedRequest(_Body):
+    keys: Annotated[list[_Key], Field(min_length=1, max_length=500)]
+
+
+class DeleteUnusedResult(BaseModel):
+    deleted: list[str]
 
 
 class SheetTypeCreate(_Body):
