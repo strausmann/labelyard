@@ -95,20 +95,26 @@ async def test_preview_and_job_store_the_same_decision() -> None:
 
 
 async def test_retry_on_a_printer_with_a_larger_margin_moves_the_id() -> None:
-    async with running(margins=Margins(top=423, left=423, bottom=423, right=423)) as rig:
+    """The first attempt has no room at the top (17 mm lost) and goes to the bottom band; the
+    retry, with the top margin back, decides again and takes the top band right of the logo zone.
+    The band rule of 1.7.x would draw that ID at the grid's left edge (9.85 mm), the stored
+    rectangle puts it at 50.85 mm: the rendered position proves the renderer reads the rectangle."""
+    async with running(margins=Margins(top=1700, left=423, bottom=423, right=423)) as rig:
         await _zone_the_logo()
         code = await _sheet(placement="margin")
         first_id, _ = await _fail_cleanly(rig, _body(code, 2))
         first = (await rig.job_payload(first_id))["detail"]
-        assert first["margin_id"]["band"] == "top"
-        # The printer now loses 17 mm at the top: the top band is gone, the retry decides again.
-        await _set_margins(rig, Margins(top=1700, left=423, bottom=423, right=423))
+        assert first["margin_id"]["band"] == "bottom"
+        await _set_margins(rig, Margins(top=423, left=423, bottom=423, right=423))
 
         resp = await _retry(rig, first_id)
 
         detail = await _retried_detail(rig, resp)
         retried = await rig.job_payload(resp.json()["id"])
-        assert detail["margin_id"]["band"] == "bottom"
-        assert detail["margin_id_rect"] != first["margin_id_rect"]
-        assert _drawn_id_x_hmm(retried) == _expected_text_x(detail["margin_id_rect"])
+        rect = detail["margin_id_rect"]
+        assert detail["margin_id"]["band"] == "top"
+        assert rect != first["margin_id_rect"]
+        assert rect["x_hmm"] == LOGO["x"] + LOGO["w"] + 100  # not the grid's left edge
+        assert _drawn_id_x_hmm(retried) == _expected_text_x(rect)
+        assert _expected_text_x(rect) != 985 + rect["h_hmm"] + MARGIN_TEXT_GAP_HMM
         await rig.until_sheet(code, lambda s: s["id_printed"])

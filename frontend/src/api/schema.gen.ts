@@ -1427,7 +1427,7 @@ export interface paths {
         };
         /**
          * Whether and where the margin sheet code fits each page printer
-         * @description One row per enabled page printer the credentials may use, evaluated on its default tray or on `tray` (a printer without that tray: on its default; `tray` in the row names the tray used). The same decision the first job of a new sheet of the type makes: hardware margins, the tray's calibration, the type's keep-out zones and code position. `reason` says why it does not fit: `outside_printable` (the position lies outside the printable band), `overlaps_preprint` (zones leave no room), `too_small` (the band is shallower than 4 mm or too short) or `no_margin_band` (no margin on that side). Read-only.
+         * @description One row per enabled page printer the credentials may use, evaluated on its default tray or on `tray`. A printer that cannot use the requested tray (unknown or disabled there) is evaluated on its default tray instead; `tray` in the row always names the tray used. The same decision the first job of a new sheet of the type makes: hardware margins, the tray's calibration, the type's keep-out zones and code position. `reason` says why it does not fit: `outside_printable` (the position lies outside the printable band), `overlaps_preprint` (zones leave no room), `too_small` (the band is shallower than 4 mm or too short) or `no_margin_band` (no margin on that side). Read-only.
          */
         get: operations["get_sheet_type_id_placement_api_v1_sheet_types__key__id_placement_get"];
         put?: never;

@@ -139,6 +139,10 @@ def test_chosen_rectangle_keeps_its_clearance(
     align: Literal["start", "end"],
     offset: int,
 ) -> None:
+    """The clearance rule (ADR 0023, D33): from every zone 1 mm and ``|offset|`` on at least one
+    axis; along the band 1 mm and ``|offset|`` from the printable edge; across the band only what
+    1.7.x kept, ``|offset|`` from the hardware margin on the paper side and 1 mm before the grid,
+    so placements without zones are unchanged. Never over a cell."""
     geometries = _catalog_geometries()
     g = geometries[index % len(geometries)]
     hw = Margins(top=hw_mm * 100, left=hw_mm * 100, bottom=hw_mm * 100, right=hw_mm * 100)
