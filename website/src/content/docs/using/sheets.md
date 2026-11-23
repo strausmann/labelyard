@@ -9,9 +9,25 @@ A page printer prints onto label sheets: A4 or letter pages with a grid of label
 
 A **sheet type** describes a product: page size, the number of rows and columns and the measurements of a cell. Open **Sheets** to create one or to import one. Sheet types are versioned: when you correct a measurement, you add a version, and sheets that were already in use keep the version they were printed with.
 
-Sheet types marked **verified** were measured on real sheets. Labelyard 1.7.0 adds Avery Zweckform 6121, 3490 and L4737REV (3490 has its sheet code printed on the back of the liner, see [Where the sheet code goes](#where-the-sheet-code-goes)) and corrects L4731REV (sheets you already have keep the old measurement). A type you created or imported under the same key is taken over with your prefix and its older versions kept, and the bell tells you once. A taken-over type counts as shipped from then on, so you can archive it but not delete it.
+Sheet types marked **verified** were measured on real sheets. Labelyard 1.7.0 adds Avery Zweckform 6121, 3490 and L4737REV (3490 has its sheet code printed on the back of the liner, see [Where the sheet code goes](#where-the-sheet-code-goes)) and corrects L4731REV (sheets you already have keep the old measurement). A type you created or imported under the same key is taken over with your prefix and its older versions kept, and the bell tells you once. A taken-over type counts as shipped from then on.
 
 You can export a sheet type to a file and import it in this or another hub, so a product only has to be measured once.
+
+### The sheet archive: installed types and the catalog
+
+The **Sheet archive** has two tabs.
+
+**Catalog** lists the sheet types Labelyard ships. Search by vendor, product code or label size (type `45.7 x 21.2` for a size), pick a page size or a vendor, and tick **Verified only** to hide entries nobody has checked on a real sheet. Each entry says whether it is **Verified** (with the day) or **Not yet validated**, and **Show details** opens its grid with the measurements and where the values come from. **Add** installs an entry with one click. An installed entry shows **Installed**; when the catalog has a newer version of a type you did not change, it shows **Update**, which opens the type with the change. If another type already uses the entry's code prefix, the entry offers a free prefix to add it with instead.
+
+A fresh installation starts with no sheet types: the **Installed** tab then says so and opens the catalog. An installation upgraded from an earlier version keeps every type it has.
+
+**Installed** lists your types with their usage: how many sheets they have, how many of those have free cells, how many free labels are left, when a sheet of the type was last used, and a state: **In use**, **Used before** or **Unused**. Filter by state or by **Not used since** a day, and sort by key, usage or last use.
+
+**Updates from the catalog.** A type you did not change shows **Update available** with the measurements the new version changes, old and new side by side, and **Update to catalog version N**. Sheets you already have keep the version they were made with. When the update also changes the backing design that another type shares, that type is updated with it and named after **Also updated**. A type you changed yourself only says that the catalog has a newer version; export it to compare, or delete it and add it again.
+
+**Deleting.** Any type without sheets can be deleted, also a type from the catalog. While a type has sheets, **Delete type** waits and the archive offers **Archive** instead. **Remove unused types** lists exactly the types without any sheet, with none ticked; tick the ones to remove. Sheet codes are never given out twice: a type you add back continues its numbering.
+
+**From a type to its sheets and back.** The details of a type list its sheets, those in use first, then the used-up ones; discarded sheets appear with **Show discarded**. Each code opens its sheet, and **Show in the sheets list** opens **Sheets** filtered by the type. The other way round, every sheet names its type with the version it was made with, in the list and on its page, as a link to the type in the archive.
 
 Every sheet type has its own switch **QR codes on labels**, in the details of the type in the **Sheet archive**. A new type starts with it on when the shorter side of a label is at least 10 mm: on 25.4 × 10 mm labels a QR code with a short number beside it prints and scans. With the switch off, the labels on that type are printed without their QR code, the sheet ID label included, and the print preview marks those cells with "Code only on this sheet type". Types that already exist keep the setting they have.
 

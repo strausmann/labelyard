@@ -14,6 +14,7 @@ import {
   useCreateType,
   useDeleteType,
   useImportType,
+  useInstallCatalogEntry,
   usePatchType,
   useSheetType,
   useSheetTypes,
@@ -54,6 +55,16 @@ describe("sheet type writes", () => {
     const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
     expect(keys).toContainEqual(["sheet-types", "list"]);
     expect(keys).toContainEqual(["sheet-types", "detail", "L4736REV"]);
+  });
+
+  it("useInstallCatalogEntry refreshes every open type, since a shared backing design changes others with it", async () => {
+    mockApi({ "POST /api/v1/sheet-catalog/a6121/install": () => respond(201, { ...SHEET_TYPE, key: "a6121", also_updated: ["a3490"] }) });
+    const { wrapper, invalidate } = setup();
+    const { result } = renderHook(() => useInstallCatalogEntry(), { wrapper });
+    await act(() => result.current.mutateAsync({ key: "a6121" }));
+    const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
+    expect(keys).toContainEqual(["sheet-types", "list"]);
+    expect(keys).toContainEqual(["sheet-types", "detail"]);
   });
 
   it("useCreateType surfaces prefix_taken with its reason", async () => {

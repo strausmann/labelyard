@@ -10,15 +10,163 @@ import { ApiError } from "../../api/client";
 import { PRIMARY_BUTTON } from "../../shell/SignIn";
 import { GeometryDiagram } from "../sheets/GeometryDiagram";
 import { formatMm } from "../sheets/cellState";
+import { typeLabel } from "../sheets/typeLabel";
 import { ModalDialog } from "../settings/controls";
 import { SECTION_HEADING, SECONDARY_BUTTON } from "../ui";
-import { exportTypeUrl, useArchiveType, useDeleteType, useSheetType, type SheetTypeDetail } from "./api";
+import {
+  exportTypeUrl,
+  useArchiveType,
+  useCatalogEntry,
+  useCatalogUpdate,
+  useDeleteType,
+  useSheetType,
+  type SheetTypeDetail,
+} from "./api";
 import { useArchiveErrorText } from "./errors";
 import { Badge } from "./fields";
 import { FeedbackLinks } from "./FeedbackLinks";
 import { IdPlacementSection } from "./IdPlacementSection";
 import { TypeForm } from "./TypeForm";
 import { httpUrl, linkHost } from "./search";
+import { TypeSheetsList } from "./TypeSheetsList";
+
+type Geometry = SheetTypeDetail["geometry"];
+
+/** The measurements an update can change, in the order the diff lists them. */
+function useGeometryRows(): { field: keyof Geometry; label: string; mm: boolean }[] {
+  const { t } = useLingui();
+  return [
+    { field: "page_size", label: t`Page size`, mm: false },
+    { field: "cols", label: t`Columns`, mm: false },
+    { field: "rows", label: t`Rows`, mm: false },
+    { field: "label_w", label: t`Label width`, mm: true },
+    { field: "label_h", label: t`Label height`, mm: true },
+    { field: "pitch_x", label: t`Horizontal pitch`, mm: true },
+    { field: "pitch_y", label: t`Vertical pitch`, mm: true },
+    { field: "margin_top", label: t`Top margin`, mm: true },
+    { field: "margin_left", label: t`Left margin`, mm: true },
+    { field: "corner_radius", label: t`Corner radius`, mm: true },
+    { field: "shape", label: t`Label shape`, mm: false },
+  ];
+}
+
+/** Numbers in the usage of a type: what is left to print on, and how much it is used (#335, spec 6.1.5). */
+function UsageTiles({ type }: { type: SheetTypeDetail }) {
+  const { t, i18n } = useLingui();
+  const last = type.last_used_at ? new Date(type.last_used_at).toLocaleDateString(i18n.locale) : null;
+  const tile = (value: number, label: string) => (
+    <div className="flex min-w-0 flex-col gap-1 rounded-r3 bg-sunken p-4">
+      <span className="text-title font-bold tabular-nums">{value}</span>
+      <span className="text-small text-ink-2">{label}</span>
+    </div>
+  );
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {tile(type.sheets_with_free_cells, t`Sheets with free cells`)}
+      {tile(type.free_labels, t`Free labels`)}
+      {tile(type.sheets_total, last ? t`Sheets in all, last used ${last}` : t`Sheets in all, never used`)}
+    </div>
+  );
+}
+
+/**
+ * An unedited catalog type with a newer catalog revision: the change, old → new, and the button that applies it
+ * (#335, spec 6.1.3). An edited type only hears that the catalog is newer.
+ */
+function CatalogUpdatePanel({ type, admin }: { type: SheetTypeDetail; admin: boolean }) {
+  const { t, i18n } = useLingui();
+  const errorText = useArchiveErrorText();
+  const rowsOf = useGeometryRows();
+  const entry = useCatalogEntry(type.update_available ? (type.catalog_key ?? type.key) : null);
+  const update = useCatalogUpdate();
+  const catalogKey = type.catalog_key ?? type.key;
+
+  if (type.catalog_missing) {
+    return <p className="rounded-r2 bg-info-soft p-3 text-small">{t`This type is no longer in the catalog. It keeps working as it is.`}</p>;
+  }
+  if (type.catalog_newer && !type.update_available) {
+    return (
+      <p className="rounded-r2 bg-info-soft p-3 text-small">
+        {t`The catalog has a newer version of this type. It was changed here, so the update is not offered: export it to compare, or delete it and add it again.`}
+      </p>
+    );
+  }
+  if (update.isSuccess) {
+    const also = update.data.also_updated;
+    return (
+      <div role="status" className="flex flex-col gap-1 rounded-r2 bg-info-soft p-3 text-small">
+        <span className="font-bold">{t`Updated to the catalog version.`}</span>
+        {also.length > 0 ? <span>{t`Also updated: ${also.join(", ")}`}</span> : null}
+      </div>
+    );
+  }
+  if (!type.update_available) return null;
+
+  const installed = type.catalog_revision ?? 1;
+  const show = (value: unknown, mm: boolean) => (value == null ? "—" : mm && typeof value === "number" ? formatMm(value, i18n.locale) : String(value));
+  const diff = entry.data ? rowsOf.filter((r) => (type.geometry[r.field] ?? null) !== (entry.data.geometry[r.field] ?? null)) : [];
+  const revision = entry.data?.revision;
+
+  return (
+    <section aria-labelledby="catalog-update-heading" className="flex min-w-0 flex-col gap-4 rounded-r3 border border-link bg-surface p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="catalog-update-heading" className={SECTION_HEADING}>{t`Update available`}</h3>
+        {revision ? <span className="inline-flex items-center rounded-full bg-info-soft px-2.5 text-small leading-6 font-bold">{t`Catalog version ${revision}`}</span> : null}
+      </div>
+      {entry.isPending ? <p className="text-ink-2">{t`Loading…`}</p> : null}
+      {entry.isError ? <p role="alert">{t`The catalog entry could not be loaded.`}</p> : null}
+      {entry.data ? (
+        <>
+          <p className="m-0">
+            {diff.length > 0
+              ? t`You installed catalog version ${installed} and have not changed this type. Version ${revision} changes these measurements. Sheets you already made keep the version they were created with.`
+              : t`You installed catalog version ${installed} and have not changed this type. Version ${revision} keeps the measurements and changes the description or the source.`}
+          </p>
+          {diff.length > 0 ? (
+            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <table aria-label={t`What the update changes`} className="w-full border-collapse overflow-hidden rounded-r2 text-left">
+                <thead>
+                  <tr className="text-small">
+                    <th scope="col" className="py-2 pr-3 font-bold">{t`Measurement`}</th>
+                    <th scope="col" className="py-2 pr-3 text-right font-bold">{t`Installed (v${installed})`}</th>
+                    <th scope="col" className="py-2 text-right font-bold">{t`Catalog (v${revision})`}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {diff.map((r) => (
+                    <tr key={r.field} className="border-t border-line">
+                      <th scope="row" className="py-2 pr-3 font-normal">{r.label}</th>
+                      <td className="py-2 pr-3 text-right font-mono tabular-nums">{show(type.geometry[r.field], r.mm)}</td>
+                      <td className="py-2 text-right font-mono tabular-nums">{show(entry.data.geometry[r.field], r.mm)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-3">
+            {admin ? (
+              <Button
+                isDisabled={update.isPending}
+                onPress={() => update.mutate(type.key)}
+                className={PRIMARY_BUTTON}
+              >
+                {t`Update to catalog version ${revision}`}
+              </Button>
+            ) : null}
+            <Link to="/sheets/archive" search={{ tab: "catalog", q: catalogKey }} className={`${SECONDARY_BUTTON} no-underline`}>
+              {t`Show in the catalog`}
+            </Link>
+          </div>
+          {update.error ? <p role="alert" className="m-0">{errorText(update.error)}</p> : null}
+          <p className="m-0 text-small text-ink-2">
+            {t`A type you changed yourself shows "The catalog has a newer version" without this button. Export it, compare, or delete it and add it again.`}
+          </p>
+        </>
+      ) : null}
+    </section>
+  );
+}
 
 const TAB =
   "-mb-px inline-flex min-h-11 cursor-pointer items-center whitespace-nowrap border-b-2 border-transparent px-3 font-bold text-ink-2 transition-colors duration-150 data-[selected]:border-accent data-[selected]:text-ink data-[focus-visible]:outline-3 data-[focus-visible]:-outline-offset-3 data-[focus-visible]:outline-link [@media(hover:hover)]:hover:text-ink";
@@ -132,7 +280,9 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
   }
   const type = query.data;
   const archived = type.archived_at !== null;
-  const canDelete = admin && type.origin === "custom" && type.sheets_in_use === 0;
+  // Any type without sheets can go (#335); with sheets the server answers has_sheets, so the button says why it waits.
+  const hasSheets = type.sheets_total > 0;
+  const title = typeLabel(type);
   const actionError = archive.error ?? remove.error;
   const g = type.geometry;
   const mm = (v: number) => formatMm(v, i18n.locale);
@@ -143,7 +293,8 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
         {t`Back to the list`}
       </Link>
       <header className="flex flex-col gap-2">
-        <h2 className="text-title font-bold [overflow-wrap:anywhere]">{type.key}</h2>
+        <h2 className="text-title font-bold [overflow-wrap:anywhere]">{title}</h2>
+        {title !== type.key ? <p className="m-0 font-mono text-ink-2 [overflow-wrap:anywhere]">{type.key}</p> : null}
         <TypeBadges type={type} />
         <p className="text-ink-2 [overflow-wrap:anywhere]">
           {[type.vendor, type.description].filter(Boolean).join(" · ") || null}
@@ -188,11 +339,24 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
                 {archived ? t`Unarchive` : t`Archive`}
               </Button>
             ) : null}
-            {canDelete ? (
-              <Button onPress={() => setConfirmDelete(true)} className={SECONDARY_BUTTON}>{t`Delete`}</Button>
+            {admin ? (
+              <Button isDisabled={hasSheets} onPress={() => setConfirmDelete(true)} className={`${SECONDARY_BUTTON} text-bad`}>
+                {t`Delete type`}
+              </Button>
             ) : null}
           </div>
+          {admin && hasSheets ? (
+            <p className="m-0 text-small text-ink-2">
+              {plural(type.sheets_total, {
+                one: "Delete is only possible while no sheet uses the type. This type has # sheet: archive it instead, or discard and purge it first.",
+                other: "Delete is only possible while no sheet uses the type. This type has # sheets: archive it instead, or discard and purge them first.",
+              })}
+            </p>
+          ) : null}
           {actionError ? <p role="alert">{errorText(actionError)}</p> : null}
+
+          <UsageTiles type={type} />
+          <CatalogUpdatePanel type={type} admin={admin} />
 
           <section aria-labelledby="geometry-heading" className="flex flex-col gap-3">
             <h3 id="geometry-heading" className={SECTION_HEADING}>{t`Measurements`}</h3>
@@ -212,6 +376,8 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
               {type.notes ? <p className="whitespace-pre-wrap text-ink-2 [overflow-wrap:anywhere]">{type.notes}</p> : null}
             </section>
           ) : null}
+
+          <TypeSheetsList typeKey={type.key} />
 
           <FeedbackLinks type={type} admin={admin} />
           </TabPanel>

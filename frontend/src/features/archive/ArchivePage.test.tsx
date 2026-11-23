@@ -22,7 +22,20 @@ const VERSION = {
   sheets: 3,
 };
 const DETAIL = { ...SHEET_TYPE, sheets_in_use: 3, versions: [VERSION] };
-const CUSTOM = { ...SHEET_TYPE, key: "my-custom", origin: "custom" as const, sheets_in_use: 0, verified: false, vendor: null, product_codes: [], description: null };
+const CUSTOM = {
+  ...SHEET_TYPE,
+  key: "my-custom",
+  origin: "custom" as const,
+  sheets_in_use: 0,
+  sheets_total: 0,
+  sheets_with_free_cells: 0,
+  free_labels: 0,
+  usage_state: "unused" as const,
+  verified: false,
+  vendor: null,
+  product_codes: [],
+  description: null,
+};
 const EXPORT_DOC = {
   format: "label-printer-hub.sheet-type",
   format_version: 1,
@@ -97,7 +110,8 @@ describe("archive list and filters", () => {
     const { calls } = mockApi(LIST);
     await renderApp({ path: "/sheets/archive?page=A3&w=-4&h=abc" });
     await screen.findByRole("link", { name: /L4736REV/ });
-    expect(typeCalls(calls).every((c) => c.search === "")).toBe(true);
+    // The tab count asks for every type, archived ones included; the list itself goes without a filter.
+    expect(typeCalls(calls).every((c) => c.search === "" || c.search === "?include_archived=true")).toBe(true);
   });
 
   it("marks types by origin, verification and archive state with words", async () => {
@@ -115,7 +129,8 @@ describe("archive list and filters", () => {
   });
 
   it("says so when nothing matches, and when the list cannot be loaded", async () => {
-    mockApi({ "GET /api/v1/sheet-types": [] });
+    // The hub has types (the unfiltered count), the filter matches none of them.
+    mockApi({ "GET /api/v1/sheet-types": (_init: RequestInit, url: URL) => (url.searchParams.has("q") ? [] : [SHEET_TYPE]) });
     const first = await renderApp({ path: "/sheets/archive?q=zzz" });
     expect(await screen.findByText("No sheet type matches.")).toBeVisible();
     first.unmount();
@@ -139,7 +154,7 @@ describe("type detail", () => {
       },
     });
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
-    expect(await screen.findByRole("heading", { name: "L4736REV" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Example Labels L4736REV-25" })).toBeVisible();
     expect(screen.getByText("Label size")).toBeVisible();
     const versions = screen.getByRole("table", { name: "Versions" });
     expect(within(versions).getByText("Measured again")).toBeVisible();
@@ -185,21 +200,26 @@ describe("type detail", () => {
     expect(screen.queryByRole("link", { name: "Vendor datasheet" })).toBeNull();
   });
 
-  it("offers delete only for a custom type without sheets", async () => {
-    mockApi({ ...LIST, "GET /api/v1/sheet-types/L4736REV": DETAIL, "GET /api/v1/sheet-types/my-custom": { ...CUSTOM, versions: [VERSION] } });
+  it("delete waits while the type has sheets, whatever its origin (#335)", async () => {
+    mockApi({
+      ...LIST,
+      "GET /api/v1/sheet-types/L4736REV": DETAIL,
+      "GET /api/v1/sheet-types/seed-unused": { ...CUSTOM, key: "seed-unused", origin: "seed", versions: [VERSION] },
+    });
     const first = await renderApp({ path: "/sheets/archive?type=L4736REV" });
-    await screen.findByRole("heading", { name: "L4736REV" });
-    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    await screen.findByRole("heading", { name: "Example Labels L4736REV-25" });
+    expect(screen.getByRole("button", { name: "Delete type" })).toBeDisabled();
     first.unmount();
-    await renderApp({ path: "/sheets/archive?type=my-custom" });
-    await screen.findByRole("heading", { name: "my-custom" });
-    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible();
+    // A catalog type without sheets can go too: the server dropped the "own types only" rule (OC-10).
+    await renderApp({ path: "/sheets/archive?type=seed-unused" });
+    await screen.findByRole("heading", { name: "seed-unused" });
+    expect(screen.getByRole("button", { name: "Delete type" })).toBeEnabled();
   });
 
   it("deleting asks first, then deletes and leaves the type", async () => {
     const { calls } = mockApi({ ...LIST, "GET /api/v1/sheet-types/my-custom": { ...CUSTOM, versions: [VERSION] }, "DELETE /api/v1/sheet-types/my-custom": null });
     const { router } = await renderApp({ path: "/sheets/archive?type=my-custom" });
-    await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Delete type" }));
     const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Delete type" }));
     await waitFor(() => expect(calls.some((c) => c.method === "DELETE")).toBe(true));
@@ -592,8 +612,8 @@ describe("a session that may only read and print", () => {
   it("non-admin sees no write buttons", async () => {
     mockApi(LIST);
     await renderApp({ path: "/sheets/archive?type=L4736REV", session: PRINT_SESSION });
-    await screen.findByRole("heading", { name: "L4736REV" });
-    for (const name of ["New type", "Import type", "Edit geometry", "Edit details", "Archive", "Unarchive", "Delete"]) {
+    await screen.findByRole("heading", { name: "Example Labels L4736REV-25" });
+    for (const name of ["New type", "Import type", "Remove unused types", "Edit geometry", "Edit details", "Archive", "Unarchive", "Delete type", "Update to catalog version 2"]) {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
     // Reading stays possible: the diagram, the versions and the export download.
@@ -800,5 +820,156 @@ describe("versions and imports that touch the open type", () => {
     await userEvent.click(screen.getByRole("button", { name: "Import with the new key" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The code prefix is 2 to 10 capital letters or digits"));
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(before);
+  });
+});
+
+describe("installed types: usage (#335)", () => {
+  it("the State, Sort by and Not used since filters ask the server for usage_state, sort and unused_since", async () => {
+    const { calls } = mockApi(LIST);
+    await renderApp({ path: "/sheets/archive" });
+    await screen.findByRole("link", { name: /L4736REV/ });
+    await userEvent.click(screen.getByRole("button", { name: /State/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Used before" }));
+    await waitFor(() => expect(typeCalls(calls).some((c) => new URLSearchParams(c.search).get("usage_state") === "used_before")).toBe(true));
+    await userEvent.click(screen.getByRole("button", { name: /Sort by/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Last used" }));
+    await waitFor(() => expect(typeCalls(calls).some((c) => new URLSearchParams(c.search).get("sort") === "last_used")).toBe(true));
+    const since = screen.getByLabelText("Not used since");
+    await userEvent.type(since, "2026-06-01");
+    await waitFor(() => {
+      const last = typeCalls(calls).find((c) => new URLSearchParams(c.search).get("unused_since") === "2026-06-01");
+      expect(last).toBeDefined();
+      const params = new URLSearchParams(last!.search);
+      expect(params.get("usage_state")).toBe("used_before");
+      expect(params.get("sort")).toBe("last_used");
+    });
+    // The vendor facets follow the state filter.
+    expect(calls.some((c) => c.path === "/api/v1/sheet-types/facets" && new URLSearchParams(c.search).get("usage_state") === "used_before")).toBe(true);
+  });
+
+  it("a row shows its usage state and numbers in words", async () => {
+    const used = { ...SHEET_TYPE, sheets_total: 5, sheets_with_free_cells: 2, free_labels: 301, last_used_at: "2026-11-20T09:00:00Z", usage_state: "in_use" as const };
+    const before = { ...CUSTOM, key: "old-type", sheets_total: 3, sheets_with_free_cells: 0, free_labels: 0, last_used_at: "2026-09-02T09:00:00Z", usage_state: "used_before" as const };
+    mockApi({ ...LIST, "GET /api/v1/sheet-types": [used, before, CUSTOM] });
+    await renderApp({ path: "/sheets/archive" });
+    const row = (await screen.findByRole("link", { name: /L4736REV-25/ })).closest("li")!;
+    expect(within(row).getByText("In use")).toBeVisible();
+    expect(within(row).getByText(/^5 sheets · last used/)).toBeVisible();
+    expect(within(row).getByText("2 sheets with free cells · 301 free labels")).toBeVisible();
+    const old = screen.getByRole("link", { name: /old-type/ }).closest("li")!;
+    expect(within(old).getByText("Used before")).toBeVisible();
+    expect(within(old).getByText("No sheet with free cells")).toBeVisible();
+    const fresh = screen.getByRole("link", { name: /my-custom/ }).closest("li")!;
+    expect(within(fresh).getByText("Unused")).toBeVisible();
+    expect(within(fresh).getByText("Never used")).toBeVisible();
+    expect(within(fresh).getByText("0 sheets · last used —")).toBeVisible();
+  });
+
+  it("a fresh hub shows the way to the catalog and no Remove unused types", async () => {
+    mockApi({ "GET /api/v1/sheet-types": [], "GET /api/v1/sheet-catalog": { items: [], total: 39, facets: { vendors: [], page_sizes: [] } } });
+    const { router } = await renderApp({ path: "/sheets/archive" });
+    expect(await screen.findByRole("heading", { name: "No sheet types yet" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Remove unused types" })).toBeNull();
+    const empty = screen.getByRole("region", { name: "No sheet types yet" });
+    expect(within(empty).getByRole("button", { name: "Import type" })).toBeVisible();
+    await userEvent.click(within(empty).getByRole("button", { name: "Open the catalog" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ tab: "catalog" }));
+  });
+
+  it("a hub whose only types are archived is not a fresh hub", async () => {
+    const archived = { ...CUSTOM, archived_at: "2026-11-02T00:00:00Z" };
+    mockApi({ "GET /api/v1/sheet-types": (_init: RequestInit, url: URL) => (url.searchParams.get("include_archived") === "true" ? [archived] : []) });
+    await renderApp({ path: "/sheets/archive" });
+    expect(await screen.findByText("No sheet type matches.")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "No sheet types yet" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Remove unused types" })).toBeVisible();
+  });
+});
+
+describe("from the catalog tab to a new type (Codex P2)", () => {
+  it("an imported type opens on the Installed tab", async () => {
+    mockApi({
+      ...LIST,
+      "GET /api/v1/sheet-catalog": { items: [], total: 39, facets: { vendors: [], page_sizes: [] } },
+      "POST /api/v1/sheet-types/import": respond(201, { key: "L4736REV", version: 1, outcome: "created" }),
+    });
+    const { router } = await renderApp({ path: "/sheets/archive?tab=catalog" });
+    await userEvent.click(await screen.findByRole("button", { name: "Import type" }));
+    await userEvent.click(await screen.findByRole("textbox", { name: "Export file contents" }));
+    await userEvent.paste(JSON.stringify(EXPORT_DOC));
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Show the type" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ type: "L4736REV" }));
+    expect((router.state.location.search as { tab?: string }).tab).toBeUndefined();
+    expect(await screen.findByRole("heading", { name: "Example Labels L4736REV-25" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Installed/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("a type created while the catalog tab is open opens on the Installed tab", async () => {
+    mockApi({
+      ...LIST,
+      "GET /api/v1/sheet-catalog": { items: [], total: 39, facets: { vendors: [], page_sizes: [] } },
+      "POST /api/v1/sheet-types": CUSTOM,
+      "GET /api/v1/sheet-types/my-custom": { ...CUSTOM, versions: [VERSION] },
+    });
+    const { router } = await renderApp({ path: "/sheets/archive?tab=catalog" });
+    await userEvent.click(await screen.findByRole("button", { name: "New type" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Key" }), "my-custom");
+    await userEvent.type(screen.getByRole("textbox", { name: "Code prefix" }), "mycu");
+    for (const [name, value] of [
+      ["Columns", "3"],
+      ["Rows", "8"],
+      ["Label width (mm)", "63,5"],
+      ["Label height (mm)", "33.9"],
+      ["Horizontal pitch (mm)", "66"],
+      ["Vertical pitch (mm)", "34"],
+      ["Top margin (mm)", "15"],
+      ["Left margin (mm)", "7"],
+    ] as const) {
+      await userEvent.type(screen.getByRole("textbox", { name }), value);
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Create type" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ type: "my-custom" }));
+    expect((router.state.location.search as { tab?: string }).tab).toBeUndefined();
+    expect(await screen.findByRole("heading", { name: "my-custom" })).toBeVisible();
+  }, 30_000);
+});
+
+describe("remove unused types and the open type (Codex P2)", () => {
+  it("removing the open type closes it and refreshes the removed types", async () => {
+    const unused = { ...CUSTOM, key: "gone-type" };
+    const { calls } = mockApi({
+      ...LIST,
+      "GET /api/v1/sheet-types": (_init: RequestInit, url: URL) => (url.searchParams.get("usage_state") === "unused" ? [unused] : [SHEET_TYPE, unused]),
+      "GET /api/v1/sheet-types/gone-type": { ...unused, versions: [VERSION] },
+      "POST /api/v1/sheet-types/delete-unused": { deleted: ["gone-type"] },
+    });
+    const { router, queryClient } = await renderApp({ path: "/sheets/archive?type=gone-type" });
+    await screen.findByRole("heading", { name: "gone-type" });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await userEvent.click(screen.getByRole("button", { name: "Remove unused types" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove unused types" });
+    await userEvent.click(await within(dialog).findByRole("checkbox", { name: /gone-type/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Remove 1 type" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path.endsWith("/delete-unused"))).toBe(true));
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("type"));
+    expect(invalidate.mock.calls.map((c) => c[0]?.queryKey)).toContainEqual(["sheet-types", "detail", "gone-type"]);
+  });
+
+  it("removing other types keeps the open one", async () => {
+    const unused = { ...CUSTOM, key: "other-type" };
+    mockApi({
+      ...LIST,
+      "GET /api/v1/sheet-types": (_init: RequestInit, url: URL) => (url.searchParams.get("usage_state") === "unused" ? [unused] : [SHEET_TYPE, unused]),
+      "POST /api/v1/sheet-types/delete-unused": { deleted: ["other-type"] },
+    });
+    const { router } = await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await screen.findByRole("heading", { name: "Example Labels L4736REV-25" });
+    await userEvent.click(screen.getByRole("button", { name: "Remove unused types" }));
+    const dialog = await screen.findByRole("dialog", { name: "Remove unused types" });
+    await userEvent.click(await within(dialog).findByRole("checkbox", { name: /other-type/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Remove 1 type" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Remove unused types" })).toBeNull());
+    expect(router.state.location.search).toMatchObject({ type: "L4736REV" });
   });
 });

@@ -190,7 +190,8 @@ function SheetRow({ sheet, type, canWrite, onDiscard }: { sheet: SheetSummary; t
   const code = sheet.code;
   const size = `${formatMm(sheet.label_w, i18n.locale).replace(/ mm$/, "")} × ${formatMm(sheet.label_h, i18n.locale)}`;
   // The readable name of the type; the server's short label while the types load or when the type is not known.
-  const typeLine = `${type ? typeTitle(type) : sheet.type_label} · ${size}`;
+  const typeName = type ? typeTitle(type) : sheet.type_label;
+  const typeLine = `${typeName} (v${sheet.version}) · ${size}`;
   const inUse = sheet.reserved > 0;
   const dim = sheet.state === "discarded";
   return (
@@ -211,7 +212,11 @@ function SheetRow({ sheet, type, canWrite, onDiscard }: { sheet: SheetSummary; t
         <StateWord sheet={sheet} />
       </div>
       <div role="cell" title={typeLine} className="line-clamp-2 min-w-0 text-small [overflow-wrap:anywhere] max-md:col-span-2">
-        {typeLine}
+        {/* The type, with the version this sheet was made with, leads to the type in the archive (#335). */}
+        <Link to="/sheets/archive" search={{ type: sheet.type_key }} className="text-link underline underline-offset-2">
+          {typeName} (v{sheet.version})
+        </Link>{" "}
+        · {size}
       </div>
       <div role="cell" className="min-w-0 max-md:col-span-2">
         <Usage sheet={sheet} />

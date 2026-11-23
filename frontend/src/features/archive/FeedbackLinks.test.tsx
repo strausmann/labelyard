@@ -58,7 +58,7 @@ describe("sheet type feedback links", () => {
   it("shows no section at all while the hub version is not known", async () => {
     mockApi(routes(unverified));
     await renderApp({ path, session: PRINT_SESSION, info: { version: "" } });
-    await screen.findByRole("heading", { name: "L4736REV" });
+    await screen.findByRole("heading", { name: "Example Labels L4736REV-25" });
     expect(screen.queryByRole("heading", { name: "Are these numbers right?" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Confirm the dimensions" })).toBeNull();
   });

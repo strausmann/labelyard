@@ -171,14 +171,22 @@ describe("the sheet list", () => {
     setup();
     await renderApp({ path: "/sheets", session: PRINT_SESSION });
     await screen.findByRole("link", { name: "L4736-0001" });
-    expect(await within(rowOf("L4736-0001")).findByText("Example Labels L4736REV-25 · 48 labels, 45.7 x 21.2 mm · 45.7 × 21.2 mm")).toBeVisible();
+    expect(await within(rowOf("L4736-0001")).findByText((_, el) => el?.getAttribute("role") === "cell" && el.textContent === "Example Labels L4736REV-25 · 48 labels, 45.7 x 21.2 mm (v1) · 45.7 × 21.2 mm")).toBeVisible();
+  });
+
+  it("sheet row links to /sheets/archive?type=<key> with the version", async () => {
+    setup([sheetSummary("L4736-0001", { version: 2 })]);
+    await renderApp({ path: "/sheets", session: PRINT_SESSION });
+    await screen.findByRole("link", { name: "L4736-0001" });
+    const link = await within(rowOf("L4736-0001")).findByRole("link", { name: /Example Labels L4736REV-25 .*\(v2\)/ });
+    expect(link).toHaveAttribute("href", "/sheets/archive?type=L4736REV");
   });
 
   it("falls back to the label of the server for a type the list does not know", async () => {
     setup([sheetSummary("G0001-0001", { type_key: "gone-type", type_label: "Gone Type 1" })]);
     await renderApp({ path: "/sheets", session: PRINT_SESSION });
     await screen.findByRole("link", { name: "G0001-0001" });
-    expect(within(rowOf("G0001-0001")).getByText("Gone Type 1 · 45.7 × 21.2 mm")).toBeVisible();
+    expect(within(rowOf("G0001-0001")).getByText((_, el) => el?.getAttribute("role") === "cell" && el.textContent === "Gone Type 1 (v1) · 45.7 × 21.2 mm")).toBeVisible();
   });
 
   it("sends the type and the code search of the address to the server and keeps them in the address", async () => {

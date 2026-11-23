@@ -28,6 +28,10 @@ export interface TypeFilters {
   /** Label height in mm, ±0.5. */
   h?: number;
   include_archived?: boolean;
+  usage_state?: "in_use" | "used_before" | "unused";
+  sort?: "key" | "usage" | "last_used";
+  /** Not used on or after this day (YYYY-MM-DD); never used types included. */
+  unused_since?: string;
 }
 
 /** How an import treats a type whose key exists: refuse, add a version, or store it under a new key. */
@@ -66,18 +70,30 @@ export const useSheetType = (key: string, enabled = true) =>
  * A type write changes the lists, the type and (through the usage counts) the sheet lists.
  * `keyOf` names the type that changed: from the request, or (an import) from the answer.
  */
-function useTypeWrite<V, R>(run: (v: V) => Promise<R>, keyOf: (v: V, data: R | undefined) => string | null) {
+function useTypeWrite<V, R>(
+  run: (v: V) => Promise<R>,
+  keyOf: (v: V, data: R | undefined) => string | null,
+  { allDetails = false, keysOf }: { allDetails?: boolean; keysOf?: (v: V) => string[] } = {},
+) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: run,
     onSettled: (data, _error, v) => {
       void client.invalidateQueries({ queryKey: typesListKey });
       void client.invalidateQueries({ queryKey: sheetsListKey });
+      // A catalog write can change other types with it (`also_updated`, a shared backing design): every open type.
+      if (allDetails) {
+        void client.invalidateQueries({ queryKey: typeDetailsKey });
+        return;
+      }
       const key = keyOf(v, data);
       if (key) void client.invalidateQueries({ queryKey: typeKey(key) });
+      for (const other of keysOf?.(v) ?? []) void client.invalidateQueries({ queryKey: typeKey(other) });
     },
   });
 }
+
+const typeDetailsKey = ["sheet-types", "detail"] as const;
 
 export const useCreateType = () =>
   useTypeWrite((body: SheetTypeCreate) => apiFetch<SheetTypeRead>("/api/v1/sheet-types", { method: "POST", json: body }), () => null);
@@ -125,3 +141,65 @@ export type BackingDesignRead = Schemas["BackingDesignRead"];
 /** The vendor prints on the back of a liner (#350); a type links one of them. */
 export const useBackingDesigns = (enabled = true) =>
   useQuery({ queryKey: ["backing-designs"], queryFn: () => apiFetch<BackingDesignRead[]>("/api/v1/backing-designs"), enabled });
+
+export type CatalogEntryRead = Schemas["CatalogEntryRead"];
+export type CatalogEntryDetail = Schemas["CatalogEntryDetail"];
+export type CatalogPage = Schemas["CatalogPage"];
+export type CatalogWriteRead = Schemas["CatalogWriteRead"];
+
+export interface CatalogFilters {
+  q?: string;
+  page?: "A4" | "Letter";
+  vendor?: string;
+  w?: number;
+  h?: number;
+  verified?: boolean;
+  limit?: number;
+}
+
+/** The catalog lives under the type list key: installing or updating a type changes its `installed` flags. */
+const catalogKey = (filters: object) => [...typesListKey, "catalog", filters] as const;
+const catalogEntryKey = (key: string) => [...typesListKey, "catalog-entry", key] as const;
+
+/** `GET /api/v1/sheet-catalog`: the entries the image ships, with their state here and the facets. */
+export const useCatalog = (filters: CatalogFilters = {}, enabled = true) =>
+  useQuery({
+    queryKey: catalogKey(filters),
+    queryFn: () => apiFetch<CatalogPage>(`/api/v1/sheet-catalog${queryString({ ...filters })}`),
+    enabled,
+  });
+
+/** One catalog entry with its geometry (the grid preview, the update's diff). */
+export const useCatalogEntry = (key: string | null) =>
+  useQuery({
+    queryKey: catalogEntryKey(key ?? ""),
+    queryFn: () => apiFetch<CatalogEntryDetail>(`/api/v1/sheet-catalog/${encode(key ?? "")}`),
+    enabled: !!key,
+  });
+
+/** `POST /api/v1/sheet-catalog/{key}/install`: under its own key, or (`prefix`, `as_new_key`) a new prefix or key. */
+export const useInstallCatalogEntry = () =>
+  useTypeWrite(
+    ({ key, prefix, asNewKey }: { key: string; prefix?: string; asNewKey?: string }) =>
+      apiFetch<CatalogWriteRead>(`/api/v1/sheet-catalog/${encode(key)}/install`, {
+        method: "POST",
+        json: { ...(asNewKey ? { as_new_key: asNewKey } : {}), ...(prefix ? { prefix } : {}) },
+      }),
+    (_v, data) => data?.key ?? null,
+    { allDetails: true },
+  );
+
+/** `POST /api/v1/sheet-types/{key}/catalog-update`: the newer catalog revision as the next version. */
+export const useCatalogUpdate = () =>
+  useTypeWrite((key: string) => apiFetch<CatalogWriteRead>(`${typePath(key)}/catalog-update`, { method: "POST" }), (key) => key, {
+    allDetails: true,
+  });
+
+/** `POST /api/v1/sheet-types/delete-unused`: all the named unused types, or none. */
+export const useDeleteUnused = () =>
+  useTypeWrite(
+    (keys: string[]) => apiFetch<Schemas["DeleteUnusedResult"]>("/api/v1/sheet-types/delete-unused", { method: "POST", json: { keys } }),
+    () => null,
+    // Every removed type: an open detail of one must not keep showing it.
+    { keysOf: (keys) => keys },
+  );
