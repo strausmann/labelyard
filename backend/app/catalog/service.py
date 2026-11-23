@@ -219,25 +219,31 @@ def _check_new_key(as_new_key: str) -> None:
         raise TypeKeyReservedError()
 
 
-def _shipped_design_states(key: str) -> set[str]:
-    """Every state of the design ``key`` the hub shipped, as canonical JSON of its document.
+def shipped_design_states() -> dict[str, set[str]]:
+    """Every state of every backing design the hub shipped, by design key, as canonical JSON.
 
     The designs the catalog documents embed today, and the strips the 1.7.x seed linked under
-    each of those names (the state an upgraded installation holds).
+    each of those names (the state an upgraded installation holds). It reads every catalog
+    document, so the writes call it before they take the write lock.
     """
-    shipped: list[BackingDesignDoc] = []
+    shipped: dict[str, list[BackingDesignDoc]] = {}
     for entry in loader.load_index():
         embedded = loader.load_entry(entry.key).type.backing_design
-        if embedded is not None and embedded.key == key:
-            shipped.append(embedded)
+        if embedded is not None:
+            shipped.setdefault(embedded.key, []).append(embedded)
     from app.seed.sheet_seed import shipped_backing_defaults  # deferred: the seed imports a lot
 
-    seeded = {strips for design, strips in shipped_backing_defaults().values() if design == key}
-    states = {d.model_dump_json() for d in shipped}
-    for d in shipped:
-        for strips in seeded:
-            hmm = [{"x": x, "y": y, "w": w, "h": h} for x, y, w, h in strips]
-            states.add(d.model_copy(update={"strips": bds.strips_to_mm(hmm)}).model_dump_json())
+    seeded: dict[str, set[tuple[tuple[int, int, int, int], ...]]] = {}
+    for design_key, strips in shipped_backing_defaults().values():
+        seeded.setdefault(design_key, set()).add(strips)
+    states: dict[str, set[str]] = {}
+    for key, docs in shipped.items():
+        found = states.setdefault(key, set())
+        for d in docs:
+            found.add(d.model_dump_json())
+            for strips in seeded.get(key, set()):
+                hmm = [{"x": x, "y": y, "w": w, "h": h} for x, y, w, h in strips]
+                found.add(d.model_copy(update={"strips": bds.strips_to_mm(hmm)}).model_dump_json())
     return states
 
 
@@ -247,6 +253,8 @@ class _Followers:
 
     keys: list[str] = field(default_factory=list)
     types: list[SheetType] = field(default_factory=list)
+    # ``shipped_design_states()``, read before the write lock was taken
+    shipped: dict[str, set[str]] = field(default_factory=dict)
 
 
 async def _follow_the_catalog(
@@ -292,9 +300,8 @@ async def _follow_the_catalog(
     # no entry of the image embeds that state any more. ``t`` itself proves it on an update (its
     # check ran before); otherwise the states of the image and of the 1.7.x seed decide.
     proven = t.backing_design_id == design.id or bool(ready)
-    if not proven and bds.to_doc(design).model_dump_json() not in _shipped_design_states(
-        design.key
-    ):
+    state = bds.to_doc(design).model_dump_json()
+    if not proven and state not in followers.shipped.get(design.key, set()):
         raise BackingDesignDiffersError(design.key)
     strips = bds.strips_from_mm(wanted.strips)
     bds.validate_strips(strips, design.page_size)
@@ -436,6 +443,7 @@ async def install(
     wanted_prefix = prefix or doc.type.prefix
     geometry = geometry_from_doc(doc.version.geometry)
     own = new_key is None
+    shipped = shipped_design_states() if own else {}  # read before the lock
     async with write_transaction(session):
         if await repo.get_by_key(session, target) is not None:
             raise TypeExistsError()
@@ -454,7 +462,7 @@ async def install(
         t.created_by = actor
         t.id_placement = doc.type.id_placement
         t.id_cell = doc.type.id_cell
-        followers = _Followers() if own else None
+        followers = _Followers(shipped=shipped) if own else None
         await _link_design(session, t, doc, "seed" if own else "imported", followers=followers)
         if own:
             t.catalog_key = key
@@ -485,6 +493,7 @@ async def apply_update(
     only when the entry's geometry differs from the current one, and sheets stay pinned to
     theirs. The provenance is moved in the same transaction, so the type is unedited after it.
     """
+    shipped = shipped_design_states()  # every catalog document: read before the lock
     async with write_transaction(session):
         t = await ts.get_type(session, key)
         if t.catalog_key is None:
@@ -499,7 +508,7 @@ async def apply_update(
         if is_locally_edited(t, current, design):
             raise TypeLocallyEditedError()
         doc = loader.load_entry(t.catalog_key)
-        followers = _Followers()
+        followers = _Followers(shipped=shipped)
         await _apply_entry(session, t, doc, meta, current, followers)
         await _still_unedited(session, [t, *followers.types])
         await session.commit()

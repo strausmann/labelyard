@@ -1199,7 +1199,7 @@ export interface paths {
         put?: never;
         /**
          * Install a catalog entry as a sheet type
-         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`; `409 backing_design_differs` when the local backing design of the entry's key differs and was edited here or is linked by a type that is not an unedited catalog type (`error_detail.design`); `409 backing_design_shared` when other types share that design and cannot take the change with it (`error_detail.types`). Types that share the design and can take it are updated with it and listed in `also_updated`.
+         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`. When the local backing design of the entry's key differs from the entry's: other types that link it are updated with it and listed in `also_updated` when each is an unedited catalog type whose newest entry carries the same new design, else `409 backing_design_shared` (`error_detail.types`); a design no type links is brought to the entry's state while it still holds a shipped state, else `409 backing_design_differs` (`error_detail.design`).
          */
         post: operations["install_catalog_entry_api_v1_sheet_catalog__key__install_post"];
         delete?: never;
@@ -1356,7 +1356,7 @@ export interface paths {
         put?: never;
         /**
          * Update a sheet type to its newer catalog revision
-         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog, `409 backing_design_differs` when the entry's backing design differs from the local one and that one was edited here; `409 backing_design_shared` when other types share that design and cannot take the change (each must be an unedited catalog type whose newest entry carries the same new design; `error_detail.types`). Types that can take it are updated with it and listed in `also_updated`.
+         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog. When the entry's backing design differs from the local one, the other types that link it are updated with it and listed in `also_updated` when each is an unedited catalog type whose newest entry carries the same new design, else `409 backing_design_shared` (`error_detail.types`). A design that only this type links follows (the unedited type proves its state); one no type links follows while it still holds a shipped state, else `409 backing_design_differs` (`error_detail.design`).
          */
         post: operations["catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post"];
         delete?: never;
@@ -8520,7 +8520,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The key or the prefix is taken, or the backing design differs. */
+            /** @description `type_exists`, `prefix_taken`, `backing_design_shared` or `backing_design_differs`. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8997,7 +8997,7 @@ export interface operations {
                     "application/json": components["schemas"]["SheetApiErrorResponse"];
                 };
             };
-            /** @description Edited here, or no update. */
+            /** @description `locally_edited`, `no_update`, `backing_design_differs` or `backing_design_shared`. */
             409: {
                 headers: {
                     [name: string]: unknown;

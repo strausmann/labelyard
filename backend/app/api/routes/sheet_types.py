@@ -462,14 +462,23 @@ async def unarchive_sheet_type(key: KeyPath, session: SessionDep, auth: AdminDep
         "Applies the catalog entry's type fields and backing design link; adds a geometry "
         "version only when the entry's geometry differs from the current one (sheets stay on "
         "their version). `409 locally_edited` when the type was edited here, `409 no_update` "
-        "when the catalog has no higher revision or the type is not from the catalog, `409 "
-        "backing_design_differs` when the entry's backing design differs from the local one and "
-        "that one was edited here; `409 backing_design_shared` when other types share that "
-        "design and cannot take the change (each must be an unedited catalog type whose newest "
-        "entry carries the same new design; `error_detail.types`). Types that can take it are "
-        "updated with it and listed in `also_updated`."
+        "when the catalog has no higher revision or the type is not from the catalog. When the "
+        "entry's backing design differs from the local one, the other types that link it are "
+        "updated with it and listed in `also_updated` when each is an unedited catalog type "
+        "whose newest entry carries the same new design, else `409 backing_design_shared` "
+        "(`error_detail.types`). A design that only this type links follows (the unedited type "
+        "proves its state); one no type links follows while it still holds a shipped state, "
+        "else `409 backing_design_differs` (`error_detail.design`)."
     ),
-    responses={**_NOT_FOUND, 409: {"description": "Edited here, or no update."}},
+    responses={
+        **_NOT_FOUND,
+        409: {
+            "description": (
+                "`locally_edited`, `no_update`, `backing_design_differs` or "
+                "`backing_design_shared`."
+            )
+        },
+    },
 )
 async def catalog_update_sheet_type(
     key: KeyPath, session: SessionDep, auth: AdminDep

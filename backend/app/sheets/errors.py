@@ -129,9 +129,11 @@ class TypeLocallyEditedError(SheetApiError):
 
 
 class BackingDesignDiffersError(SheetApiError):
-    """The local backing design of the entry's key differs from the entry's and may not follow it.
+    """The local backing design of the entry's key differs and its state is not a shipped one.
 
-    It was edited here, or a type that is not an unedited catalog type links it (ADR 0028).
+    Only for a design no other type links and that the written type does not prove (an unedited
+    catalog type linking a design proves its state); a design linked by a type that cannot follow
+    gives ``backing_design_shared`` (ADR 0028).
     """
 
     status = 409
