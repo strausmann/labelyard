@@ -370,15 +370,14 @@ async def test_delete_rules(session: AsyncSession) -> None:
     assert exc.value.error_code == "type_in_use"
     assert exc.value.detail == {"reason": "has_sheets"}
 
-    for origin, reason in (("seed", "seed_type"), ("imported", "imported_type")):
+    for origin in ("seed", "imported"):  # ADR 0028: any origin without sheets is deleted
         key = f"{origin}-type"
         await ts.create_type(
             session, fields(key, origin[:4].upper() + "1"), G_4X12, actor="t", origin=origin
         )  # type: ignore[arg-type]
-        with pytest.raises(SheetTypeInUseError) as exc2:
-            await ts.delete_type(session, key, actor="t")
-        assert exc2.value.detail == {"reason": reason}
-        assert (await ts.get_type(session, key)).origin == origin
+        await ts.delete_type(session, key, actor="t")
+        with pytest.raises(SheetTypeNotFoundError):
+            await ts.get_type(session, key)
 
     with pytest.raises(SheetTypeNotFoundError):
         await ts.delete_type(session, "nope", actor="t")

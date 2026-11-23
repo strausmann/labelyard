@@ -9,19 +9,22 @@ transaction back, so a rejected request leaves nothing behind.
 
 from __future__ import annotations
 
+import json
 import logging
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from dataclasses import dataclass, field, replace
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
+from app.models.app_setting import AppSetting
 from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories import sheet_types as repo
+from app.repositories.sheet_types import NO_USAGE, TypeUsage, UsageState
 from app.repositories.write_lock import write_transaction
 from app.sheets.errors import (
     BackingDesignPageSizeMismatchError,
@@ -36,6 +39,7 @@ from app.sheets.errors import (
     TextTooLongError,
     TypeExistsError,
     TypeKeyReservedError,
+    TypeNotUnusedError,
 )
 from app.sheets.geometry import (
     Geometry,
@@ -208,6 +212,11 @@ def _clean_fields(fields: TypeFields) -> TypeFields:
         source_url=_clean_url(fields.source_url),
         product_codes=_clean_codes(fields.product_codes),
     )
+
+
+def clean_fields(fields: TypeFields) -> TypeFields:
+    """The fields as they are stored: free text cleaned, the source URL checked (spec 18)."""
+    return _clean_fields(fields)
 
 
 def _clean_patch_value(name: str, value: Any) -> Any:
@@ -462,18 +471,96 @@ async def unarchive_type(session: AsyncSession, key: str, *, actor: str) -> Shee
     return await _set_archived(session, key, False, actor)
 
 
+def _sheet_type_setting_keys() -> tuple[str, ...]:
+    """The settings that name a sheet type: the Grocy label default target and each label type."""
+    from app.settings_store.registry import (  # deferred: the registry imports app.sheets
+        GROCY_LABEL_DEFAULT_SHEET_TYPE_KEY,
+        GROCY_LABEL_TYPES,
+        grocy_label_sheet_type_key,
+    )
+
+    return (
+        GROCY_LABEL_DEFAULT_SHEET_TYPE_KEY,
+        *(grocy_label_sheet_type_key(t) for t in GROCY_LABEL_TYPES),
+    )
+
+
+async def types_in_settings(session: AsyncSession, keys: set[str]) -> dict[str, str]:
+    """For each of ``keys`` a setting names, the first such setting (in registry order).
+
+    Read from the stored rows inside the caller's transaction, so a setting written before the
+    write lock was taken is seen. These settings have no environment override.
+    """
+    names = _sheet_type_setting_keys()
+    rows = (
+        (await session.execute(select(AppSetting).where(col(AppSetting.key).in_(names))))
+        .scalars()
+        .all()
+    )
+    stored: dict[str, str] = {}
+    for row in rows:
+        try:
+            value = json.loads(row.value_json) if row.value_json is not None else None
+        except ValueError:
+            continue
+        if isinstance(value, str) and value.strip():
+            stored[row.key] = value.strip()
+    found: dict[str, str] = {}
+    for name in names:  # registry order: the default target first
+        value = stored.get(name)
+        if value is not None and value in keys and value not in found:
+            found[value] = name
+    return found
+
+
+async def _delete_locked(session: AsyncSession, types: list[SheetType]) -> None:
+    """Delete the types and their versions. ``sheet_id_counters`` is never touched: a type
+    added again with the same prefix continues its numbering (spec 6.1.5). Linked backing
+    designs stay; page jobs, calibrations and logs keep their rows (no foreign key to them)."""
+    ids = [t.id for t in types]
+    await session.execute(delete(SheetTypeVersion).where(col(SheetTypeVersion.type_id).in_(ids)))
+    for t in types:
+        await session.delete(t)
+
+
 async def delete_type(session: AsyncSession, key: str, *, actor: str) -> None:  # noqa: ARG001
+    """Delete any type without sheets (ADR 0028: catalog, imported or custom)."""
     async with write_transaction(session):
         t = await get_type(session, key)
-        if t.origin != "custom":
-            # OC-10: only custom types without sheets are deleted; the rest is archived.
-            raise SheetTypeInUseError(f"{t.origin}_type")
         if await repo.count_sheets(session, t.id) > 0:
             raise SheetTypeInUseError("has_sheets")
-        await session.execute(delete(SheetTypeVersion).where(col(SheetTypeVersion.type_id) == t.id))
-        await session.delete(t)
+        setting = (await types_in_settings(session, {t.key})).get(t.key)
+        if setting is not None:
+            raise SheetTypeInUseError("type_in_settings", setting=setting)
+        await _delete_locked(session, [t])
         await session.commit()
     logger.info("sheet type %s deleted", log_value(key))
+
+
+async def delete_unused(session: AsyncSession, keys: list[str], *, actor: str) -> list[str]:  # noqa: ARG001
+    """Delete every named type, all or nothing; each must be ``unused`` (no sheets at all).
+
+    The state is read under the write lock, so a sheet created after the caller's list makes
+    the whole call fail with ``not_unused`` and nothing is deleted.
+    """
+    wanted = sorted(set(keys))
+    async with write_transaction(session):
+        found = await repo.get_many_by_key(session, wanted)
+        missing = [k for k in wanted if k not in found]
+        if missing:
+            raise SheetTypeNotFoundError(detail={"keys": missing})
+        counts = await repo.sheet_counts(session, [t.id for t in found.values()])
+        used = [k for k in wanted if counts.get(found[k].id, 0) > 0]
+        if used:
+            raise TypeNotUnusedError(used)
+        named = await types_in_settings(session, set(wanted))
+        if named:
+            first = min(named)
+            raise SheetTypeInUseError("type_in_settings", setting=named[first], key=first)
+        await _delete_locked(session, [found[k] for k in wanted])
+        await session.commit()
+    logger.info("%d unused sheet types deleted: %s", len(wanted), log_value(wanted))
+    return wanted
 
 
 async def _filtered(
@@ -513,12 +600,19 @@ async def _filtered(
     return out
 
 
+TypeSort = Literal["key", "usage", "last_used"]
+
+
 @dataclass(frozen=True)
 class TypePage:
-    """The types of one page (all of them without a ``limit``) and whether more follow."""
+    """The types of one page (all of them without a ``limit``) and whether more follow.
+
+    ``usage`` holds the usage of every listed type that has sheets (one statement for all).
+    """
 
     types: list[SheetType]
     has_more: bool
+    usage: dict[UUID, TypeUsage] = field(default_factory=dict)
 
 
 async def list_types(
@@ -538,6 +632,55 @@ async def list_types(
     return [t for t, _ in rows]
 
 
+def _not_used_since(cutoff: date) -> datetime:
+    return datetime.combine(cutoff, time.min, tzinfo=UTC)
+
+
+def _by_usage(
+    rows: list[tuple[SheetType, SheetTypeVersion]],
+    usage: dict[UUID, TypeUsage],
+    *,
+    usage_state: UsageState | None,
+    unused_since: date | None,
+) -> list[SheetType]:
+    """The usage filters: the state, and "not used since" (never used counts as not used)."""
+    cutoff = None if unused_since is None else _not_used_since(unused_since)
+    out: list[SheetType] = []
+    for t, _ in rows:
+        u = usage.get(t.id, NO_USAGE)
+        if usage_state is not None and u.state != usage_state:
+            continue
+        if cutoff is not None and u.last_used_at is not None and _aware(u.last_used_at) >= cutoff:
+            continue
+        out.append(t)
+    return out
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
+def _sorted(
+    types: list[SheetType], usage: dict[UUID, TypeUsage], sort: TypeSort
+) -> list[SheetType]:
+    """``key``: by key. ``usage``: most open sheets, then most free labels, then most sheets.
+    ``last_used``: most recently used first, never-used types last. Ties go by key."""
+    if sort == "usage":
+
+        def usage_key(t: SheetType) -> tuple[int, int, int, str]:
+            u = usage.get(t.id, NO_USAGE)
+            return (-u.sheets_with_free_cells, -u.free_labels, -u.sheets_total, t.key)
+
+        return sorted(types, key=usage_key)
+    if sort == "last_used":
+        used = [t for t in types if usage.get(t.id, NO_USAGE).last_used_at is not None]
+        never = [t for t in types if usage.get(t.id, NO_USAGE).last_used_at is None]
+        used.sort(key=lambda t: t.key)
+        used.sort(key=lambda t: _aware(usage[t.id].last_used_at), reverse=True)  # type: ignore[arg-type]
+        return used + never
+    return types  # already in key order
+
+
 async def list_types_page(
     session: AsyncSession,
     *,
@@ -549,15 +692,21 @@ async def list_types_page(
     include_archived: bool,
     limit: int | None = None,
     offset: int = 0,
+    usage_state: UsageState | None = None,
+    unused_since: date | None = None,
+    sort: TypeSort = "key",
 ) -> TypePage:
-    """Types in key order. Without ``limit`` every match comes back (the historic behaviour)."""
+    """Types in ``sort`` order; without ``limit`` every match comes back (as before)."""
     rows = await _filtered(
         session, page=page, vendor=vendor, q=q, w=w, h=h, include_archived=include_archived
     )
-    types = [t for t, _ in rows]
+    usage = await repo.usage_by_type(session)
+    types = _sorted(
+        _by_usage(rows, usage, usage_state=usage_state, unused_since=unused_since), usage, sort
+    )
     if limit is None:
-        return TypePage(types, False)
-    return TypePage(types[offset : offset + limit], len(types) > offset + limit)
+        return TypePage(types, False, usage)
+    return TypePage(types[offset : offset + limit], len(types) > offset + limit, usage)
 
 
 @dataclass(frozen=True)
@@ -574,6 +723,7 @@ async def type_facets(
     w: float | None,
     h: float | None,
     include_archived: bool,
+    usage_state: UsageState | None = None,
 ) -> TypeFacets:
     """Vendor and page-size counts under the list's filters, **without** the vendor filter.
 
@@ -582,6 +732,9 @@ async def type_facets(
     rows = await _filtered(
         session, page=page, vendor=None, q=q, w=w, h=h, include_archived=include_archived
     )
+    if usage_state is not None:
+        usage = await repo.usage_by_type(session)
+        rows = [(t, v) for t, v in rows if usage.get(t.id, NO_USAGE).state == usage_state]
     vendors: dict[str, tuple[str, int]] = {}  # lower-case -> (first spelling seen, count)
     sizes: dict[str, int] = {}
     for t, v in rows:

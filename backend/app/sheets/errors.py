@@ -105,8 +105,66 @@ class SheetTypeInUseError(SheetApiError):
     error_code = "type_in_use"
     message = "Sheet type cannot be deleted."
 
-    def __init__(self, reason: str) -> None:
-        super().__init__(detail={"reason": reason})
+    def __init__(self, reason: str, **extra: Any) -> None:
+        super().__init__(detail={"reason": reason, **extra})
+
+
+class TypeNotUnusedError(SheetApiError):
+    """``delete-unused`` named types that are not in state ``unused`` (spec 6.1.5)."""
+
+    status = 409
+    error_code = "not_unused"
+    message = "Some of these sheet types are not unused; nothing was deleted."
+
+    def __init__(self, keys: list[str]) -> None:
+        super().__init__(detail={"keys": keys})
+
+
+class TypeLocallyEditedError(SheetApiError):
+    """The type differs from what the catalog installed; its update is not applied (6.1.3)."""
+
+    status = 409
+    error_code = "locally_edited"
+    message = "This sheet type was edited here; the catalog update is not applied."
+
+
+class BackingDesignDiffersError(SheetApiError):
+    """The local backing design of the entry's key differs and its state is not a shipped one.
+
+    Only for a design no other type links and that the written type does not prove (an unedited
+    catalog type linking a design proves its state); a design linked by a type that cannot follow
+    gives ``backing_design_shared`` (ADR 0028).
+    """
+
+    status = 409
+    error_code = "backing_design_differs"
+    message = "The local backing design of this key differs from the catalog's."
+
+    def __init__(self, design: str) -> None:
+        super().__init__(detail={"design": design})
+
+
+class BackingDesignSharedError(SheetApiError):
+    """Other types link the backing design the write would change, and they cannot follow.
+
+    Each of them must be an unedited catalog type whose newest catalog entry carries the same
+    new design; ``types`` names the ones that are not (ADR 0028).
+    """
+
+    status = 409
+    error_code = "backing_design_shared"
+    message = "Other sheet types use this backing design and cannot take the catalog's change."
+
+    def __init__(self, design: str, types: list[str]) -> None:
+        super().__init__(detail={"design": design, "types": types})
+
+
+class NoCatalogUpdateError(SheetApiError):
+    """The catalog has no newer revision for this type, or the type is not from the catalog."""
+
+    status = 409
+    error_code = "no_update"
+    message = "The catalog has no update for this sheet type."
 
 
 class InvalidGeometryError(SheetApiError):

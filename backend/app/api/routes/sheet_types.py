@@ -10,6 +10,7 @@ write needs ``admin`` (OC-11). The routes stay thin: parse, call the service, ma
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
@@ -21,11 +22,18 @@ from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext
 from app.auth.scope_deps import require_admin, require_read
+from app.catalog import service as catalog_service
+from app.catalog.upgrade import catalog_update_state
 from app.db.session import get_session
 from app.models.backing_design import BackingDesign
 from app.models.sheet import SheetType, SheetTypeVersion
+from app.repositories import sheet_types as types_repo
+from app.repositories.sheet_types import NO_USAGE, TypeUsage
 from app.schemas.sheets import (
     BackingDesignRead,
+    CatalogWriteRead,
+    DeleteUnusedRequest,
+    DeleteUnusedResult,
     FacetCount,
     GeometryMm,
     ImportResponse,
@@ -34,6 +42,7 @@ from app.schemas.sheets import (
     SheetTypeFacets,
     SheetTypePatch,
     SheetTypeRead,
+    UsageState,
     VersionCreate,
     VersionRead,
 )
@@ -101,15 +110,20 @@ async def _type_read(
     t: SheetType,
     versions: list[tuple[SheetTypeVersion, int]] | None = None,
     designs: _Designs | None = None,
+    usage: dict[Any, TypeUsage] | None = None,
 ) -> tuple[SheetTypeRead, list[VersionRead]]:
     if versions is None:
         versions = await ts.list_versions_with_sheet_counts(session, t.id)
     if designs is None:
         designs = await _designs(session) if t.backing_design_id is not None else {}
+    if usage is None:
+        usage = await types_repo.usage_by_type(session, [t.id])
     current, _ = versions[-1]  # oldest first; a type always has version 1
     geometry = ts.version_geometry(current)
     hints = validate_geometry(normalise(geometry))
     linked = designs.get(t.backing_design_id)
+    catalog = catalog_update_state(t, current, None if linked is None else linked[0])
+    used = usage.get(t.id, NO_USAGE)
     read = SheetTypeRead(
         key=t.key,
         prefix=t.prefix,
@@ -139,6 +153,16 @@ async def _type_read(
         id_placement_resolved=resolve_type_placement(t.id_placement, geometry),
         id_placement_auto=resolve_type_placement("auto", geometry),  # type: ignore[arg-type]
         backing_design=None if linked is None else design_read(*linked),
+        catalog_key=t.catalog_key,
+        catalog_revision=t.catalog_revision,
+        update_available=catalog.update_available,
+        catalog_newer=catalog.catalog_newer,
+        catalog_missing=catalog.catalog_missing,
+        sheets_with_free_cells=used.sheets_with_free_cells,
+        free_labels=used.free_labels,
+        sheets_total=used.sheets_total,
+        last_used_at=used.last_used_at,
+        usage_state=used.state,
     )
     return read, [_version_read(v, count) for v, count in versions]
 
@@ -149,7 +173,10 @@ async def _type_read(
     summary="List sheet types",
     description=(
         "Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is "
-        'paged; the `Link` header names the next page (`rel="next"`), the body stays a list.'
+        'paged; the `Link` header names the next page (`rel="next"`), the body stays a list. '
+        "`sort=usage` puts the types with the most sheets that have free cells first (then free "
+        "labels, then sheets), `sort=last_used` the most recently used first (never used last). "
+        "`unused_since` keeps the types not used on or after that day, never used ones included."
     ),
     responses={
         200: {
@@ -175,6 +202,9 @@ async def list_sheet_types(
     include_archived: bool = False,
     limit: Annotated[int | None, Query(ge=1, le=200)] = None,
     offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+    sort: Literal["key", "usage", "last_used"] = "key",
+    usage_state: UsageState | None = None,
+    unused_since: date | None = None,
 ) -> list[SheetTypeRead]:
     with mapped():
         found = await ts.list_types_page(
@@ -187,11 +217,16 @@ async def list_sheet_types(
             include_archived=include_archived,
             limit=limit,
             offset=offset,
+            usage_state=usage_state,
+            unused_since=unused_since,
+            sort=sort,
         )
         types = found.types
         by_type = await ts.list_versions_with_sheet_counts_many(session, [t.id for t in types])
         designs = await _designs(session)
-        body = [(await _type_read(session, t, by_type[t.id], designs))[0] for t in types]
+        body = [
+            (await _type_read(session, t, by_type[t.id], designs, found.usage))[0] for t in types
+        ]
     if limit is not None:
         response.headers.update(
             next_link(request, limit=limit, offset=offset, has_more=found.has_more)
@@ -205,7 +240,8 @@ async def list_sheet_types(
     summary="Vendor and page-size counts for the type filters",
     description=(
         "Counted under the list's filters except `vendor`, so choosing a vendor keeps the other "
-        "vendors available. Archived types are counted only with `include_archived`."
+        "vendors available. Archived types are counted only with `include_archived`; "
+        "`usage_state` counts only the types in that state."
     ),
 )
 async def sheet_type_facets(
@@ -216,10 +252,17 @@ async def sheet_type_facets(
     w: Annotated[float | None, Query(ge=0, le=1000, description="Label width, ±0.5 mm.")] = None,
     h: Annotated[float | None, Query(ge=0, le=1000, description="Label height, ±0.5 mm.")] = None,
     include_archived: bool = False,
+    usage_state: UsageState | None = None,
 ) -> SheetTypeFacets:
     with mapped():
         facets = await ts.type_facets(
-            session, page=page, q=q, w=w, h=h, include_archived=include_archived
+            session,
+            page=page,
+            q=q,
+            w=w,
+            h=h,
+            include_archived=include_archived,
+            usage_state=usage_state,
         )
     return SheetTypeFacets(
         vendors=[FacetCount(value=v, count=n) for v, n in facets.vendors],
@@ -256,6 +299,30 @@ async def import_sheet_type(
     if result.outcome == "unchanged":
         response.status_code = status.HTTP_200_OK
     return ImportResponse(outcome=result.outcome, key=result.key, version=result.version)
+
+
+@router.post(
+    "/delete-unused",
+    response_model=DeleteUnusedResult,
+    summary="Delete several unused sheet types at once",
+    description=(
+        "Each key must name a type in state `unused` (no sheets at all), checked under the write "
+        "lock: all of them are deleted or none. `409 not_unused` lists the keys that have sheets "
+        "(`error_detail.keys`); `409 type_in_use` with reason `type_in_settings` names a Grocy "
+        "label setting that points to one of them (`error_detail.setting`, `error_detail.key`). "
+        "Prefix counters stay, so a type added again continues its sheet codes."
+    ),
+    responses={
+        404: {"description": "A key names no type (`error_detail.keys`)."},
+        409: {"description": "A type has sheets or is named in a setting."},
+    },
+)
+async def delete_unused_sheet_types(
+    body: DeleteUnusedRequest, session: SessionDep, auth: AdminDep
+) -> DeleteUnusedResult:
+    with mapped():
+        deleted = await ts.delete_unused(session, list(body.keys), actor=actor(auth))
+    return DeleteUnusedResult(deleted=deleted)
 
 
 @router.post(
@@ -387,11 +454,52 @@ async def unarchive_sheet_type(key: KeyPath, session: SessionDep, auth: AdminDep
         return (await _type_read(session, t))[0]
 
 
+@router.post(
+    "/{key}/catalog-update",
+    response_model=CatalogWriteRead,
+    summary="Update a sheet type to its newer catalog revision",
+    description=(
+        "Applies the catalog entry's type fields and backing design link; adds a geometry "
+        "version only when the entry's geometry differs from the current one (sheets stay on "
+        "their version). `409 locally_edited` when the type was edited here, `409 no_update` "
+        "when the catalog has no higher revision or the type is not from the catalog. When the "
+        "entry's backing design differs from the local one, the other types that link it are "
+        "updated with it and listed in `also_updated` when each is an unedited catalog type "
+        "whose newest entry carries the same new design, else `409 backing_design_shared` "
+        "(`error_detail.types`). A design that only this type links follows (the unedited type "
+        "proves its state); one no type links follows while it still holds a shipped state, "
+        "else `409 backing_design_differs` (`error_detail.design`)."
+    ),
+    responses={
+        **_NOT_FOUND,
+        409: {
+            "description": (
+                "`locally_edited`, `no_update`, `backing_design_differs` or "
+                "`backing_design_shared`."
+            )
+        },
+    },
+)
+async def catalog_update_sheet_type(
+    key: KeyPath, session: SessionDep, auth: AdminDep
+) -> CatalogWriteRead:
+    with mapped():
+        written = await catalog_service.apply_update(session, key, actor=actor(auth))
+        read = (await _type_read(session, written.type))[0]
+    return CatalogWriteRead(**read.model_dump(), also_updated=written.also_updated)
+
+
 @router.delete(
     "/{key}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a custom sheet type without sheets",
-    responses={**_NOT_FOUND, 409: {"description": "Type is in use or not custom."}},
+    summary="Delete a sheet type without sheets",
+    description=(
+        "Any type without sheets can be deleted, whatever its origin. `409 type_in_use` with "
+        "`error_detail.reason` `has_sheets` (archive it instead) or `type_in_settings` (a Grocy "
+        "label setting names it, `error_detail.setting`). Linked backing designs and the prefix "
+        "counter stay."
+    ),
+    responses={**_NOT_FOUND, 409: {"description": "Type has sheets or is named in a setting."}},
 )
 async def delete_sheet_type(key: KeyPath, session: SessionDep, auth: AdminDep) -> Response:
     with mapped():

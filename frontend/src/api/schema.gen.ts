@@ -1151,6 +1151,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sheet-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the sheet-type catalog
+         * @description `q` matches the key, the vendor or a product code; `w`/`h` the label size within 0.5 mm. The facets count under every filter except `vendor`.
+         */
+        get: operations["list_catalog_api_v1_sheet_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-catalog/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One catalog entry with its geometry */
+        get: operations["get_catalog_entry_api_v1_sheet_catalog__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-catalog/{key}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install a catalog entry as a sheet type
+         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`. When the local backing design of the entry's key differs from the entry's: other types that link it are updated with it and listed in `also_updated` when each is an unedited catalog type whose newest entry carries the same new design, else `409 backing_design_shared` (`error_detail.types`); a design no type links is brought to the entry's state while it still holds a shipped state, else `409 backing_design_differs` (`error_detail.design`).
+         */
+        post: operations["install_catalog_entry_api_v1_sheet_catalog__key__install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sheet-cells": {
         parameters: {
             query?: never;
@@ -1177,12 +1234,32 @@ export interface paths {
         };
         /**
          * List sheet types
-         * @description Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is paged; the `Link` header names the next page (`rel="next"`), the body stays a list.
+         * @description Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is paged; the `Link` header names the next page (`rel="next"`), the body stays a list. `sort=usage` puts the types with the most sheets that have free cells first (then free labels, then sheets), `sort=last_used` the most recently used first (never used last). `unused_since` keeps the types not used on or after that day, never used ones included.
          */
         get: operations["list_sheet_types_api_v1_sheet_types_get"];
         put?: never;
         /** Create a sheet type with version 1 */
         post: operations["create_sheet_type_api_v1_sheet_types_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/delete-unused": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete several unused sheet types at once
+         * @description Each key must name a type in state `unused` (no sheets at all), checked under the write lock: all of them are deleted or none. `409 not_unused` lists the keys that have sheets (`error_detail.keys`); `409 type_in_use` with reason `type_in_settings` names a Grocy label setting that points to one of them (`error_detail.setting`, `error_detail.key`). Prefix counters stay, so a type added again continues its sheet codes.
+         */
+        post: operations["delete_unused_sheet_types_api_v1_sheet_types_delete_unused_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1198,7 +1275,7 @@ export interface paths {
         };
         /**
          * Vendor and page-size counts for the type filters
-         * @description Counted under the list's filters except `vendor`, so choosing a vendor keeps the other vendors available. Archived types are counted only with `include_archived`.
+         * @description Counted under the list's filters except `vendor`, so choosing a vendor keeps the other vendors available. Archived types are counted only with `include_archived`; `usage_state` counts only the types in that state.
          */
         get: operations["sheet_type_facets_api_v1_sheet_types_facets_get"];
         put?: never;
@@ -1237,7 +1314,10 @@ export interface paths {
         get: operations["get_sheet_type_api_v1_sheet_types__key__get"];
         put?: never;
         post?: never;
-        /** Delete a custom sheet type without sheets */
+        /**
+         * Delete a sheet type without sheets
+         * @description Any type without sheets can be deleted, whatever its origin. `409 type_in_use` with `error_detail.reason` `has_sheets` (archive it instead) or `type_in_settings` (a Grocy label setting names it, `error_detail.setting`). Linked backing designs and the prefix counter stay.
+         */
         delete: operations["delete_sheet_type_api_v1_sheet_types__key__delete"];
         options?: never;
         head?: never;
@@ -1259,6 +1339,26 @@ export interface paths {
         put?: never;
         /** Archive a sheet type */
         post: operations["archive_sheet_type_api_v1_sheet_types__key__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/{key}/catalog-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update a sheet type to its newer catalog revision
+         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog. When the entry's backing design differs from the local one, the other types that link it are updated with it and listed in `also_updated` when each is an unedited catalog type whose newest entry carries the same new design, else `409 backing_design_shared` (`error_detail.types`). A design that only this type links follows (the unedited type proves its state); one no type links follows while it still holds a shipped state, else `409 backing_design_differs` (`error_detail.design`).
+         */
+        post: operations["catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2125,6 +2225,290 @@ export interface components {
              */
             trays: components["schemas"]["TrayCapability"][] | null;
         };
+        /** CatalogEntryDetail */
+        CatalogEntryDetail: {
+            /** Allow Qr */
+            allow_qr: boolean;
+            /**
+             * Catalog Newer
+             * @description The type installed from this entry was edited and is an older revision.
+             */
+            catalog_newer: boolean;
+            /** Cols */
+            cols: number;
+            /** Description */
+            description: string | null;
+            /** Evidence */
+            evidence: string | null;
+            /** @description The entry's geometry (for the grid preview). */
+            geometry: components["schemas"]["GeometryMm"];
+            /** Geometry Hash */
+            geometry_hash: string;
+            /**
+             * Installed
+             * @description A type with this key, or installed from this entry, exists here.
+             */
+            installed: boolean;
+            /** Key */
+            key: string;
+            /** Label H Mm */
+            label_h_mm: number;
+            /** Label W Mm */
+            label_w_mm: number;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Page Size
+             * @enum {string}
+             */
+            page_size: "A4" | "Letter";
+            /** Prefix */
+            prefix: string;
+            /** Product Codes */
+            product_codes: string[];
+            /**
+             * Revision
+             * @description The entry's catalog revision, from 1.
+             */
+            revision: number;
+            /** Rows */
+            rows: number;
+            /** Source Name */
+            source_name: string | null;
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Update Available
+             * @description The type installed from this entry is unedited and an older revision.
+             */
+            update_available: boolean;
+            /** Vendor */
+            vendor: string | null;
+            /**
+             * Verified
+             * @description Checked on paper by the maintainer (`verified_on`).
+             */
+            verified: boolean;
+            /** Verified On */
+            verified_on: string | null;
+        };
+        /**
+         * CatalogEntryRead
+         * @description One entry of the catalog that ships in the image (ADR 0028, spec 6.1.2).
+         */
+        CatalogEntryRead: {
+            /**
+             * Catalog Newer
+             * @description The type installed from this entry was edited and is an older revision.
+             */
+            catalog_newer: boolean;
+            /** Cols */
+            cols: number;
+            /** Evidence */
+            evidence: string | null;
+            /** Geometry Hash */
+            geometry_hash: string;
+            /**
+             * Installed
+             * @description A type with this key, or installed from this entry, exists here.
+             */
+            installed: boolean;
+            /** Key */
+            key: string;
+            /** Label H Mm */
+            label_h_mm: number;
+            /** Label W Mm */
+            label_w_mm: number;
+            /**
+             * Page Size
+             * @enum {string}
+             */
+            page_size: "A4" | "Letter";
+            /** Product Codes */
+            product_codes: string[];
+            /**
+             * Revision
+             * @description The entry's catalog revision, from 1.
+             */
+            revision: number;
+            /** Rows */
+            rows: number;
+            /** Source Name */
+            source_name: string | null;
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Update Available
+             * @description The type installed from this entry is unedited and an older revision.
+             */
+            update_available: boolean;
+            /** Vendor */
+            vendor: string | null;
+            /**
+             * Verified
+             * @description Checked on paper by the maintainer (`verified_on`).
+             */
+            verified: boolean;
+            /** Verified On */
+            verified_on: string | null;
+        };
+        /** CatalogPage */
+        CatalogPage: {
+            /** @description Vendor and page-size counts under every filter except `vendor`. */
+            facets: components["schemas"]["SheetTypeFacets"];
+            /** Items */
+            items: components["schemas"]["CatalogEntryRead"][];
+            /**
+             * Total
+             * @description Entries matching every filter (before `limit`/`offset`).
+             */
+            total: number;
+        };
+        /**
+         * CatalogWriteRead
+         * @description The answer of a catalog install or update.
+         */
+        CatalogWriteRead: {
+            /** Allow Qr */
+            allow_qr: boolean;
+            /**
+             * Also Updated
+             * @description Other sheet types updated in the same transaction because they share the backing design the write changed (each to its own newest catalog entry).
+             * @default []
+             */
+            also_updated: string[];
+            /** Archived At */
+            archived_at: string | null;
+            /** @description The vendor print on the back of the liner; `null` for a plain liner. */
+            backing_design: components["schemas"]["BackingDesignRead"] | null;
+            /**
+             * Catalog Key
+             * @description The catalog entry this type was installed from; `null` when it is not one.
+             */
+            catalog_key?: string | null;
+            /**
+             * Catalog Missing
+             * @description The type came from the catalog; the image no longer has it.
+             * @default false
+             */
+            catalog_missing: boolean;
+            /**
+             * Catalog Newer
+             * @description The catalog has a higher revision, but the type was edited here.
+             * @default false
+             */
+            catalog_newer: boolean;
+            /**
+             * Catalog Revision
+             * @description The catalog revision installed; `null` without `catalog_key`.
+             */
+            catalog_revision?: number | null;
+            /** Created At */
+            created_at: string | null;
+            /** Current Version */
+            current_version: number;
+            /** Description */
+            description: string | null;
+            /**
+             * Free Labels
+             * @description Free cells on those sheets.
+             * @default 0
+             */
+            free_labels: number;
+            /** @description Geometry of the current version. */
+            geometry: components["schemas"]["GeometryMm"];
+            /**
+             * Hints
+             * @description Advisory codes about the current geometry.
+             */
+            hints: string[];
+            /**
+             * Id Cell
+             * @description The preferred cell of a `cell` sheet's code.
+             */
+            id_cell: number | null;
+            /**
+             * Id Placement
+             * @description Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).
+             * @enum {string}
+             */
+            id_placement: "auto" | "margin" | "back_side" | "cell";
+            /**
+             * Id Placement Auto
+             * @description What `auto` resolves to for this type, whatever `id_placement` is set to: `margin` when a margin band can hold the code, otherwise `back_side`.
+             * @enum {string}
+             */
+            id_placement_auto: "margin" | "back_side";
+            /**
+             * Id Placement Resolved
+             * @description `id_placement` resolved without a printer: `auto` is `margin` when a margin band of 4 mm fits with the assumed 5 mm hardware margin, otherwise `back_side`.
+             * @enum {string}
+             */
+            id_placement_resolved: "margin" | "back_side" | "cell";
+            /** Key */
+            key: string;
+            /**
+             * Last Used At
+             * @description When a sheet of this type was last used.
+             */
+            last_used_at?: string | null;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "seed" | "custom" | "imported";
+            /** Prefix */
+            prefix: string;
+            /** Product Codes */
+            product_codes: string[];
+            /**
+             * Sheets In Use
+             * @description Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.
+             */
+            sheets_in_use: number;
+            /**
+             * Sheets Total
+             * @description Sheets of this type in any state; purged sheets are not counted.
+             * @default 0
+             */
+            sheets_total: number;
+            /**
+             * Sheets With Free Cells
+             * @description Active sheets of this type with at least one free cell.
+             * @default 0
+             */
+            sheets_with_free_cells: number;
+            /** Source Name */
+            source_name: string | null;
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Source Url Shipped
+             * @description True only for a seed type whose source URL is the one shipped with the hub.
+             */
+            source_url_shipped: boolean;
+            /**
+             * Update Available
+             * @description The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.
+             * @default false
+             */
+            update_available: boolean;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Usage State
+             * @description `in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).
+             * @default unused
+             * @enum {string}
+             */
+            usage_state: "in_use" | "used_before" | "unused";
+            /** Vendor */
+            vendor: string | null;
+            /** Verified */
+            verified: boolean;
+        };
         /** CellHitRead */
         CellHitRead: {
             /** Cell */
@@ -2196,6 +2580,16 @@ export interface components {
          * @enum {string}
          */
         ContentType: "qr_only" | "qr_one_line" | "qr_two_lines" | "qr_three_lines" | "text_one_line" | "text_two_lines" | "qr_with_listing" | "spool_swatch";
+        /** DeleteUnusedRequest */
+        DeleteUnusedRequest: {
+            /** Keys */
+            keys: string[];
+        };
+        /** DeleteUnusedResult */
+        DeleteUnusedResult: {
+            /** Deleted */
+            deleted: string[];
+        };
         /**
          * DetailError
          * @description The error body the routes actually send: FastAPI's ``{"detail": "<text>"}``.
@@ -2550,6 +2944,19 @@ export interface components {
              * @enum {string}
              */
             name: "snipeit" | "grocy" | "spoolman";
+        };
+        /** InstallRequest */
+        InstallRequest: {
+            /**
+             * As New Key
+             * @description Install under this key instead: the type is then `imported`, without catalog provenance.
+             */
+            as_new_key?: string | null;
+            /**
+             * Prefix
+             * @description The sheet code prefix; left out: the entry's.
+             */
+            prefix?: string | null;
         };
         /** IntegrationTestResult */
         IntegrationTestResult: {
@@ -4354,12 +4761,40 @@ export interface components {
             archived_at: string | null;
             /** @description The vendor print on the back of the liner; `null` for a plain liner. */
             backing_design: components["schemas"]["BackingDesignRead"] | null;
+            /**
+             * Catalog Key
+             * @description The catalog entry this type was installed from; `null` when it is not one.
+             */
+            catalog_key?: string | null;
+            /**
+             * Catalog Missing
+             * @description The type came from the catalog; the image no longer has it.
+             * @default false
+             */
+            catalog_missing: boolean;
+            /**
+             * Catalog Newer
+             * @description The catalog has a higher revision, but the type was edited here.
+             * @default false
+             */
+            catalog_newer: boolean;
+            /**
+             * Catalog Revision
+             * @description The catalog revision installed; `null` without `catalog_key`.
+             */
+            catalog_revision?: number | null;
             /** Created At */
             created_at: string | null;
             /** Current Version */
             current_version: number;
             /** Description */
             description: string | null;
+            /**
+             * Free Labels
+             * @description Free cells on those sheets.
+             * @default 0
+             */
+            free_labels: number;
             /** @description Geometry of the current version. */
             geometry: components["schemas"]["GeometryMm"];
             /**
@@ -4392,6 +4827,11 @@ export interface components {
             id_placement_resolved: "margin" | "back_side" | "cell";
             /** Key */
             key: string;
+            /**
+             * Last Used At
+             * @description When a sheet of this type was last used.
+             */
+            last_used_at?: string | null;
             /** Notes */
             notes: string | null;
             /**
@@ -4405,9 +4845,21 @@ export interface components {
             product_codes: string[];
             /**
              * Sheets In Use
-             * @description Sheets of any state of this type.
+             * @description Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.
              */
             sheets_in_use: number;
+            /**
+             * Sheets Total
+             * @description Sheets of this type in any state; purged sheets are not counted.
+             * @default 0
+             */
+            sheets_total: number;
+            /**
+             * Sheets With Free Cells
+             * @description Active sheets of this type with at least one free cell.
+             * @default 0
+             */
+            sheets_with_free_cells: number;
             /** Source Name */
             source_name: string | null;
             /** Source Url */
@@ -4417,8 +4869,21 @@ export interface components {
              * @description True only for a seed type whose source URL is the one shipped with the hub.
              */
             source_url_shipped: boolean;
+            /**
+             * Update Available
+             * @description The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.
+             * @default false
+             */
+            update_available: boolean;
             /** Updated At */
             updated_at: string | null;
+            /**
+             * Usage State
+             * @description `in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).
+             * @default unused
+             * @enum {string}
+             */
+            usage_state: "in_use" | "used_before" | "unused";
             /** Vendor */
             vendor: string | null;
             /** Verified */
@@ -4518,12 +4983,40 @@ export interface components {
             archived_at: string | null;
             /** @description The vendor print on the back of the liner; `null` for a plain liner. */
             backing_design: components["schemas"]["BackingDesignRead"] | null;
+            /**
+             * Catalog Key
+             * @description The catalog entry this type was installed from; `null` when it is not one.
+             */
+            catalog_key?: string | null;
+            /**
+             * Catalog Missing
+             * @description The type came from the catalog; the image no longer has it.
+             * @default false
+             */
+            catalog_missing: boolean;
+            /**
+             * Catalog Newer
+             * @description The catalog has a higher revision, but the type was edited here.
+             * @default false
+             */
+            catalog_newer: boolean;
+            /**
+             * Catalog Revision
+             * @description The catalog revision installed; `null` without `catalog_key`.
+             */
+            catalog_revision?: number | null;
             /** Created At */
             created_at: string | null;
             /** Current Version */
             current_version: number;
             /** Description */
             description: string | null;
+            /**
+             * Free Labels
+             * @description Free cells on those sheets.
+             * @default 0
+             */
+            free_labels: number;
             /** @description Geometry of the current version. */
             geometry: components["schemas"]["GeometryMm"];
             /**
@@ -4556,6 +5049,11 @@ export interface components {
             id_placement_resolved: "margin" | "back_side" | "cell";
             /** Key */
             key: string;
+            /**
+             * Last Used At
+             * @description When a sheet of this type was last used.
+             */
+            last_used_at?: string | null;
             /** Notes */
             notes: string | null;
             /**
@@ -4569,9 +5067,21 @@ export interface components {
             product_codes: string[];
             /**
              * Sheets In Use
-             * @description Sheets of any state of this type.
+             * @description Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.
              */
             sheets_in_use: number;
+            /**
+             * Sheets Total
+             * @description Sheets of this type in any state; purged sheets are not counted.
+             * @default 0
+             */
+            sheets_total: number;
+            /**
+             * Sheets With Free Cells
+             * @description Active sheets of this type with at least one free cell.
+             * @default 0
+             */
+            sheets_with_free_cells: number;
             /** Source Name */
             source_name: string | null;
             /** Source Url */
@@ -4581,8 +5091,21 @@ export interface components {
              * @description True only for a seed type whose source URL is the one shipped with the hub.
              */
             source_url_shipped: boolean;
+            /**
+             * Update Available
+             * @description The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.
+             * @default false
+             */
+            update_available: boolean;
             /** Updated At */
             updated_at: string | null;
+            /**
+             * Usage State
+             * @description `in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).
+             * @default unused
+             * @enum {string}
+             */
+            usage_state: "in_use" | "used_before" | "unused";
             /** Vendor */
             vendor: string | null;
             /** Verified */
@@ -7886,6 +8409,133 @@ export interface operations {
             };
         };
     };
+    list_catalog_api_v1_sheet_catalog_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                page?: ("A4" | "Letter") | null;
+                vendor?: string | null;
+                /** @description Label width, ±0.5 mm. */
+                w?: number | null;
+                /** @description Label height, ±0.5 mm. */
+                h?: number | null;
+                verified?: boolean | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_entry_api_v1_sheet_catalog__key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Entry key, e.g. `avery-5160`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogEntryDetail"];
+                };
+            };
+            /** @description No catalog entry under this key (`catalog_entry_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    install_catalog_entry_api_v1_sheet_catalog__key__install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Entry key, e.g. `avery-5160`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InstallRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogWriteRead"];
+                };
+            };
+            /** @description No catalog entry under this key (`catalog_entry_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `type_exists`, `prefix_taken`, `backing_design_shared` or `backing_design_differs`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `as_new_key` is reserved or invalid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     find_cells_api_v1_sheet_cells_get: {
         parameters: {
             query: {
@@ -7932,6 +8582,9 @@ export interface operations {
                 include_archived?: boolean;
                 limit?: number | null;
                 offset?: number;
+                sort?: "key" | "usage" | "last_used";
+                usage_state?: ("in_use" | "used_before" | "unused") | null;
+                unused_since?: string | null;
             };
             header?: never;
             path?: never;
@@ -7994,6 +8647,57 @@ export interface operations {
             };
         };
     };
+    delete_unused_sheet_types_api_v1_sheet_types_delete_unused_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteUnusedRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteUnusedResult"];
+                };
+            };
+            /** @description A key names no type (`error_detail.keys`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description A type has sheets or is named in a setting. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
     sheet_type_facets_api_v1_sheet_types_facets_get: {
         parameters: {
             query?: {
@@ -8005,6 +8709,7 @@ export interface operations {
                 /** @description Label height, ±0.5 mm. */
                 h?: number | null;
                 include_archived?: boolean;
+                usage_state?: ("in_use" | "used_before" | "unused") | null;
             };
             header?: never;
             path?: never;
@@ -8156,7 +8861,7 @@ export interface operations {
                     "application/json": components["schemas"]["SheetApiErrorResponse"];
                 };
             };
-            /** @description Type is in use or not custom. */
+            /** @description Type has sheets or is named in a setting. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8244,6 +8949,56 @@ export interface operations {
             };
             /** @description Sheet type not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogWriteRead"];
+                };
+            };
+            /** @description Sheet type not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description `locally_edited`, `no_update`, `backing_design_differs` or `backing_design_shared`. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
