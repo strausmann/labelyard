@@ -182,9 +182,14 @@ def check_id_position(
 ) -> None:
     """Refuse a position whose minimal box leaves the page or covers a cell (spec 5.3).
 
-    With ``auto`` the box is checked in the top band for the page only: ``auto`` falls back to
-    another band, so a cell there is not a reason to refuse.
+    Only a configured position is checked (a band, ``end`` or an offset): the default (``auto``
+    from the start, no offset) never refuses a type, so every geometry 1.7.x accepted stays
+    accepted, on writes and on import alike; the planner then finds a place or none, as before
+    (Codex review on #439). With ``auto`` and an offset the box is checked in the top band for
+    the page only: ``auto`` falls back to another band, so a cell there is not a reason to refuse.
     """
+    if band == "auto" and align == "start" and offset_hmm == 0:
+        return
     box = _minimal_box(g, "top" if band == "auto" else band, align, offset_hmm)
     if box is None:  # unreachable: every band name has a box
         return

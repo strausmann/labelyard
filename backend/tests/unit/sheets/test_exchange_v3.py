@@ -192,3 +192,32 @@ async def test_catalog_types_stay_unedited_after_the_migration(session: AsyncSes
     stored.id_margin_band = "top"
     edited = loader.type_doc_of(stored, None)
     assert edited is not None and loader.fields_hash(edited) != entry.fields_hash
+
+
+async def test_default_position_never_refuses_a_geometry_1_7_accepted(
+    session: AsyncSession,
+) -> None:
+    """Codex P2 on #439: one 5 x 20 mm label at x = 202 mm. The code's box at the grid's start
+    would leave the page, but an unconfigured position is not checked: the document imports as
+    version 2 and as version 3 without position keys, and the default patch is accepted."""
+    from app.sheets.errors import IdPositionOffPageError
+    from app.sheets.geometry import Geometry
+
+    edge = Geometry("A4", 21000, 29700, 500, 2000, 1, 1, 500, 2000, 2000, 20200, None, "rectangle")
+    await ts.create_type(session, _fields(), edge, actor="tester")
+    doc = _doc_dict(await exchange.export_type(session, "avery-l4736", None))
+    assert doc["format_version"] == 1
+    for version in (2, 3):
+        doc["format_version"] = version
+        assert exchange.parse_import(_raw(doc)).type.id_margin_band == "auto"
+    await ts.patch_type(
+        session,
+        "avery-l4736",
+        {"id_margin_band": "auto", "id_margin_align": "start", "id_margin_offset_hmm": 0},
+        actor="tester",
+    )
+    with pytest.raises(IdPositionOffPageError):
+        await ts.patch_type(session, "avery-l4736", {"id_margin_band": "top"}, actor="tester")
+    doc["type"]["id_margin_band"] = "top"
+    with pytest.raises(IdPositionOffPageError):
+        exchange.parse_import(_raw(doc))
