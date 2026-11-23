@@ -415,3 +415,26 @@ async def test_entry_removed_from_image_shows_catalog_missing(
     assert (body["update_available"], body["catalog_newer"]) == (False, False)
     listed = (await api_client_with_seed.get("/api/v1/sheet-catalog", headers=admin)).json()
     assert K5160 not in [e["key"] for e in listed["items"]]
+
+
+@pytest.mark.fresh_install
+async def test_install_with_an_edited_local_design_is_409_backing_design_differs(
+    api_client_with_seed, admin
+):
+    shipped = loader.load_entry(K6121).type.backing_design
+    assert shipped is not None
+    strips = [s.model_dump() for s in shipped.strips]
+    strips[0]["x_mm"] += 0.5  # edited here: no state the catalog shipped
+    created = await api_client_with_seed.post(
+        "/api/v1/backing-designs",
+        json={"key": ULTRAGRIP, "name": shipped.name, "page_size": "A4", "strips": strips},
+        headers=admin,
+    )
+    assert created.status_code == 201, created.text
+    resp = await _install(api_client_with_seed, admin, K6121)
+    assert resp.status_code == 409, resp.text
+    err = _err(resp)
+    assert err["error_code"] == "backing_design_differs"
+    assert err["error_detail"] == {"design": ULTRAGRIP}
+    gone = await api_client_with_seed.get(f"/api/v1/sheet-types/{K6121}", headers=admin)
+    assert gone.status_code == 404

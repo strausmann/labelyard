@@ -25,7 +25,7 @@ import asyncio
 import logging
 import os
 import sys
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Any
 
@@ -650,21 +650,18 @@ def _may_name_default_printer(auth: AuthContext | None, state: Any) -> bool:
     return str(pid) in auth.allowed_printer_ids
 
 
-def _route_paths(routes: Any, prefix: str = "") -> Iterator[str]:
-    """Every route path, also inside included routers.
+def _reserve_sheet_type_keys(paths: list[str]) -> None:
+    """Reserve every fixed path segment under ``/api/v1/sheet-types/`` as a type key.
 
-    FastAPI 0.165 keeps an included router as one ``_IncludedRouter`` entry without a ``path``;
-    its routes sit in ``original_router`` under the include's ``prefix``. Reading only
-    ``app.routes`` saw none of them, so no segment beyond the floor in ``naming`` was reserved.
+    ``paths`` are the paths of the routes of the included routers (``APIRoute.path`` carries the
+    router's prefix). Without a single route under that prefix the derivation found nothing it
+    is meant to protect: the start fails loudly instead of reserving nothing (as it silently did
+    while it read ``app.routes``, which FastAPI 0.165 fills with included routers without paths).
     """
-    for route in routes:
-        path = getattr(route, "path", "")
-        if path:
-            yield prefix + path
-        inner = getattr(route, "original_router", None)
-        if inner is not None:
-            context = getattr(route, "include_context", None)
-            yield from _route_paths(inner.routes, prefix + (getattr(context, "prefix", "") or ""))
+    lead = "/api/v1/sheet-types/"
+    if not any(path.startswith(lead) for path in paths):
+        raise RuntimeError("no route under /api/v1/sheet-types/: reserved type keys unknown")
+    reserve_static_segments("/api/v1/sheet-types", paths)
 
 
 def create_app() -> _LifespanManager:
@@ -758,37 +755,43 @@ def create_app() -> _LifespanManager:
         return body
 
     register_error_handlers(app)
-    app.include_router(print_router)
-    app.include_router(render_router)
-    app.include_router(batch_routes.router)
-    app.include_router(batches_routes.router)
-    app.include_router(events_v1_routes.router)
-    app.include_router(printers_routes.router)
-    app.include_router(printer_roll_routes.router)
-    app.include_router(jobs_routes.router)
-    app.include_router(lookup_routes.router)
-    app.include_router(webhooks_routes.router)
-    app.include_router(grocy_label_routes.router)
-    app.include_router(qr_routes.router)
-    app.include_router(admin_api_keys_router)
-    app.include_router(auth_session_routes.router)
-    app.include_router(admin_printers_api_router)
-    app.include_router(settings_api_router)
-    app.include_router(sheet_types_router)
-    app.include_router(sheet_catalog_router)
-    app.include_router(backing_designs_router)
-    app.include_router(sheets_router)
-    app.include_router(sheet_print_routes.router)
-    app.include_router(calibration_router)
-    app.include_router(tray_loading_router)
-    app.include_router(test_print_routes.router)
-    app.include_router(capabilities_router)
-    app.include_router(info_routes.router)
-    app.include_router(notices_routes.router)
+    api_routers = [
+        print_router,
+        render_router,
+        batch_routes.router,
+        batches_routes.router,
+        events_v1_routes.router,
+        printers_routes.router,
+        printer_roll_routes.router,
+        jobs_routes.router,
+        lookup_routes.router,
+        webhooks_routes.router,
+        grocy_label_routes.router,
+        qr_routes.router,
+        admin_api_keys_router,
+        auth_session_routes.router,
+        admin_printers_api_router,
+        settings_api_router,
+        sheet_types_router,
+        sheet_catalog_router,
+        backing_designs_router,
+        sheets_router,
+        sheet_print_routes.router,
+        calibration_router,
+        tray_loading_router,
+        test_print_routes.router,
+        capabilities_router,
+        info_routes.router,
+        notices_routes.router,
+    ]
+    for api_router in api_routers:
+        app.include_router(api_router)
     # A type key equal to a fixed path segment under /api/v1/sheet-types/ would be shadowed by that
-    # route. Derived from every registered route (not only one router), so a route added later
-    # reserves its segment too; the floor in ``naming`` covers callers without routes.
-    reserve_static_segments("/api/v1/sheet-types", list(_route_paths(app.routes)))
+    # route. Derived from the routes of every included router (not only one), so a route added
+    # later reserves its segment too; the floor in ``naming`` covers callers without routes.
+    _reserve_sheet_type_keys(
+        [getattr(route, "path", "") for api_router in api_routers for route in api_router.routes]
+    )
 
     # #164: inside the security headers and the access log, around every router.
     install_body_limit(app)

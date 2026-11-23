@@ -1199,7 +1199,7 @@ export interface paths {
         put?: never;
         /**
          * Install a catalog entry as a sheet type
-         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`.
+         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`; `409 backing_design_differs` when the local backing design of the entry's key differs and was edited here or is linked by a type that is not an unedited catalog type (`error_detail.design`).
          */
         post: operations["install_catalog_entry_api_v1_sheet_catalog__key__install_post"];
         delete?: never;
@@ -1356,7 +1356,7 @@ export interface paths {
         put?: never;
         /**
          * Update a sheet type to its newer catalog revision
-         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog.
+         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog, `409 backing_design_differs` when the entry's backing design differs from the local one and that one was edited or is linked by another type that is not an unedited catalog type.
          */
         post: operations["catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post"];
         delete?: never;
@@ -8375,7 +8375,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The key or the prefix is taken. */
+            /** @description The key or the prefix is taken, or the backing design differs. */
             409: {
                 headers: {
                     [name: string]: unknown;

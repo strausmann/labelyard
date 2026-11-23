@@ -185,6 +185,12 @@ async def test_delete_unused_all_or_nothing(api_client_with_seed, admin):
 
 
 async def test_delete_unused_rechecks_inside_the_transaction(api_client_with_seed, admin):
+    """A sheet created after the client's list makes the call fail with ``not_unused``.
+
+    Sequential by nature: what carries the property under concurrency is the structural rule of
+    ``delete_unused`` that the write lock is taken first and the sheet counts are read inside
+    that transaction, so no sheet can be created between the check and the delete.
+    """
     await _create(api_client_with_seed, admin)
     listed = await api_client_with_seed.get(
         "/api/v1/sheet-types", params={"usage_state": "unused"}, headers=admin

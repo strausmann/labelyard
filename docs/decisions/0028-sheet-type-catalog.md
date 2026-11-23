@@ -67,6 +67,17 @@ hub never changes an installed type on its own.**
   locally and whose catalog entry has a higher revision is offered the update; applying it adds a
   new version (sheets stay pinned to theirs, D14). A locally edited type only says that the catalog
   has a newer version.
+- **Installing is importing, with the catalog's own word.** Under its own key an installed
+  entry is a bundled type (`origin="seed"`) with catalog provenance; under a new key
+  (`as_new_key`) it is an imported copy without provenance. Both keep the entry's `verified`:
+  it is the maintainer's evidence on paper, not a stranger's claim, so the rule that an upload
+  loses `verified` (D19) does not apply.
+- **A backing design follows the catalog only while nobody depends on it differing.** When an
+  install or an update brings an entry whose backing design differs from the local design of
+  that key, the local design is brought to the entry's state if it still holds a state the hub
+  shipped and every other type that links it is an unedited catalog type; otherwise the write is
+  refused with `backing_design_differs`, naming the design. A catalog write never reports
+  success while its type ends up edited (operator ruling, 2026-11-23).
 - **Any type without sheets can be deleted** (catalog, imported or custom). This replaces OC-10 and
   the part of D14 that archives every type: a type **with** sheets is still archived instead of
   deleted. The prefix counter of a deleted type is kept, so a re-added type never issues a sheet code

@@ -128,6 +128,20 @@ class TypeLocallyEditedError(SheetApiError):
     message = "This sheet type was edited here; the catalog update is not applied."
 
 
+class BackingDesignDiffersError(SheetApiError):
+    """The local backing design of the entry's key differs from the entry's and may not follow it.
+
+    It was edited here, or a type that is not an unedited catalog type links it (ADR 0028).
+    """
+
+    status = 409
+    error_code = "backing_design_differs"
+    message = "The local backing design of this key differs from the catalog's."
+
+    def __init__(self, design: str) -> None:
+        super().__init__(detail={"design": design})
+
+
 class NoCatalogUpdateError(SheetApiError):
     """The catalog has no newer revision for this type, or the type is not from the catalog."""
 

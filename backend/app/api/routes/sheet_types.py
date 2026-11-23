@@ -461,7 +461,9 @@ async def unarchive_sheet_type(key: KeyPath, session: SessionDep, auth: AdminDep
         "Applies the catalog entry's type fields and backing design link; adds a geometry "
         "version only when the entry's geometry differs from the current one (sheets stay on "
         "their version). `409 locally_edited` when the type was edited here, `409 no_update` "
-        "when the catalog has no higher revision or the type is not from the catalog."
+        "when the catalog has no higher revision or the type is not from the catalog, `409 "
+        "backing_design_differs` when the entry's backing design differs from the local one and "
+        "that one was edited or is linked by another type that is not an unedited catalog type."
     ),
     responses={**_NOT_FOUND, 409: {"description": "Edited here, or no update."}},
 )

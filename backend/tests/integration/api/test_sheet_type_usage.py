@@ -268,3 +268,31 @@ async def test_facets_respect_usage_state(api_client_with_seed, admin):
     ).json()
     vendors = {v["value"] for v in unused["vendors"]}
     assert "Omega Labels" in vendors and "Zeta Labels" not in vendors
+
+
+async def test_usage_does_not_count_a_purged_sheet(api_client_with_seed, admin):
+    """(guard) A purged sheet is a deleted row, so the grouped count cannot see it."""
+    await _create(api_client_with_seed, admin)
+    now = datetime.now(UTC).replace(microsecond=0)
+    await _sheet("acme-t1", 2, last_used=now - timedelta(days=5))
+    gone = await _sheet("acme-t1", 1, last_used=now)
+    await _discard(gone)
+    async with _factory()() as s:
+        await s.execute(
+            update(Sheet)
+            .where(col(Sheet.code) == gone)
+            .values(discarded_at=now - timedelta(days=3))
+        )
+        await s.commit()
+    before = _by_key(await _list(api_client_with_seed, admin))["acme-t1"]
+    assert before["sheets_total"] == 2
+    async with _factory()() as s:
+        purged = await ss.purge_discarded(s, older_than_days=1, limit=10, dry_run=False)
+    assert purged.codes == [gone]
+
+    row = _by_key(await _list(api_client_with_seed, admin))["acme-t1"]
+    assert row["sheets_total"] == 1
+    assert (row["sheets_with_free_cells"], row["free_labels"]) == (1, CELLS - 2)
+    assert row["usage_state"] == "in_use"
+    last = datetime.fromisoformat(row["last_used_at"].replace("Z", "+00:00"))
+    assert last == now - timedelta(days=5)  # the purged sheet's later use is gone with it

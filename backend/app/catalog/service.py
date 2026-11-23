@@ -39,6 +39,7 @@ from app.repositories.write_lock import write_transaction
 from app.sheets import backing_design_service as bds
 from app.sheets import type_service as ts
 from app.sheets.errors import (
+    BackingDesignDiffersError,
     BackingDesignNotFoundError,
     BackingDesignPageSizeMismatchError,
     CatalogEntryNotFoundError,
@@ -49,7 +50,7 @@ from app.sheets.errors import (
     TypeKeyReservedError,
     TypeLocallyEditedError,
 )
-from app.sheets.exchange import ExportDoc, geometry_from_doc
+from app.sheets.exchange import BackingDesignDoc, ExportDoc, geometry_from_doc
 from app.sheets.geometry import geometry_hash
 from app.sheets.naming import KEY_PATTERN, PREFIX_PATTERN, RESERVED_TYPE_KEYS
 from app.sheets.text import log_value
@@ -209,14 +210,73 @@ def _check_new_key(as_new_key: str) -> None:
         raise TypeKeyReservedError()
 
 
+def _shipped_design_states(key: str) -> set[str]:
+    """Every state of the design ``key`` the hub shipped, as canonical JSON of its document.
+
+    The designs the catalog documents embed today, and the strips the 1.7.x seed linked under
+    each of those names (the state an upgraded installation holds).
+    """
+    shipped: list[BackingDesignDoc] = []
+    for entry in loader.load_index():
+        embedded = loader.load_entry(entry.key).type.backing_design
+        if embedded is not None and embedded.key == key:
+            shipped.append(embedded)
+    from app.seed.sheet_seed import shipped_backing_defaults  # deferred: the seed imports a lot
+
+    seeded = {strips for design, strips in shipped_backing_defaults().values() if design == key}
+    states = {d.model_dump_json() for d in shipped}
+    for d in shipped:
+        for strips in seeded:
+            hmm = [{"x": x, "y": y, "w": w, "h": h} for x, y, w, h in strips]
+            states.add(d.model_copy(update={"strips": bds.strips_to_mm(hmm)}).model_dump_json())
+    return states
+
+
+async def _follow_the_catalog(
+    session: AsyncSession, design: BackingDesign, wanted: BackingDesignDoc, t: SheetType
+) -> None:
+    """Bring a local design to the entry's state, or refuse (operator ruling, 2026-11-23).
+
+    Allowed only while the local design still holds a state the hub shipped and every other type
+    that links it is an unedited catalog type; otherwise ``backing_design_differs``. A type that
+    ended up edited would be a success that is not one.
+    """
+    if bds.to_doc(design).model_dump_json() not in _shipped_design_states(design.key):
+        raise BackingDesignDiffersError(design.key)
+    others = (
+        await session.execute(
+            select(SheetType).where(
+                col(SheetType.backing_design_id) == design.id, col(SheetType.id) != t.id
+            )
+        )
+    ).scalars()
+    for other in list(others):
+        current, linked = await provenance_inputs(session, other)
+        if other.catalog_key is None or is_locally_edited(other, current, linked):
+            raise BackingDesignDiffersError(design.key)
+    strips = bds.strips_from_mm(wanted.strips)
+    bds.validate_strips(strips, design.page_size)
+    design.name = wanted.name
+    design.strips = strips
+    design.updated_at = datetime.now(UTC)
+    logger.info("backing design %s follows the catalog", log_value(design.key))
+
+
 async def _link_design(
     session: AsyncSession,
     t: SheetType,
     doc: ExportDoc,
     origin: Literal["seed", "imported"],
+    *,
+    follow: bool,
 ) -> None:
-    """Link the document's backing design: an existing design of that key as stored here, else
-    a new one from the document (the import's rule, R-350-8). ``None`` unlinks."""
+    """Link the document's backing design; ``None`` unlinks.
+
+    A design of that key that does not exist here is created from the document. One that exists
+    and differs from the document is brought to the document's state when ``follow`` (the type
+    is to be the catalog's) and ``_follow_the_catalog`` allows it; without ``follow`` (a copy
+    under a new key) it is linked as stored, the import's rule (R-350-8).
+    """
     wanted = doc.type.backing_design
     if wanted is None:
         t.backing_design_id = None
@@ -232,9 +292,20 @@ async def _link_design(
             strips=bds.strips_from_mm(wanted.strips),
             origin=origin,
         )
-    if design.page_size != doc.version.geometry.page_size:
+    if design.page_size != doc.version.geometry.page_size or design.page_size != wanted.page_size:
         raise BackingDesignPageSizeMismatchError()
+    if follow and bds.to_doc(design) != wanted:
+        await _follow_the_catalog(session, design, wanted, t)
     t.backing_design_id = design.id
+
+
+async def _still_unedited(session: AsyncSession, t: SheetType) -> None:
+    """Defensive: a type the catalog wrote must be unedited before the write commits."""
+    await session.flush()
+    current, design = await provenance_inputs(session, t)
+    if is_locally_edited(t, current, design):
+        logger.error("catalog write of %s would leave it edited", log_value(t.key))
+        raise TypeLocallyEditedError()
 
 
 def _fields(doc: ExportDoc, key: str, prefix: str) -> ts.TypeFields:
@@ -291,11 +362,12 @@ async def install(
         t.created_by = actor
         t.id_placement = doc.type.id_placement
         t.id_cell = doc.type.id_cell
-        await _link_design(session, t, doc, "seed" if own else "imported")
+        await _link_design(session, t, doc, "seed" if own else "imported", follow=own)
         if own:
             t.catalog_key = key
             t.catalog_revision = meta.revision
             t.catalog_fields_hash = loader.fields_hash(doc.type)
+            await _still_unedited(session, t)
         await session.flush()
         await session.commit()
     logger.info("catalog entry %s installed as %s", log_value(key), log_value(target))
@@ -344,7 +416,7 @@ async def apply_update(
         t.notes = fields.notes
         t.id_placement = doc.type.id_placement
         t.id_cell = doc.type.id_cell
-        await _link_design(session, t, doc, "seed")
+        await _link_design(session, t, doc, "seed", follow=True)
         geometry = geometry_from_doc(doc.version.geometry)
         if geometry_hash(geometry) != current.geometry_hash:
             await ts.add_version_locked(
@@ -357,7 +429,7 @@ async def apply_update(
         t.catalog_revision = meta.revision
         t.catalog_fields_hash = loader.fields_hash(doc.type)
         t.updated_at = datetime.now(UTC)
-        await session.flush()
+        await _still_unedited(session, t)
         await session.commit()
     logger.info("sheet type %s updated to catalog revision %d", log_value(key), meta.revision)
     return t

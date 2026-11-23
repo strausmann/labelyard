@@ -127,12 +127,16 @@ async def get_catalog_entry(
     summary="Install a catalog entry as a sheet type",
     description=(
         "Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is "
-        "`imported` without provenance. `409 type_exists` when the key is taken; `409 "
-        "prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`."
+        "`imported` without provenance. Both keep the entry's `verified` (the catalog's own "
+        "evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when "
+        "the prefix is, with a free one in `error_detail.suggested_prefix`; `409 "
+        "backing_design_differs` when the local backing design of the entry's key differs and "
+        "was edited here or is linked by a type that is not an unedited catalog type "
+        "(`error_detail.design`)."
     ),
     responses={
         **_NOT_FOUND,
-        409: {"description": "The key or the prefix is taken."},
+        409: {"description": "The key or the prefix is taken, or the backing design differs."},
         422: {"description": "`as_new_key` is reserved or invalid."},
     },
 )
