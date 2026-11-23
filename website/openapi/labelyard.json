@@ -1017,6 +1017,365 @@
         "title": "Capabilities",
         "type": "object"
       },
+      "CatalogEntryDetail": {
+        "properties": {
+          "allow_qr": {
+            "title": "Allow Qr",
+            "type": "boolean"
+          },
+          "catalog_newer": {
+            "description": "The type installed from this entry was edited and is an older revision.",
+            "title": "Catalog Newer",
+            "type": "boolean"
+          },
+          "cols": {
+            "title": "Cols",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/GeometryMm",
+            "description": "The entry's geometry (for the grid preview)."
+          },
+          "geometry_hash": {
+            "title": "Geometry Hash",
+            "type": "string"
+          },
+          "installed": {
+            "description": "A type with this key, or installed from this entry, exists here.",
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label_h_mm": {
+            "title": "Label H Mm",
+            "type": "number"
+          },
+          "label_w_mm": {
+            "title": "Label W Mm",
+            "type": "number"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "page_size": {
+            "enum": [
+              "A4",
+              "Letter"
+            ],
+            "title": "Page Size",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "product_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Codes",
+            "type": "array"
+          },
+          "revision": {
+            "description": "The entry's catalog revision, from 1.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "update_available": {
+            "description": "The type installed from this entry is unedited and an older revision.",
+            "title": "Update Available",
+            "type": "boolean"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "verified": {
+            "description": "Checked on paper by the maintainer (`verified_on`).",
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "verified_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified On"
+          }
+        },
+        "required": [
+          "key",
+          "vendor",
+          "product_codes",
+          "page_size",
+          "cols",
+          "rows",
+          "label_w_mm",
+          "label_h_mm",
+          "verified",
+          "verified_on",
+          "evidence",
+          "source_name",
+          "source_url",
+          "revision",
+          "geometry_hash",
+          "installed",
+          "update_available",
+          "catalog_newer",
+          "prefix",
+          "description",
+          "notes",
+          "allow_qr",
+          "geometry"
+        ],
+        "title": "CatalogEntryDetail",
+        "type": "object"
+      },
+      "CatalogEntryRead": {
+        "description": "One entry of the catalog that ships in the image (ADR 0028, spec 6.1.2).",
+        "properties": {
+          "catalog_newer": {
+            "description": "The type installed from this entry was edited and is an older revision.",
+            "title": "Catalog Newer",
+            "type": "boolean"
+          },
+          "cols": {
+            "title": "Cols",
+            "type": "integer"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "geometry_hash": {
+            "title": "Geometry Hash",
+            "type": "string"
+          },
+          "installed": {
+            "description": "A type with this key, or installed from this entry, exists here.",
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label_h_mm": {
+            "title": "Label H Mm",
+            "type": "number"
+          },
+          "label_w_mm": {
+            "title": "Label W Mm",
+            "type": "number"
+          },
+          "page_size": {
+            "enum": [
+              "A4",
+              "Letter"
+            ],
+            "title": "Page Size",
+            "type": "string"
+          },
+          "product_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Codes",
+            "type": "array"
+          },
+          "revision": {
+            "description": "The entry's catalog revision, from 1.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "update_available": {
+            "description": "The type installed from this entry is unedited and an older revision.",
+            "title": "Update Available",
+            "type": "boolean"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "verified": {
+            "description": "Checked on paper by the maintainer (`verified_on`).",
+            "title": "Verified",
+            "type": "boolean"
+          },
+          "verified_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified On"
+          }
+        },
+        "required": [
+          "key",
+          "vendor",
+          "product_codes",
+          "page_size",
+          "cols",
+          "rows",
+          "label_w_mm",
+          "label_h_mm",
+          "verified",
+          "verified_on",
+          "evidence",
+          "source_name",
+          "source_url",
+          "revision",
+          "geometry_hash",
+          "installed",
+          "update_available",
+          "catalog_newer"
+        ],
+        "title": "CatalogEntryRead",
+        "type": "object"
+      },
+      "CatalogPage": {
+        "properties": {
+          "facets": {
+            "$ref": "#/components/schemas/SheetTypeFacets",
+            "description": "Vendor and page-size counts under every filter except `vendor`."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogEntryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "description": "Entries matching every filter (before `limit`/`offset`).",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "facets"
+        ],
+        "title": "CatalogPage",
+        "type": "object"
+      },
       "CellHitRead": {
         "properties": {
           "cell": {
@@ -1234,6 +1593,43 @@
         ],
         "title": "ContentType",
         "type": "string"
+      },
+      "DeleteUnusedRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "keys": {
+            "items": {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "title": "DeleteUnusedRequest",
+        "type": "object"
+      },
+      "DeleteUnusedResult": {
+        "properties": {
+          "deleted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deleted",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "DeleteUnusedResult",
+        "type": "object"
       },
       "DetailError": {
         "description": "The error body the routes actually send: FastAPI's ``{\"detail\": \"<text>\"}``.\n\nRoutes raise ``HTTPException(status, detail=\"<text>\")``; this is the model that describes\nthat body in OpenAPI. It is not :class:`ProblemDetail`, which no route sends.",
@@ -1998,6 +2394,41 @@
           "configured"
         ],
         "title": "InfoIntegration",
+        "type": "object"
+      },
+      "InstallRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "as_new_key": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Install under this key instead: the type is then `imported`, without catalog provenance.",
+            "title": "As New Key"
+          },
+          "prefix": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Z][A-Z0-9]{1,9}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sheet code prefix; left out: the entry's.",
+            "title": "Prefix"
+          }
+        },
+        "title": "InstallRequest",
         "type": "object"
       },
       "IntegrationTestResult": {
@@ -6156,6 +6587,42 @@
             ],
             "description": "The vendor print on the back of the liner; `null` for a plain liner."
           },
+          "catalog_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog entry this type was installed from; `null` when it is not one.",
+            "title": "Catalog Key"
+          },
+          "catalog_missing": {
+            "default": false,
+            "description": "The type came from the catalog; the image no longer has it.",
+            "title": "Catalog Missing",
+            "type": "boolean"
+          },
+          "catalog_newer": {
+            "default": false,
+            "description": "The catalog has a higher revision, but the type was edited here.",
+            "title": "Catalog Newer",
+            "type": "boolean"
+          },
+          "catalog_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog revision installed; `null` without `catalog_key`.",
+            "title": "Catalog Revision"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -6181,6 +6648,12 @@
               }
             ],
             "title": "Description"
+          },
+          "free_labels": {
+            "default": 0,
+            "description": "Free cells on those sheets.",
+            "title": "Free Labels",
+            "type": "integer"
           },
           "geometry": {
             "$ref": "#/components/schemas/GeometryMm",
@@ -6240,6 +6713,18 @@
             "title": "Key",
             "type": "string"
           },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a sheet of this type was last used.",
+            "title": "Last Used At"
+          },
           "notes": {
             "anyOf": [
               {
@@ -6272,8 +6757,20 @@
             "type": "array"
           },
           "sheets_in_use": {
-            "description": "Sheets of any state of this type.",
+            "description": "Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.",
             "title": "Sheets In Use",
+            "type": "integer"
+          },
+          "sheets_total": {
+            "default": 0,
+            "description": "Sheets of this type in any state; purged sheets are not counted.",
+            "title": "Sheets Total",
+            "type": "integer"
+          },
+          "sheets_with_free_cells": {
+            "default": 0,
+            "description": "Active sheets of this type with at least one free cell.",
+            "title": "Sheets With Free Cells",
             "type": "integer"
           },
           "source_name": {
@@ -6303,6 +6800,12 @@
             "title": "Source Url Shipped",
             "type": "boolean"
           },
+          "update_available": {
+            "default": false,
+            "description": "The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.",
+            "title": "Update Available",
+            "type": "boolean"
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -6313,6 +6816,17 @@
               }
             ],
             "title": "Updated At"
+          },
+          "usage_state": {
+            "default": "unused",
+            "description": "`in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).",
+            "enum": [
+              "in_use",
+              "used_before",
+              "unused"
+            ],
+            "title": "Usage State",
+            "type": "string"
           },
           "vendor": {
             "anyOf": [
@@ -6592,6 +7106,42 @@
             ],
             "description": "The vendor print on the back of the liner; `null` for a plain liner."
           },
+          "catalog_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog entry this type was installed from; `null` when it is not one.",
+            "title": "Catalog Key"
+          },
+          "catalog_missing": {
+            "default": false,
+            "description": "The type came from the catalog; the image no longer has it.",
+            "title": "Catalog Missing",
+            "type": "boolean"
+          },
+          "catalog_newer": {
+            "default": false,
+            "description": "The catalog has a higher revision, but the type was edited here.",
+            "title": "Catalog Newer",
+            "type": "boolean"
+          },
+          "catalog_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog revision installed; `null` without `catalog_key`.",
+            "title": "Catalog Revision"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -6617,6 +7167,12 @@
               }
             ],
             "title": "Description"
+          },
+          "free_labels": {
+            "default": 0,
+            "description": "Free cells on those sheets.",
+            "title": "Free Labels",
+            "type": "integer"
           },
           "geometry": {
             "$ref": "#/components/schemas/GeometryMm",
@@ -6676,6 +7232,18 @@
             "title": "Key",
             "type": "string"
           },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a sheet of this type was last used.",
+            "title": "Last Used At"
+          },
           "notes": {
             "anyOf": [
               {
@@ -6708,8 +7276,20 @@
             "type": "array"
           },
           "sheets_in_use": {
-            "description": "Sheets of any state of this type.",
+            "description": "Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.",
             "title": "Sheets In Use",
+            "type": "integer"
+          },
+          "sheets_total": {
+            "default": 0,
+            "description": "Sheets of this type in any state; purged sheets are not counted.",
+            "title": "Sheets Total",
+            "type": "integer"
+          },
+          "sheets_with_free_cells": {
+            "default": 0,
+            "description": "Active sheets of this type with at least one free cell.",
+            "title": "Sheets With Free Cells",
             "type": "integer"
           },
           "source_name": {
@@ -6739,6 +7319,12 @@
             "title": "Source Url Shipped",
             "type": "boolean"
           },
+          "update_available": {
+            "default": false,
+            "description": "The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.",
+            "title": "Update Available",
+            "type": "boolean"
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -6749,6 +7335,17 @@
               }
             ],
             "title": "Updated At"
+          },
+          "usage_state": {
+            "default": "unused",
+            "description": "`in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).",
+            "enum": [
+              "in_use",
+              "used_before",
+              "unused"
+            ],
+            "title": "Usage State",
+            "type": "string"
           },
           "vendor": {
             "anyOf": [
@@ -12212,6 +12809,301 @@
         ]
       }
     },
+    "/api/v1/sheet-catalog": {
+      "get": {
+        "description": "`q` matches the key, the vendor or a product code; `w`/`h` the label size within 0.5 mm. The facets count under every filter except `vendor`.",
+        "operationId": "list_catalog_api_v1_sheet_catalog_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "A4",
+                    "Letter"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor"
+            }
+          },
+          {
+            "description": "Label width, ±0.5 mm.",
+            "in": "query",
+            "name": "w",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Label width, ±0.5 mm.",
+              "title": "W"
+            }
+          },
+          {
+            "description": "Label height, ±0.5 mm.",
+            "in": "query",
+            "name": "h",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Label height, ±0.5 mm.",
+              "title": "H"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verified",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verified"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List the sheet-type catalog",
+        "tags": [
+          "sheet-catalog"
+        ]
+      }
+    },
+    "/api/v1/sheet-catalog/{key}": {
+      "get": {
+        "operationId": "get_catalog_entry_api_v1_sheet_catalog__key__get",
+        "parameters": [
+          {
+            "description": "Entry key, e.g. `avery-5160`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Entry key, e.g. `avery-5160`.",
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntryDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No catalog entry under this key (`catalog_entry_not_found`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "One catalog entry with its geometry",
+        "tags": [
+          "sheet-catalog"
+        ]
+      }
+    },
+    "/api/v1/sheet-catalog/{key}/install": {
+      "post": {
+        "description": "Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`.",
+        "operationId": "install_catalog_entry_api_v1_sheet_catalog__key__install_post",
+        "parameters": [
+          {
+            "description": "Entry key, e.g. `avery-5160`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Entry key, e.g. `avery-5160`.",
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/InstallRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetTypeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No catalog entry under this key (`catalog_entry_not_found`)."
+          },
+          "409": {
+            "description": "The key or the prefix is taken."
+          },
+          "422": {
+            "description": "`as_new_key` is reserved or invalid."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Install a catalog entry as a sheet type",
+        "tags": [
+          "sheet-catalog"
+        ]
+      }
+    },
     "/api/v1/sheet-cells": {
       "get": {
         "operationId": "find_cells_api_v1_sheet_cells_get",
@@ -12277,7 +13169,7 @@
     },
     "/api/v1/sheet-types": {
       "get": {
-        "description": "Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is paged; the `Link` header names the next page (`rel=\"next\"`), the body stays a list.",
+        "description": "Without `limit` the whole list comes back. With `limit` (1-200) and `offset` the list is paged; the `Link` header names the next page (`rel=\"next\"`), the body stays a list. `sort=usage` puts the types with the most sheets that have free cells first (then free labels, then sheets), `sort=last_used` the most recently used first (never used last). `unused_since` keeps the types not used on or after that day, never used ones included.",
         "operationId": "list_sheet_types_api_v1_sheet_types_get",
         "parameters": [
           {
@@ -12415,6 +13307,59 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "key",
+              "enum": [
+                "key",
+                "usage",
+                "last_used"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "usage_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "in_use",
+                    "used_before",
+                    "unused"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Usage State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unused_since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unused Since"
+            }
           }
         ],
         "responses": {
@@ -12506,9 +13451,76 @@
         ]
       }
     },
+    "/api/v1/sheet-types/delete-unused": {
+      "post": {
+        "description": "Each key must name a type in state `unused` (no sheets at all), checked under the write lock: all of them are deleted or none. `409 not_unused` lists the keys that have sheets (`error_detail.keys`); `409 type_in_use` with reason `type_in_settings` names a Grocy label setting that points to one of them (`error_detail.setting`, `error_detail.key`). Prefix counters stay, so a type added again continues its sheet codes.",
+        "operationId": "delete_unused_sheet_types_api_v1_sheet_types_delete_unused_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteUnusedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteUnusedResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "A key names no type (`error_detail.keys`)."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "A type has sheets or is named in a setting."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete several unused sheet types at once",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
     "/api/v1/sheet-types/facets": {
       "get": {
-        "description": "Counted under the list's filters except `vendor`, so choosing a vendor keeps the other vendors available. Archived types are counted only with `include_archived`.",
+        "description": "Counted under the list's filters except `vendor`, so choosing a vendor keeps the other vendors available. Archived types are counted only with `include_archived`; `usage_state` counts only the types in that state.",
         "operationId": "sheet_type_facets_api_v1_sheet_types_facets_get",
         "parameters": [
           {
@@ -12598,6 +13610,27 @@
               "default": false,
               "title": "Include Archived",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "usage_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "in_use",
+                    "used_before",
+                    "unused"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Usage State"
             }
           }
         ],
@@ -12755,6 +13788,7 @@
     },
     "/api/v1/sheet-types/{key}": {
       "delete": {
+        "description": "Any type without sheets can be deleted, whatever its origin. `409 type_in_use` with `error_detail.reason` `has_sheets` (archive it instead) or `type_in_settings` (a Grocy label setting names it, `error_detail.setting`). Linked backing designs and the prefix counter stay.",
         "operationId": "delete_sheet_type_api_v1_sheet_types__key__delete",
         "parameters": [
           {
@@ -12791,7 +13825,7 @@
                 }
               }
             },
-            "description": "Type is in use or not custom."
+            "description": "Type has sheets or is named in a setting."
           },
           "422": {
             "content": {
@@ -12809,7 +13843,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Delete a custom sheet type without sheets",
+        "summary": "Delete a sheet type without sheets",
         "tags": [
           "sheet-types"
         ]
@@ -12994,6 +14028,76 @@
           }
         ],
         "summary": "Archive a sheet type",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/{key}/catalog-update": {
+      "post": {
+        "description": "Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog.",
+        "operationId": "catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetTypeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Edited here, or no update."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Update a sheet type to its newer catalog revision",
         "tags": [
           "sheet-types"
         ]

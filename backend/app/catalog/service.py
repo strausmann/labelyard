@@ -307,7 +307,12 @@ async def install(
 # ---------------------------------------------------------------------------
 
 
-async def apply_update(session: AsyncSession, key: str, *, actor: str) -> SheetType:
+async def apply_update(
+    session: AsyncSession,
+    key: str,
+    *,
+    actor: str,  # noqa: ARG001 - the catalog writes the version; the caller is not logged
+) -> SheetType:
     """Bring an unedited installed type to the newer catalog revision (spec 6.1.3, D14).
 
     The type fields and the backing design link become the entry's; a new version is added
@@ -354,10 +359,5 @@ async def apply_update(session: AsyncSession, key: str, *, actor: str) -> SheetT
         t.updated_at = datetime.now(UTC)
         await session.flush()
         await session.commit()
-    logger.info(
-        "sheet type %s updated to catalog revision %d by %s",
-        log_value(key),
-        meta.revision,
-        log_value(actor),
-    )
+    logger.info("sheet type %s updated to catalog revision %d", log_value(key), meta.revision)
     return t
