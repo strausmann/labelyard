@@ -33,6 +33,9 @@ def _count(db: Path, sql: str, *args: object) -> int:
 
 
 async def _stamp(db: Path) -> None:
+    # The startup step runs on the live models, which carry the columns of later revisions (#246):
+    # the database is brought to the head first, as a real start does.
+    await migrate(db, "head")
     factory, dispose = factory_for(db)
     try:
         report = await run_catalog_migration(factory)
