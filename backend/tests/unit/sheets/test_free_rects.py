@@ -81,3 +81,54 @@ def test_a_shallow_zone_keeps_a_long_strip_and_a_deep_piece() -> None:
 def test_a_piece_below_the_minimal_depth_is_dropped() -> None:
     zone = Rect(985, 500, 19030, 1200)  # leaves 330 hmm along the grid
     assert free_rects(BAND, [zone], min_depth=400) == []
+
+
+def test_overlapping_free_intervals_join_on_their_shared_part() -> None:
+    """Codex P2 on #439: two slabs whose free intervals overlap without one containing the other
+    still give the rectangle over both slabs on the shared part."""
+    band = Rect(1000, 500, 1800, 1600)
+    zones = [Rect(1000, 500, 900, 400), Rect(1900, 1700, 900, 400)]
+
+    found = free_rects(band, zones, min_depth=400, horizontal=True)
+
+    assert Rect(1000, 900, 1800, 800) in found
+
+
+def _covers(outer: Rect, inner: Rect) -> bool:
+    return _inside(inner, outer)
+
+
+_band_zone = st.builds(
+    Rect,
+    x=st.integers(985, 20015),
+    y=st.integers(300, 2100),
+    w=st.integers(100, 8000),
+    h=st.integers(100, 1200),
+)
+
+
+def _brute_force(band: Rect, zones: list[Rect], min_depth: int) -> list[Rect]:
+    """Every free rectangle with edges on band or zone edges (a superset of the maximal ones)."""
+    xs = sorted({band.x, band.x + band.w} | {e for z in zones for e in (z.x, z.x + z.w)})
+    ys = sorted({band.y, band.y + band.h} | {e for z in zones for e in (z.y, z.y + z.h)})
+    xs = [v for v in xs if band.x <= v <= band.x + band.w]
+    ys = [v for v in ys if band.y <= v <= band.y + band.h]
+    out = []
+    for i, x1 in enumerate(xs):
+        for x2 in xs[i + 1 :]:
+            for j, y1 in enumerate(ys):
+                for y2 in ys[j + 1 :]:
+                    r = Rect(x1, y1, x2 - x1, y2 - y1)
+                    if r.h >= min_depth and not any(_overlaps(r, z) for z in zones):
+                        out.append(r)
+    return out
+
+
+@settings(max_examples=200, deadline=None)
+@given(zones=st.lists(_band_zone, max_size=5))
+def test_every_free_rectangle_of_min_depth_is_covered(zones: list[Rect]) -> None:
+    """Completeness: every rectangle of the band at least ``min_depth`` deep that touches no zone
+    lies inside some returned rectangle, so the largest free area is always among them."""
+    found = free_rects(BAND, zones, min_depth=400)
+    for probe in _brute_force(BAND, zones, 400):
+        assert any(_covers(r, probe) for r in found), (probe, zones)

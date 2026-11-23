@@ -62,6 +62,25 @@ def _subtract(lo: int, hi: int, cuts: Sequence[tuple[int, int]]) -> list[tuple[i
     return [(a, b) for a, b in out if b > a]
 
 
+def _intersect(
+    first: Sequence[tuple[int, int]], second: Sequence[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """The common parts of two sorted, disjoint interval lists."""
+    out: list[tuple[int, int]] = []
+    for a, b in first:
+        for c, d in second:
+            lo, hi = max(a, c), min(b, d)
+            if hi > lo:
+                out.append((lo, hi))
+    return sorted(out)
+
+
+def _contains(outer: Rect, inner: Rect) -> bool:
+    return (
+        outer.x <= inner.x and outer.y <= inner.y and inner.x2 <= outer.x2 and inner.y2 <= outer.y2
+    )
+
+
 def _cut_along_x(band: Rect, zones: Sequence[Rect], min_depth: int) -> list[Rect]:
     """The band as a strip along ``x`` (depth ``h``)."""
     hits = [z for z in zones if z.overlaps(band)]
@@ -73,21 +92,21 @@ def _cut_along_x(band: Rect, zones: Sequence[Rect], min_depth: int) -> list[Rect
         cuts = [(max(z.y, band.y), min(z.y2, band.y2)) for z in hits if z.x < right and left < z.x2]
         slabs.append(_subtract(band.y, band.y2, cuts))
 
-    def holds(i: int, a: int, b: int) -> bool:
-        return any(c <= a and b <= d for c, d in slabs[i])
-
+    # Every run of neighbouring slabs, on the intersection of their free intervals (Codex P2 on
+    # #439): two slabs whose free intervals only overlap still give the rectangle over both on
+    # the shared part. Every free rectangle of the band lies in some run, so the set is complete.
     found: set[Rect] = set()
-    for i, free in enumerate(slabs):
-        for a, b in free:
-            if b - a < min_depth:
-                continue
-            lo = i
-            while lo > 0 and holds(lo - 1, a, b):
-                lo -= 1
-            hi = i
-            while hi + 1 < len(slabs) and holds(hi + 1, a, b):
-                hi += 1
-            found.add(Rect(edges[lo], a, edges[hi + 1] - edges[lo], b - a))
+    for lo in range(len(slabs)):
+        shared = slabs[lo]
+        for hi in range(lo, len(slabs)):
+            if hi > lo:
+                shared = _intersect(shared, slabs[hi])
+            deep = [(a, b) for a, b in shared if b - a >= min_depth]
+            if not deep:
+                break
+            for a, b in deep:
+                found.add(Rect(edges[lo], a, edges[hi + 1] - edges[lo], b - a))
+    found = {r for r in found if not any(o != r and _contains(o, r) for o in found)}
     return sorted(found)
 
 
