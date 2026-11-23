@@ -337,3 +337,89 @@ def test_mark_of_a_sheet_without_due_id_ignores_the_other_sheets_id() -> None:
     assert first.margin_id is True and first.feed_mark.end == "top_left"  # type: ignore[attr-defined]
     assert second.margin_id is False  # type: ignore[attr-defined]
     assert second.feed_mark is not None and second.feed_mark.end == "top_right"  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------- 1.7.x unchanged
+
+
+def _band_of_1_7(g: Geometry, hw: Margins, payload: str) -> tuple[str, bool] | None:
+    """The band rule of 1.7.x (``choose_margin_placement`` before #246, the ID alone): a band with
+    a QR beats any text-only band; then depth, a side band only when it is 2 mm deeper (A-2)."""
+    from app.sheets.planner import (
+        BAND_ORDER,
+        MARGIN_TEXT_GAP_HMM,
+        MAX_MARGIN_ID_HMM,
+        MIN_MARGIN_TEXT_HMM,
+        MIN_MARGIN_TEXT_RUN_HMM,
+        VERTICAL_BAND_LEAD_HMM,
+        band_length_hmm,
+        margin_bands_hmm,
+        margin_qr_allowed,
+    )
+
+    usable = {
+        b: min(d, MAX_MARGIN_ID_HMM) for b, d in margin_bands_hmm(g, hw=hw, dev=Deviation()).items()
+    }
+    qr = {
+        b: margin_qr_allowed(usable[b], payload, 600)
+        and band_length_hmm(g, b) >= usable[b] + MARGIN_TEXT_GAP_HMM + MIN_MARGIN_TEXT_RUN_HMM
+        for b in BAND_ORDER
+        if usable[b] >= MIN_MARGIN_TEXT_HMM
+    }
+    if not qr:
+        return None
+    if any(qr.values()):
+        qr = {b: q for b, q in qr.items() if q}
+
+    def deepest(bands: tuple[str, ...]) -> str | None:
+        best = None
+        for b in bands:
+            if b in qr and (best is None or usable[b] > usable[best]):
+                best = b
+        return best
+
+    h, v = deepest(("top", "bottom")), deepest(("right", "left"))
+    best = (v if usable[v] >= usable[h] + VERTICAL_BAND_LEAD_HMM else h) if h and v else (h or v)
+    assert best is not None
+    return best, qr[best]
+
+
+def test_without_zones_every_catalog_type_keeps_its_1_7_band() -> None:
+    """Review round 1 (I-1): with the real margin text, no zones and hardware margins of 3 to
+    6.5 mm, every catalog type gets the band and the QR decision 1.7.x gave it."""
+    from app.sheets.naming import sheet_type_label
+
+    for entry in loader.load_index():
+        doc = loader.load_entry(entry.key)
+        g = geometry_from_doc(doc.version.geometry)
+        code = f"{doc.type.prefix}-0001"
+        payload = f"https://hub.example.invalid/sheet/{code}"
+        text = f"{code} · {sheet_type_label(entry.vendor, entry.product_codes, entry.key)}"
+        for tb in range(300, 651, 50):
+            for lr in range(300, 651, 50):
+                hw = Margins(top=tb, left=lr, bottom=tb, right=lr)
+                got = choose_margin_placement(
+                    g, hw=hw, dev=Deviation(), payload=payload, dpi=600, text=text, code_text=code
+                )
+                want = _band_of_1_7(g, hw, payload)
+                have = None if got is None else (got.band, got.content != "code")
+                assert have == want, (entry.key, tb, lr)
+
+
+def test_overlaps_preprint_only_when_the_zones_block() -> None:
+    """Review round 1 (M-5): a zone elsewhere does not turn "too short" into "overlaps preprint"."""
+    grid_len = 19030
+    far_zone = (Rect(985, 27600, 3000, 1000),)  # in the bottom band, away from the code
+    short = {"band_rule": "top", "offset_hmm": grid_len - 500}  # 5 mm left before the grid's end
+    kw = {"hw": None, "dev": Deviation(), "payload": PAYLOAD, "dpi": 600}
+
+    assert margin_placement_with_reason(L4736, **kw, **short) == (None, "too_small")  # type: ignore[arg-type]
+    assert margin_placement_with_reason(L4736, **kw, **short, zones=far_zone) == (  # type: ignore[arg-type]
+        None,
+        "too_small",
+    )
+    blocked = (Rect(0, 0, 21000, 2130),)
+    assert margin_placement_with_reason(L4736, **kw, band_rule="top", zones=blocked) == (  # type: ignore[arg-type]
+        None,
+        "overlaps_preprint",
+    )

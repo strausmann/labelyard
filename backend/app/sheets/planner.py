@@ -376,11 +376,14 @@ def _content(
     text: str | None,
     code_text: str | None,
 ) -> tuple[MarginContent, int, int]:
-    """What the ID draws in a piece ``usable`` deep and ``room`` long: content, length, text length.
+    """What the ID draws in a piece ``usable`` deep and ``room`` long: content, length, and the
+    text length the order compares.
 
     The degradation of #246: QR, code and type; QR and code; the text alone. The QR needs 9 mm of
     depth, a module the printer draws and 10 mm of text beside it (OC-48), as in 1.7.x. Without
-    ``text`` (no type label known) the text is taken as the 10 mm run.
+    ``text`` (no type label known) the text is taken as the 10 mm run. The compared text length
+    is measured at the smallest size, so it does not grow with the depth: on full bands the order
+    is the depth rule of 1.7.x (ruling A-2), the length only tells a short piece from a long one.
     """
     start = margin_text_start_pt(usable)
     lead = usable + MARGIN_TEXT_GAP_HMM
@@ -393,16 +396,20 @@ def _content(
         run = room - lead
         if text is None:
             return "qr_code_type", lead + min(run, MIN_MARGIN_TEXT_RUN_HMM), MIN_MARGIN_TEXT_RUN_HMM
-        if _width_hmm(text, MARGIN_TEXT_MIN_PT) <= run:
-            length = min(run, _width_hmm(text, start))
-            return "qr_code_type", lead + length, length
-        if code_text is not None and _width_hmm(code_text, MARGIN_TEXT_MIN_PT) <= run:
-            length = min(run, _width_hmm(code_text, start))
-            return "qr_code", lead + length, length
+        smallest = _width_hmm(text, MARGIN_TEXT_MIN_PT)
+        if smallest <= run:
+            return "qr_code_type", lead + min(run, _width_hmm(text, start)), smallest
+        if code_text is not None and (code := _width_hmm(code_text, MARGIN_TEXT_MIN_PT)) <= run:
+            return "qr_code", lead + min(run, _width_hmm(code_text, start)), code
         return "qr_code_type", room, run  # shortened with an ellipsis, as 1.7.x
-    length = room if text is None else min(room, _width_hmm(text, start))
-    length = min(length, MIN_MARGIN_TEXT_RUN_HMM) if text is None else length
-    return "code", length, length
+    if text is None:
+        length = min(room, MIN_MARGIN_TEXT_RUN_HMM)
+        return "code", length, length
+    return (
+        "code",
+        min(room, _width_hmm(text, start)),
+        min(room, _width_hmm(text, MARGIN_TEXT_MIN_PT)),
+    )
 
 
 def _pieces(
@@ -469,7 +476,7 @@ def margin_placement_with_reason(
     depths = margin_bands_hmm(g, hw=hw, dev=dev)
     bands = BAND_ORDER if band_rule == "auto" else (band_rule,)
     best: tuple[tuple[int, int, int], _Candidate] | None = None
-    seen_deep = seen_shallow = seen_clear = seen_point = False
+    seen_deep = seen_shallow = seen_point = room_without_zones = False
     for order, band in enumerate(BAND_ORDER):
         if band not in bands:
             continue
@@ -487,11 +494,12 @@ def margin_placement_with_reason(
         anchored_clear = _pieces(band, clear, g=g, align=align, offset_hmm=offset_hmm)
         if anchored_clear:
             seen_point = True
+        if any(hi - lo >= MIN_MARGIN_TEXT_RUN_HMM for lo, hi, _, _ in anchored_clear):
+            room_without_zones = True  # without zones this band would have held the ID
         for lo, hi, a_lo, a_hi in _pieces(band, free, g=g, align=align, offset_hmm=offset_hmm):
             room = hi - lo
             if room < MIN_MARGIN_TEXT_RUN_HMM:
                 continue
-            seen_clear = True
             usable = min(a_hi - a_lo, MAX_MARGIN_ID_HMM)
             content, length, text_len = _content(
                 usable, room, payload=payload, dpi=dpi, text=text, code_text=code_text
@@ -518,9 +526,9 @@ def margin_placement_with_reason(
         return None, "too_small" if seen_shallow else "no_margin_band"
     if not seen_point:
         return None, "outside_printable"
-    if not seen_clear or zones or taken:
-        return None, "overlaps_preprint" if (zones or taken) else "too_small"
-    return None, "too_small"
+    # ``overlaps_preprint`` only when the zones (or ``taken``) are what blocks: some band would
+    # have held the ID without them. Otherwise the pieces are too short anyway (review M-5).
+    return None, "overlaps_preprint" if room_without_zones else "too_small"
 
 
 def choose_margin_placement(
