@@ -31,6 +31,7 @@ from app.sheets import type_service as ts
 from app.sheets.errors import (
     BackingDesignDiffersError,
     BackingDesignPageSizeMismatchError,
+    BackingDesignSharedError,
     CatalogEntryNotFoundError,
     InvalidFieldError,
     NoCatalogUpdateError,
@@ -190,7 +191,7 @@ async def test_installed_state_counts_the_key_and_the_provenance(
 
 
 async def test_install_under_its_own_key(session: AsyncSession) -> None:
-    t = await cs.install(session, K6121, as_new_key=None, prefix=None, actor="admin")
+    t = (await cs.install(session, K6121, as_new_key=None, prefix=None, actor="admin")).type
     assert (t.origin, t.catalog_key, t.catalog_revision) == ("seed", K6121, 1)
     assert t.verified is True and t.created_by == "admin"
     v = await ts.current_version(session, t.id)
@@ -202,7 +203,7 @@ async def test_install_under_its_own_key(session: AsyncSession) -> None:
 
 async def test_install_reuses_an_existing_design(session: AsyncSession) -> None:
     await cs.install(session, K6121, as_new_key="my-6121", prefix="MY6121", actor="admin")
-    t = await cs.install(session, K6121, as_new_key=None, prefix=None, actor="admin")
+    t = (await cs.install(session, K6121, as_new_key=None, prefix=None, actor="admin")).type
     mine = await ts.get_type(session, "my-6121")
     assert mine.origin == "imported" and mine.catalog_key is None
     assert t.backing_design_id == mine.backing_design_id
@@ -211,7 +212,7 @@ async def test_install_reuses_an_existing_design(session: AsyncSession) -> None:
 
 
 async def test_install_as_its_own_key_written_as_new_key(session: AsyncSession) -> None:
-    t = await cs.install(session, K5160, as_new_key=K5160, prefix=None, actor="admin")
+    t = (await cs.install(session, K5160, as_new_key=K5160, prefix=None, actor="admin")).type
     assert (t.origin, t.catalog_key) == ("seed", K5160)
 
 
@@ -295,7 +296,7 @@ async def test_update_applies_fields_and_geometry(
         monkeypatch, K6121, 2, description="Newer", backing_design=None,
         geometry={"margin_top": round(margin + 0.1, 2)},
     )  # fmt: skip
-    t = await cs.apply_update(session, K6121, actor="a")
+    t = (await cs.apply_update(session, K6121, actor="a")).type
     assert (t.description, t.catalog_revision, t.backing_design_id) == ("Newer", 2, None)
     assert (await ts.current_version(session, t.id)).version == 2
     assert await _unedited(session, K6121)
@@ -432,22 +433,80 @@ async def _design(session: AsyncSession) -> BackingDesign:
     return await bds.get(session, ULTRAGRIP)
 
 
-async def test_update_pulls_the_changed_strips_of_an_unedited_shared_design(
+async def test_update_with_a_shared_design_updates_both_types(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """6121 and 3490 share UltraGrip; 3490's newest entry carries the same new design."""
+    from app.sheets import backing_design_service as bds
+
     await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
     await cs.install(session, K3490, as_new_key=None, prefix=None, actor="a")
     moved = _moved_design()
     _offer(monkeypatch, K6121, 2, backing_design=moved)
-    t = await cs.apply_update(session, K6121, actor="a")
-    assert t.catalog_revision == 2
-    from app.sheets import backing_design_service as bds
-
+    _offer(monkeypatch, K3490, 2, backing_design=moved, description="Revised 3490")
+    written = await cs.apply_update(session, K6121, actor="a")
+    assert written.also_updated == [K3490]
     assert bds.to_doc(await _design(session)) == moved
+    for key in (K6121, K3490):
+        t = await ts.get_type(session, key)
+        assert t.catalog_revision == 2, key
+        assert await _unedited(session, key), key
+        v = await ts.current_version(session, t.id)
+        assert (v.version, v.created_by) == (1, CATALOG_ACTOR), key  # same geometry: no version
+    assert (await ts.get_type(session, K3490)).description == "Revised 3490"
+
+
+async def test_install_with_a_shared_design_updates_the_installed_type(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await cs.install(session, K3490, as_new_key=None, prefix=None, actor="a")
+    moved = _moved_design()
+    _offer(monkeypatch, K6121, 1, backing_design=moved)
+    _offer(monkeypatch, K3490, 2, backing_design=moved)
+    written = await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
+    assert written.also_updated == [K3490]
     assert await _unedited(session, K6121)
+    assert await _unedited(session, K3490)
+    assert (await ts.get_type(session, K3490)).catalog_revision == 2
 
 
-async def test_update_refused_when_the_design_is_linked_by_a_custom_type(
+async def _unchanged(session: AsyncSession, strips: list[Any]) -> None:
+    assert (await _design(session)).strips == strips
+    for key in (K6121, K3490):
+        assert (await ts.get_type(session, key)).catalog_revision == 1, key
+
+
+async def test_update_refused_when_the_sharing_type_was_edited(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
+    await cs.install(session, K3490, as_new_key=None, prefix=None, actor="a")
+    await ts.patch_type(session, K3490, {"description": "mine"}, actor="a")
+    before = list((await _design(session)).strips)
+    moved = _moved_design()
+    _offer(monkeypatch, K6121, 2, backing_design=moved)
+    _offer(monkeypatch, K3490, 2, backing_design=moved)
+    with pytest.raises(BackingDesignSharedError) as exc:
+        await cs.apply_update(session, K6121, actor="a")
+    assert exc.value.detail == {"design": ULTRAGRIP, "types": [K3490]}
+    await _unchanged(session, before)
+    assert (await ts.get_type(session, K3490)).description == "mine"
+
+
+async def test_update_refused_when_the_sharing_entry_lacks_the_change(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
+    await cs.install(session, K3490, as_new_key=None, prefix=None, actor="a")
+    before = list((await _design(session)).strips)
+    _offer(monkeypatch, K6121, 2, backing_design=_moved_design())  # 3490's entry: old design
+    with pytest.raises(BackingDesignSharedError) as exc:
+        await cs.apply_update(session, K6121, actor="a")
+    assert exc.value.detail == {"design": ULTRAGRIP, "types": [K3490]}
+    await _unchanged(session, before)
+
+
+async def test_update_refused_when_a_custom_type_shares_the_design(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
@@ -455,23 +514,34 @@ async def test_update_refused_when_the_design_is_linked_by_a_custom_type(
     await ts.patch_type(session, "acme-mine", {"backing_design": ULTRAGRIP}, actor="a")
     before = list((await _design(session)).strips)
     _offer(monkeypatch, K6121, 2, backing_design=_moved_design())
-    with pytest.raises(BackingDesignDiffersError) as exc:
+    with pytest.raises(BackingDesignSharedError) as exc:
         await cs.apply_update(session, K6121, actor="a")
-    assert exc.value.detail == {"design": ULTRAGRIP}
+    assert exc.value.detail == {"design": ULTRAGRIP, "types": ["acme-mine"]}
     assert (await _design(session)).strips == before
     assert (await ts.get_type(session, K6121)).catalog_revision == 1
 
 
-async def test_update_refused_when_the_design_is_linked_by_an_edited_catalog_type(
+async def test_a_co_update_that_would_leave_a_sharing_type_edited_is_rolled_back(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Defensive recheck of every touched type before the commit (fix round 2)."""
     await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
     await cs.install(session, K3490, as_new_key=None, prefix=None, actor="a")
-    await ts.patch_type(session, K3490, {"description": "mine"}, actor="a")
-    _offer(monkeypatch, K6121, 2, backing_design=_moved_design())
-    with pytest.raises(BackingDesignDiffersError):
+    before = list((await _design(session)).strips)
+    moved = _moved_design()
+    _offer(monkeypatch, K6121, 2, backing_design=moved)
+    _offer(monkeypatch, K3490, 2, backing_design=moved)
+    real = cs.is_locally_edited
+
+    def edited_after(t: Any, current: Any, design: Any) -> bool:
+        if t.key == K3490 and t.catalog_revision == 2:
+            return True  # a co-update that went wrong
+        return real(t, current, design)
+
+    monkeypatch.setattr(cs, "is_locally_edited", edited_after)
+    with pytest.raises(TypeLocallyEditedError):
         await cs.apply_update(session, K6121, actor="a")
-    assert (await ts.get_type(session, K6121)).catalog_revision == 1
+    await _unchanged(session, before)
 
 
 async def test_update_refused_when_the_design_was_edited_here(
@@ -512,7 +582,7 @@ async def test_install_brings_a_differing_unedited_design_to_the_entry(
     await _shipped_design_alone(session)
     moved = _moved_design()
     _offer(monkeypatch, K6121, 1, backing_design=moved)
-    t = await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")
+    t = (await cs.install(session, K6121, as_new_key=None, prefix=None, actor="a")).type
     linked = t.backing_design_id
     design = await _design(session)
     assert linked == design.id
@@ -543,7 +613,7 @@ async def test_install_as_new_key_links_a_differing_design_as_stored(
     await _shipped_design_alone(session)
     mine = bds.strips_from_mm(_moved_design().strips)
     await bds.patch(session, ULTRAGRIP, {"strips": mine})
-    t = await cs.install(session, K6121, as_new_key="my-6121", prefix="MY6121", actor="a")
+    t = (await cs.install(session, K6121, as_new_key="my-6121", prefix="MY6121", actor="a")).type
     linked = t.backing_design_id
     assert linked == (await _design(session)).id
     assert (await _design(session)).strips == mine  # a copy follows the import's rule

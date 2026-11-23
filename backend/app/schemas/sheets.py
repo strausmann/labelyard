@@ -27,6 +27,7 @@ __all__ = [
     "CatalogEntryDetail",
     "CatalogEntryRead",
     "CatalogPage",
+    "CatalogWriteRead",
     "CellHitRead",
     "CellNumbers",
     "CellRead",
@@ -230,6 +231,18 @@ class SheetTypeRead(BaseModel):
 
 class SheetTypeDetail(SheetTypeRead):
     versions: list[VersionRead]
+
+
+class CatalogWriteRead(SheetTypeRead):
+    """The answer of a catalog install or update."""
+
+    also_updated: list[str] = Field(
+        default=[],
+        description=(
+            "Other sheet types updated in the same transaction because they share the backing "
+            "design the write changed (each to its own newest catalog entry)."
+        ),
+    )
 
 
 class CatalogEntryRead(BaseModel):

@@ -438,3 +438,54 @@ async def test_install_with_an_edited_local_design_is_409_backing_design_differs
     assert err["error_detail"] == {"design": ULTRAGRIP}
     gone = await api_client_with_seed.get(f"/api/v1/sheet-types/{K6121}", headers=admin)
     assert gone.status_code == 404
+
+
+K3490 = "avery-zweckform-3490"  # shares the UltraGrip design with 6121
+
+
+def _moved_ultragrip() -> Any:
+    design = loader.load_entry(K6121).type.backing_design
+    assert design is not None
+    first = design.strips[0].model_copy(update={"x_mm": design.strips[0].x_mm + 0.5})
+    return design.model_copy(update={"strips": [first, *design.strips[1:]]})
+
+
+@pytest.mark.fresh_install
+async def test_catalog_update_of_a_shared_design_lists_the_co_updated_types(
+    api_client_with_seed, admin, monkeypatch
+):
+    for key in (K6121, K3490):
+        assert (await _install(api_client_with_seed, admin, key)).status_code == 201
+    moved = _moved_ultragrip()
+    _offer(monkeypatch, K6121, 2, backing_design=moved)
+    _offer(monkeypatch, K3490, 2, backing_design=moved)
+    resp = await api_client_with_seed.post(
+        f"/api/v1/sheet-types/{K6121}/catalog-update", headers=admin
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["also_updated"] == [K3490]
+    other = (await api_client_with_seed.get(f"/api/v1/sheet-types/{K3490}", headers=admin)).json()
+    assert (other["catalog_revision"], other["update_available"]) == (2, False)
+
+
+@pytest.mark.fresh_install
+async def test_catalog_update_of_a_shared_design_is_409_when_a_type_cannot_follow(
+    api_client_with_seed, admin, monkeypatch
+):
+    for key in (K6121, K3490):
+        assert (await _install(api_client_with_seed, admin, key)).status_code == 201
+    _offer(monkeypatch, K6121, 2, backing_design=_moved_ultragrip())
+    resp = await api_client_with_seed.post(
+        f"/api/v1/sheet-types/{K6121}/catalog-update", headers=admin
+    )
+    assert resp.status_code == 409, resp.text
+    err = _err(resp)
+    assert err["error_code"] == "backing_design_shared"
+    assert err["error_detail"] == {"design": ULTRAGRIP, "types": [K3490]}
+
+
+@pytest.mark.fresh_install
+async def test_a_plain_install_answers_an_empty_also_updated(api_client_with_seed, admin):
+    resp = await _install(api_client_with_seed, admin, K5160)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["also_updated"] == []

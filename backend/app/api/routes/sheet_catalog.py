@@ -25,10 +25,10 @@ from app.schemas.sheets import (
     CatalogEntryDetail,
     CatalogEntryRead,
     CatalogPage,
+    CatalogWriteRead,
     FacetCount,
     InstallRequest,
     SheetTypeFacets,
-    SheetTypeRead,
 )
 from app.sheets.naming import KEY_PATTERN
 
@@ -122,7 +122,7 @@ async def get_catalog_entry(
 
 @router.post(
     "/{key}/install",
-    response_model=SheetTypeRead,
+    response_model=CatalogWriteRead,
     status_code=status.HTTP_201_CREATED,
     summary="Install a catalog entry as a sheet type",
     description=(
@@ -132,7 +132,9 @@ async def get_catalog_entry(
         "the prefix is, with a free one in `error_detail.suggested_prefix`; `409 "
         "backing_design_differs` when the local backing design of the entry's key differs and "
         "was edited here or is linked by a type that is not an unedited catalog type "
-        "(`error_detail.design`)."
+        "(`error_detail.design`); `409 backing_design_shared` when other types share that design "
+        "and cannot take the change with it (`error_detail.types`). Types that share the design "
+        "and can take it are updated with it and listed in `also_updated`."
     ),
     responses={
         **_NOT_FOUND,
@@ -145,14 +147,15 @@ async def install_catalog_entry(
     session: SessionDep,
     auth: AdminDep,
     body: InstallRequest | None = None,
-) -> SheetTypeRead:
+) -> CatalogWriteRead:
     request = body or InstallRequest()
     with mapped():
-        t = await service.install(
+        written = await service.install(
             session,
             key,
             as_new_key=request.as_new_key,
             prefix=request.prefix,
             actor=actor(auth),
         )
-        return (await _type_read(session, t))[0]
+        read = (await _type_read(session, written.type))[0]
+    return CatalogWriteRead(**read.model_dump(), also_updated=written.also_updated)

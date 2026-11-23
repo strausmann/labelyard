@@ -15,7 +15,7 @@ Every write takes the sheet write lock first and reads what it decides on inside
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
 from app.catalog import loader
-from app.catalog.loader import CatalogEntry
+from app.catalog.loader import CatalogEntry, CatalogMeta
 from app.catalog.upgrade import (
     CATALOG_ACTOR,
     CatalogUpdateState,
@@ -33,7 +33,7 @@ from app.catalog.upgrade import (
     provenance_inputs,
 )
 from app.models.backing_design import BackingDesign
-from app.models.sheet import SheetType
+from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories import sheet_types as repo
 from app.repositories.write_lock import write_transaction
 from app.sheets import backing_design_service as bds
@@ -42,6 +42,7 @@ from app.sheets.errors import (
     BackingDesignDiffersError,
     BackingDesignNotFoundError,
     BackingDesignPageSizeMismatchError,
+    BackingDesignSharedError,
     CatalogEntryNotFoundError,
     InvalidFieldError,
     NoCatalogUpdateError,
@@ -79,6 +80,14 @@ class CatalogPage:
     total: int
     vendors: list[tuple[str, int]]
     page_sizes: list[tuple[str, int]]
+
+
+@dataclass(frozen=True)
+class CatalogWrite:
+    """The type an install or update wrote, and the types co-updated with its shared design."""
+
+    type: SheetType
+    also_updated: list[str]
 
 
 def _matches(
@@ -232,34 +241,73 @@ def _shipped_design_states(key: str) -> set[str]:
     return states
 
 
-async def _follow_the_catalog(
-    session: AsyncSession, design: BackingDesign, wanted: BackingDesignDoc, t: SheetType
-) -> None:
-    """Bring a local design to the entry's state, or refuse (operator ruling, 2026-11-23).
+@dataclass
+class _Followers:
+    """Types co-updated because the design they share follows the catalog (ruling 2026-11-23)."""
 
-    Allowed only while the local design still holds a state the hub shipped and every other type
-    that links it is an unedited catalog type; otherwise ``backing_design_differs``. A type that
-    ended up edited would be a success that is not one.
+    keys: list[str] = field(default_factory=list)
+    types: list[SheetType] = field(default_factory=list)
+
+
+async def _follow_the_catalog(
+    session: AsyncSession,
+    design: BackingDesign,
+    wanted: BackingDesignDoc,
+    t: SheetType,
+    followers: _Followers,
+) -> None:
+    """Bring a local design to the entry's state together with every type that shares it.
+
+    The design must still hold a state the hub shipped (else ``backing_design_differs``). Every
+    other type that links it must be an unedited catalog type whose newest catalog entry carries
+    the identical new design (else ``backing_design_shared`` naming the ones that are not); each
+    of them then gets its own catalog update in the same transaction, so none of them ends up
+    edited by a change of the design it shares.
     """
     if bds.to_doc(design).model_dump_json() not in _shipped_design_states(design.key):
         raise BackingDesignDiffersError(design.key)
-    others = (
+    linked = (
         await session.execute(
             select(SheetType).where(
                 col(SheetType.backing_design_id) == design.id, col(SheetType.id) != t.id
             )
         )
     ).scalars()
-    for other in list(others):
-        current, linked = await provenance_inputs(session, other)
-        if other.catalog_key is None or is_locally_edited(other, current, linked):
-            raise BackingDesignDiffersError(design.key)
+    ready: list[tuple[SheetType, ExportDoc, CatalogMeta, SheetTypeVersion]] = []
+    blocked: list[str] = []
+    for other in sorted(linked, key=lambda o: o.key):
+        current, own_design = await provenance_inputs(session, other)
+        entry = await _entry_of_type(other)
+        if (
+            entry is None
+            or is_locally_edited(other, current, own_design)
+            or entry[0].type.backing_design != wanted
+        ):
+            blocked.append(other.key)
+            continue
+        ready.append((other, entry[0], entry[1], current))
+    if blocked:
+        raise BackingDesignSharedError(design.key, blocked)
     strips = bds.strips_from_mm(wanted.strips)
     bds.validate_strips(strips, design.page_size)
     design.name = wanted.name
     design.strips = strips
     design.updated_at = datetime.now(UTC)
     logger.info("backing design %s follows the catalog", log_value(design.key))
+    for other, doc, meta, current in ready:
+        await _apply_entry(session, other, doc, meta, current, followers)
+        followers.keys.append(other.key)
+        followers.types.append(other)
+
+
+async def _entry_of_type(t: SheetType) -> tuple[ExportDoc, CatalogMeta] | None:
+    """The newest catalog entry of an installed catalog type; ``None`` without one."""
+    if t.catalog_key is None:
+        return None
+    try:
+        return loader.load_entry(t.catalog_key), loader.load_meta(t.catalog_key)
+    except CatalogEntryNotFoundError:
+        return None
 
 
 async def _link_design(
@@ -268,14 +316,14 @@ async def _link_design(
     doc: ExportDoc,
     origin: Literal["seed", "imported"],
     *,
-    follow: bool,
+    followers: _Followers | None,
 ) -> None:
     """Link the document's backing design; ``None`` unlinks.
 
     A design of that key that does not exist here is created from the document. One that exists
-    and differs from the document is brought to the document's state when ``follow`` (the type
-    is to be the catalog's) and ``_follow_the_catalog`` allows it; without ``follow`` (a copy
-    under a new key) it is linked as stored, the import's rule (R-350-8).
+    and differs from the document is brought to the document's state when ``followers`` is given
+    (the type is to be the catalog's) and ``_follow_the_catalog`` allows it; without (a copy under
+    a new key) it is linked as stored, the import's rule (R-350-8).
     """
     wanted = doc.type.backing_design
     if wanted is None:
@@ -294,18 +342,54 @@ async def _link_design(
         )
     if design.page_size != doc.version.geometry.page_size or design.page_size != wanted.page_size:
         raise BackingDesignPageSizeMismatchError()
-    if follow and bds.to_doc(design) != wanted:
-        await _follow_the_catalog(session, design, wanted, t)
+    if followers is not None and bds.to_doc(design) != wanted:
+        await _follow_the_catalog(session, design, wanted, t, followers)
     t.backing_design_id = design.id
 
 
-async def _still_unedited(session: AsyncSession, t: SheetType) -> None:
-    """Defensive: a type the catalog wrote must be unedited before the write commits."""
+async def _still_unedited(session: AsyncSession, types: list[SheetType]) -> None:
+    """Defensive: every type a catalog write touched must be unedited before it commits."""
     await session.flush()
-    current, design = await provenance_inputs(session, t)
-    if is_locally_edited(t, current, design):
-        logger.error("catalog write of %s would leave it edited", log_value(t.key))
-        raise TypeLocallyEditedError()
+    for t in types:
+        current, design = await provenance_inputs(session, t)
+        if is_locally_edited(t, current, design):
+            logger.error("catalog write of %s would leave it edited", log_value(t.key))
+            raise TypeLocallyEditedError()
+
+
+async def _apply_entry(
+    session: AsyncSession,
+    t: SheetType,
+    doc: ExportDoc,
+    meta: CatalogMeta,
+    current: SheetTypeVersion,
+    followers: _Followers,
+) -> None:
+    """Make an installed catalog type the entry ``doc``: fields, design, geometry, provenance."""
+    fields = ts.clean_fields(_fields(doc, t.key, t.prefix))
+    t.vendor = fields.vendor
+    t.product_codes = list(fields.product_codes)
+    t.description = fields.description
+    t.allow_qr = bool(fields.allow_qr)
+    t.verified = fields.verified
+    t.source_name = fields.source_name
+    t.source_url = fields.source_url
+    t.notes = fields.notes
+    t.id_placement = doc.type.id_placement
+    t.id_cell = doc.type.id_cell
+    await _link_design(session, t, doc, "seed", followers=followers)
+    geometry = geometry_from_doc(doc.version.geometry)
+    if geometry_hash(geometry) != current.geometry_hash:
+        await ts.add_version_locked(
+            session,
+            t.key,
+            geometry,
+            actor=CATALOG_ACTOR,
+            change_note=f"Catalog revision {meta.revision}",
+        )
+    t.catalog_revision = meta.revision
+    t.catalog_fields_hash = loader.fields_hash(doc.type)
+    t.updated_at = datetime.now(UTC)
 
 
 def _fields(doc: ExportDoc, key: str, prefix: str) -> ts.TypeFields:
@@ -331,7 +415,7 @@ async def install(
     as_new_key: str | None,
     prefix: str | None,
     actor: str,
-) -> SheetType:
+) -> CatalogWrite:
     """Install the catalog entry ``key`` (S12); see the module docstring."""
     doc = loader.load_entry(key)  # 404 for a key the catalog does not have
     meta = loader.load_meta(key)
@@ -362,16 +446,18 @@ async def install(
         t.created_by = actor
         t.id_placement = doc.type.id_placement
         t.id_cell = doc.type.id_cell
-        await _link_design(session, t, doc, "seed" if own else "imported", follow=own)
+        followers = _Followers() if own else None
+        await _link_design(session, t, doc, "seed" if own else "imported", followers=followers)
         if own:
             t.catalog_key = key
             t.catalog_revision = meta.revision
             t.catalog_fields_hash = loader.fields_hash(doc.type)
-            await _still_unedited(session, t)
+        if followers is not None:
+            await _still_unedited(session, [t, *followers.types])
         await session.flush()
         await session.commit()
     logger.info("catalog entry %s installed as %s", log_value(key), log_value(target))
-    return t
+    return CatalogWrite(t, [] if followers is None else followers.keys)
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +470,7 @@ async def apply_update(
     key: str,
     *,
     actor: str,  # noqa: ARG001 - the catalog writes the version; the caller is not logged
-) -> SheetType:
+) -> CatalogWrite:
     """Bring an unedited installed type to the newer catalog revision (spec 6.1.3, D14).
 
     The type fields and the backing design link become the entry's; a new version is added
@@ -405,31 +491,14 @@ async def apply_update(
         if is_locally_edited(t, current, design):
             raise TypeLocallyEditedError()
         doc = loader.load_entry(t.catalog_key)
-        fields = ts.clean_fields(_fields(doc, t.key, t.prefix))
-        t.vendor = fields.vendor
-        t.product_codes = list(fields.product_codes)
-        t.description = fields.description
-        t.allow_qr = bool(fields.allow_qr)
-        t.verified = fields.verified
-        t.source_name = fields.source_name
-        t.source_url = fields.source_url
-        t.notes = fields.notes
-        t.id_placement = doc.type.id_placement
-        t.id_cell = doc.type.id_cell
-        await _link_design(session, t, doc, "seed", follow=True)
-        geometry = geometry_from_doc(doc.version.geometry)
-        if geometry_hash(geometry) != current.geometry_hash:
-            await ts.add_version_locked(
-                session,
-                t.key,
-                geometry,
-                actor=CATALOG_ACTOR,
-                change_note=f"Catalog revision {meta.revision}",
-            )
-        t.catalog_revision = meta.revision
-        t.catalog_fields_hash = loader.fields_hash(doc.type)
-        t.updated_at = datetime.now(UTC)
-        await _still_unedited(session, t)
+        followers = _Followers()
+        await _apply_entry(session, t, doc, meta, current, followers)
+        await _still_unedited(session, [t, *followers.types])
         await session.commit()
-    logger.info("sheet type %s updated to catalog revision %d", log_value(key), meta.revision)
-    return t
+    logger.info(
+        "sheet type %s updated to catalog revision %d (also %s)",
+        log_value(key),
+        meta.revision,
+        log_value(followers.keys),
+    )
+    return CatalogWrite(t, followers.keys)

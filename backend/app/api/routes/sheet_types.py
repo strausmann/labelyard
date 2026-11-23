@@ -31,6 +31,7 @@ from app.repositories import sheet_types as types_repo
 from app.repositories.sheet_types import NO_USAGE, TypeUsage
 from app.schemas.sheets import (
     BackingDesignRead,
+    CatalogWriteRead,
     DeleteUnusedRequest,
     DeleteUnusedResult,
     FacetCount,
@@ -455,7 +456,7 @@ async def unarchive_sheet_type(key: KeyPath, session: SessionDep, auth: AdminDep
 
 @router.post(
     "/{key}/catalog-update",
-    response_model=SheetTypeRead,
+    response_model=CatalogWriteRead,
     summary="Update a sheet type to its newer catalog revision",
     description=(
         "Applies the catalog entry's type fields and backing design link; adds a geometry "
@@ -463,16 +464,20 @@ async def unarchive_sheet_type(key: KeyPath, session: SessionDep, auth: AdminDep
         "their version). `409 locally_edited` when the type was edited here, `409 no_update` "
         "when the catalog has no higher revision or the type is not from the catalog, `409 "
         "backing_design_differs` when the entry's backing design differs from the local one and "
-        "that one was edited or is linked by another type that is not an unedited catalog type."
+        "that one was edited here; `409 backing_design_shared` when other types share that "
+        "design and cannot take the change (each must be an unedited catalog type whose newest "
+        "entry carries the same new design; `error_detail.types`). Types that can take it are "
+        "updated with it and listed in `also_updated`."
     ),
     responses={**_NOT_FOUND, 409: {"description": "Edited here, or no update."}},
 )
 async def catalog_update_sheet_type(
     key: KeyPath, session: SessionDep, auth: AdminDep
-) -> SheetTypeRead:
+) -> CatalogWriteRead:
     with mapped():
-        t = await catalog_service.apply_update(session, key, actor=actor(auth))
-        return (await _type_read(session, t))[0]
+        written = await catalog_service.apply_update(session, key, actor=actor(auth))
+        read = (await _type_read(session, written.type))[0]
+    return CatalogWriteRead(**read.model_dump(), also_updated=written.also_updated)
 
 
 @router.delete(

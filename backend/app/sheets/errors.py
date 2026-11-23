@@ -142,6 +142,21 @@ class BackingDesignDiffersError(SheetApiError):
         super().__init__(detail={"design": design})
 
 
+class BackingDesignSharedError(SheetApiError):
+    """Other types link the backing design the write would change, and they cannot follow.
+
+    Each of them must be an unedited catalog type whose newest catalog entry carries the same
+    new design; ``types`` names the ones that are not (ADR 0028).
+    """
+
+    status = 409
+    error_code = "backing_design_shared"
+    message = "Other sheet types use this backing design and cannot take the catalog's change."
+
+    def __init__(self, design: str, types: list[str]) -> None:
+        super().__init__(detail={"design": design, "types": types})
+
+
 class NoCatalogUpdateError(SheetApiError):
     """The catalog has no newer revision for this type, or the type is not from the catalog."""
 

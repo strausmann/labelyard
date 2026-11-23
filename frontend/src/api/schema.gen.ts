@@ -1199,7 +1199,7 @@ export interface paths {
         put?: never;
         /**
          * Install a catalog entry as a sheet type
-         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`; `409 backing_design_differs` when the local backing design of the entry's key differs and was edited here or is linked by a type that is not an unedited catalog type (`error_detail.design`).
+         * @description Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`; `409 backing_design_differs` when the local backing design of the entry's key differs and was edited here or is linked by a type that is not an unedited catalog type (`error_detail.design`); `409 backing_design_shared` when other types share that design and cannot take the change with it (`error_detail.types`). Types that share the design and can take it are updated with it and listed in `also_updated`.
          */
         post: operations["install_catalog_entry_api_v1_sheet_catalog__key__install_post"];
         delete?: never;
@@ -1356,7 +1356,7 @@ export interface paths {
         put?: never;
         /**
          * Update a sheet type to its newer catalog revision
-         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog, `409 backing_design_differs` when the entry's backing design differs from the local one and that one was edited or is linked by another type that is not an unedited catalog type.
+         * @description Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog, `409 backing_design_differs` when the entry's backing design differs from the local one and that one was edited here; `409 backing_design_shared` when other types share that design and cannot take the change (each must be an unedited catalog type whose newest entry carries the same new design; `error_detail.types`). Types that can take it are updated with it and listed in `also_updated`.
          */
         post: operations["catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post"];
         delete?: never;
@@ -2363,6 +2363,151 @@ export interface components {
              * @description Entries matching every filter (before `limit`/`offset`).
              */
             total: number;
+        };
+        /**
+         * CatalogWriteRead
+         * @description The answer of a catalog install or update.
+         */
+        CatalogWriteRead: {
+            /** Allow Qr */
+            allow_qr: boolean;
+            /**
+             * Also Updated
+             * @description Other sheet types updated in the same transaction because they share the backing design the write changed (each to its own newest catalog entry).
+             * @default []
+             */
+            also_updated: string[];
+            /** Archived At */
+            archived_at: string | null;
+            /** @description The vendor print on the back of the liner; `null` for a plain liner. */
+            backing_design: components["schemas"]["BackingDesignRead"] | null;
+            /**
+             * Catalog Key
+             * @description The catalog entry this type was installed from; `null` when it is not one.
+             */
+            catalog_key?: string | null;
+            /**
+             * Catalog Missing
+             * @description The type came from the catalog; the image no longer has it.
+             * @default false
+             */
+            catalog_missing: boolean;
+            /**
+             * Catalog Newer
+             * @description The catalog has a higher revision, but the type was edited here.
+             * @default false
+             */
+            catalog_newer: boolean;
+            /**
+             * Catalog Revision
+             * @description The catalog revision installed; `null` without `catalog_key`.
+             */
+            catalog_revision?: number | null;
+            /** Created At */
+            created_at: string | null;
+            /** Current Version */
+            current_version: number;
+            /** Description */
+            description: string | null;
+            /**
+             * Free Labels
+             * @description Free cells on those sheets.
+             * @default 0
+             */
+            free_labels: number;
+            /** @description Geometry of the current version. */
+            geometry: components["schemas"]["GeometryMm"];
+            /**
+             * Hints
+             * @description Advisory codes about the current geometry.
+             */
+            hints: string[];
+            /**
+             * Id Cell
+             * @description The preferred cell of a `cell` sheet's code.
+             */
+            id_cell: number | null;
+            /**
+             * Id Placement
+             * @description Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).
+             * @enum {string}
+             */
+            id_placement: "auto" | "margin" | "back_side" | "cell";
+            /**
+             * Id Placement Auto
+             * @description What `auto` resolves to for this type, whatever `id_placement` is set to: `margin` when a margin band can hold the code, otherwise `back_side`.
+             * @enum {string}
+             */
+            id_placement_auto: "margin" | "back_side";
+            /**
+             * Id Placement Resolved
+             * @description `id_placement` resolved without a printer: `auto` is `margin` when a margin band of 4 mm fits with the assumed 5 mm hardware margin, otherwise `back_side`.
+             * @enum {string}
+             */
+            id_placement_resolved: "margin" | "back_side" | "cell";
+            /** Key */
+            key: string;
+            /**
+             * Last Used At
+             * @description When a sheet of this type was last used.
+             */
+            last_used_at?: string | null;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "seed" | "custom" | "imported";
+            /** Prefix */
+            prefix: string;
+            /** Product Codes */
+            product_codes: string[];
+            /**
+             * Sheets In Use
+             * @description Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.
+             */
+            sheets_in_use: number;
+            /**
+             * Sheets Total
+             * @description Sheets of this type in any state; purged sheets are not counted.
+             * @default 0
+             */
+            sheets_total: number;
+            /**
+             * Sheets With Free Cells
+             * @description Active sheets of this type with at least one free cell.
+             * @default 0
+             */
+            sheets_with_free_cells: number;
+            /** Source Name */
+            source_name: string | null;
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Source Url Shipped
+             * @description True only for a seed type whose source URL is the one shipped with the hub.
+             */
+            source_url_shipped: boolean;
+            /**
+             * Update Available
+             * @description The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.
+             * @default false
+             */
+            update_available: boolean;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Usage State
+             * @description `in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).
+             * @default unused
+             * @enum {string}
+             */
+            usage_state: "in_use" | "used_before" | "unused";
+            /** Vendor */
+            vendor: string | null;
+            /** Verified */
+            verified: boolean;
         };
         /** CellHitRead */
         CellHitRead: {
@@ -8365,7 +8510,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SheetTypeRead"];
+                    "application/json": components["schemas"]["CatalogWriteRead"];
                 };
             };
             /** @description No catalog entry under this key (`catalog_entry_not_found`). */
@@ -8840,7 +8985,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SheetTypeRead"];
+                    "application/json": components["schemas"]["CatalogWriteRead"];
                 };
             };
             /** @description Sheet type not found. */

@@ -74,10 +74,15 @@ hub never changes an installed type on its own.**
   loses `verified` (D19) does not apply.
 - **A backing design follows the catalog only while nobody depends on it differing.** When an
   install or an update brings an entry whose backing design differs from the local design of
-  that key, the local design is brought to the entry's state if it still holds a state the hub
-  shipped and every other type that links it is an unedited catalog type; otherwise the write is
-  refused with `backing_design_differs`, naming the design. A catalog write never reports
-  success while its type ends up edited (operator ruling, 2026-11-23).
+  that key, the local design is brought to the entry's state only if it still holds a state the
+  hub shipped; otherwise the write is refused with `backing_design_differs`, naming the design.
+  Other types that link the design are updated together with it in the same transaction: each
+  must be an unedited catalog type whose newest catalog entry carries the identical new design,
+  and then gets its own catalog update (fields, a geometry version only when its geometry
+  changed, provenance) by the catalog actor; the answer lists them in `also_updated`. If any of
+  them is edited, custom or imported, or its entry carries another design, the write is refused
+  with `backing_design_shared`, naming those types. A catalog write never reports success while
+  any type it touched ends up edited (operator and controller rulings, 2026-11-23).
 - **Any type without sheets can be deleted** (catalog, imported or custom). This replaces OC-10 and
   the part of D14 that archives every type: a type **with** sheets is still archived instead of
   deleted. The prefix counter of a deleted type is kept, so a re-added type never issues a sheet code

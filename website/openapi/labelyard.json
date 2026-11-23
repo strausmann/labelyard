@@ -1376,6 +1376,330 @@
         "title": "CatalogPage",
         "type": "object"
       },
+      "CatalogWriteRead": {
+        "description": "The answer of a catalog install or update.",
+        "properties": {
+          "allow_qr": {
+            "title": "Allow Qr",
+            "type": "boolean"
+          },
+          "also_updated": {
+            "default": [],
+            "description": "Other sheet types updated in the same transaction because they share the backing design the write changed (each to its own newest catalog entry).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Also Updated",
+            "type": "array"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "backing_design": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackingDesignRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vendor print on the back of the liner; `null` for a plain liner."
+          },
+          "catalog_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog entry this type was installed from; `null` when it is not one.",
+            "title": "Catalog Key"
+          },
+          "catalog_missing": {
+            "default": false,
+            "description": "The type came from the catalog; the image no longer has it.",
+            "title": "Catalog Missing",
+            "type": "boolean"
+          },
+          "catalog_newer": {
+            "default": false,
+            "description": "The catalog has a higher revision, but the type was edited here.",
+            "title": "Catalog Newer",
+            "type": "boolean"
+          },
+          "catalog_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The catalog revision installed; `null` without `catalog_key`.",
+            "title": "Catalog Revision"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "current_version": {
+            "title": "Current Version",
+            "type": "integer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "free_labels": {
+            "default": 0,
+            "description": "Free cells on those sheets.",
+            "title": "Free Labels",
+            "type": "integer"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/GeometryMm",
+            "description": "Geometry of the current version."
+          },
+          "hints": {
+            "description": "Advisory codes about the current geometry.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Hints",
+            "type": "array"
+          },
+          "id_cell": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The preferred cell of a `cell` sheet's code.",
+            "title": "Id Cell"
+          },
+          "id_placement": {
+            "description": "Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).",
+            "enum": [
+              "auto",
+              "margin",
+              "back_side",
+              "cell"
+            ],
+            "title": "Id Placement",
+            "type": "string"
+          },
+          "id_placement_auto": {
+            "description": "What `auto` resolves to for this type, whatever `id_placement` is set to: `margin` when a margin band can hold the code, otherwise `back_side`.",
+            "enum": [
+              "margin",
+              "back_side"
+            ],
+            "title": "Id Placement Auto",
+            "type": "string"
+          },
+          "id_placement_resolved": {
+            "description": "`id_placement` resolved without a printer: `auto` is `margin` when a margin band of 4 mm fits with the assumed 5 mm hardware margin, otherwise `back_side`.",
+            "enum": [
+              "margin",
+              "back_side",
+              "cell"
+            ],
+            "title": "Id Placement Resolved",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a sheet of this type was last used.",
+            "title": "Last Used At"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "origin": {
+            "enum": [
+              "seed",
+              "custom",
+              "imported"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "prefix": {
+            "title": "Prefix",
+            "type": "string"
+          },
+          "product_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Codes",
+            "type": "array"
+          },
+          "sheets_in_use": {
+            "description": "Sheets of any state of this type (kept as it was). For what is left on them see `sheets_with_free_cells`, `free_labels`, `sheets_total`, `last_used_at` and `usage_state`.",
+            "title": "Sheets In Use",
+            "type": "integer"
+          },
+          "sheets_total": {
+            "default": 0,
+            "description": "Sheets of this type in any state; purged sheets are not counted.",
+            "title": "Sheets Total",
+            "type": "integer"
+          },
+          "sheets_with_free_cells": {
+            "default": 0,
+            "description": "Active sheets of this type with at least one free cell.",
+            "title": "Sheets With Free Cells",
+            "type": "integer"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "source_url_shipped": {
+            "description": "True only for a seed type whose source URL is the one shipped with the hub.",
+            "title": "Source Url Shipped",
+            "type": "boolean"
+          },
+          "update_available": {
+            "default": false,
+            "description": "The catalog has a higher revision and the type was not edited here: `POST /api/v1/sheet-types/{key}/catalog-update` applies it.",
+            "title": "Update Available",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "usage_state": {
+            "default": "unused",
+            "description": "`in_use`: a sheet has free cells; `used_before`: sheets exist, none with free cells; `unused`: no sheets (the type can be deleted).",
+            "enum": [
+              "in_use",
+              "used_before",
+              "unused"
+            ],
+            "title": "Usage State",
+            "type": "string"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "prefix",
+          "vendor",
+          "product_codes",
+          "description",
+          "allow_qr",
+          "verified",
+          "origin",
+          "source_name",
+          "source_url",
+          "source_url_shipped",
+          "notes",
+          "archived_at",
+          "created_at",
+          "updated_at",
+          "current_version",
+          "geometry",
+          "hints",
+          "sheets_in_use",
+          "id_placement",
+          "id_cell",
+          "id_placement_resolved",
+          "id_placement_auto",
+          "backing_design"
+        ],
+        "title": "CatalogWriteRead",
+        "type": "object"
+      },
       "CellHitRead": {
         "properties": {
           "cell": {
@@ -13038,7 +13362,7 @@
     },
     "/api/v1/sheet-catalog/{key}/install": {
       "post": {
-        "description": "Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`; `409 backing_design_differs` when the local backing design of the entry's key differs and was edited here or is linked by a type that is not an unedited catalog type (`error_detail.design`).",
+        "description": "Under its own key the type is `seed` with catalog provenance; with `as_new_key` it is `imported` without provenance. Both keep the entry's `verified` (the catalog's own evidence, ADR 0028). `409 type_exists` when the key is taken; `409 prefix_taken` when the prefix is, with a free one in `error_detail.suggested_prefix`; `409 backing_design_differs` when the local backing design of the entry's key differs and was edited here or is linked by a type that is not an unedited catalog type (`error_detail.design`); `409 backing_design_shared` when other types share that design and cannot take the change with it (`error_detail.types`). Types that share the design and can take it are updated with it and listed in `also_updated`.",
         "operationId": "install_catalog_entry_api_v1_sheet_catalog__key__install_post",
         "parameters": [
           {
@@ -13077,7 +13401,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SheetTypeRead"
+                  "$ref": "#/components/schemas/CatalogWriteRead"
                 }
               }
             },
@@ -14035,7 +14359,7 @@
     },
     "/api/v1/sheet-types/{key}/catalog-update": {
       "post": {
-        "description": "Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog, `409 backing_design_differs` when the entry's backing design differs from the local one and that one was edited or is linked by another type that is not an unedited catalog type.",
+        "description": "Applies the catalog entry's type fields and backing design link; adds a geometry version only when the entry's geometry differs from the current one (sheets stay on their version). `409 locally_edited` when the type was edited here, `409 no_update` when the catalog has no higher revision or the type is not from the catalog, `409 backing_design_differs` when the entry's backing design differs from the local one and that one was edited here; `409 backing_design_shared` when other types share that design and cannot take the change (each must be an unedited catalog type whose newest entry carries the same new design; `error_detail.types`). Types that can take it are updated with it and listed in `also_updated`.",
         "operationId": "catalog_update_sheet_type_api_v1_sheet_types__key__catalog_update_post",
         "parameters": [
           {
@@ -14055,7 +14379,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SheetTypeRead"
+                  "$ref": "#/components/schemas/CatalogWriteRead"
                 }
               }
             },
