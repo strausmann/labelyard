@@ -277,6 +277,10 @@ msgstr "{hidden, plural, one {# weitere Druckmeldung} other {# weitere Druckmeld
 msgid "{hidden, plural, one {# used-up sheet hidden} other {# used-up sheets hidden}}"
 msgstr "{hidden, plural, one {# aufgebrauchter Bogen ausgeblendet} other {# aufgebrauchte Bögen ausgeblendet}}"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "{hiddenChosen, plural, one {{chosenCount} chosen, # of them hidden by the filter.} other {{chosenCount} chosen, # of them hidden by the filter.}}"
+msgstr "{hiddenChosen, plural, one {{chosenCount} ausgewählt, # davon vom Filter ausgeblendet.} other {{chosenCount} ausgewählt, # davon vom Filter ausgeblendet.}}"
+
 #: src/features/lookup/CartPage.tsx
 msgid "{hiddenTypes, plural, one {# more layout is not shown.} other {# more layouts are not shown.}}"
 msgstr "{hiddenTypes, plural, one {# weiteres Layout wird nicht gezeigt.} other {# weitere Layouts werden nicht gezeigt.}}"
@@ -1709,6 +1713,7 @@ msgstr "aktuell"
 msgid "Current values"
 msgstr "Aktuelle Werte"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 msgid "custom"
 msgstr "eigen"
@@ -2402,6 +2407,7 @@ msgstr "Unter neuem Schlüssel importieren"
 msgid "Import with the new key"
 msgstr "Mit dem neuen Schlüssel importieren"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 msgid "imported"
 msgstr "importiert"
@@ -3752,11 +3758,11 @@ msgstr "Andere Apps, die über diesen Hub drucken. Sie werden am Namen ihres API
 
 #: src/features/archive/errors.ts
 msgid "Other types use the same backing design and cannot take the catalog's change: {types}. Nothing was changed."
-msgstr "Andere Typen verwenden denselben Rückseitendruck und können die Änderung des Katalogs nicht übernehmen: {types}. Nichts wurde geändert."
+msgstr "Andere Typen verwenden dasselbe Trägerdesign und können die Änderung des Katalogs nicht übernehmen: {types}. Nichts wurde geändert."
 
 #: src/features/archive/errors.ts
 msgid "Other types use the same backing design and cannot take the catalog's change. Nothing was changed."
-msgstr "Andere Typen verwenden denselben Rückseitendruck und können die Änderung des Katalogs nicht übernehmen. Nichts wurde geändert."
+msgstr "Andere Typen verwenden dasselbe Trägerdesign und können die Änderung des Katalogs nicht übernehmen. Nichts wurde geändert."
 
 #: src/features/printers/flags.ts
 msgid "Output tray full"
@@ -4862,7 +4868,7 @@ msgstr "Bogencode auf der Rückseite · {code}"
 
 #: src/features/archive/RemoveUnusedDialog.tsx
 msgid "Sheet codes are never issued twice: the counter of a prefix stays, so a type you add back continues its numbering. A linked backing design is kept."
-msgstr "Bogencodes werden nie doppelt vergeben: Der Zähler eines Präfixes bleibt, ein wieder hinzugefügter Typ setzt seine Nummerierung fort. Ein verknüpfter Rückseitendruck bleibt erhalten."
+msgstr "Bogencodes werden nie doppelt vergeben: Der Zähler eines Präfixes bleibt, ein wieder hinzugefügter Typ setzt seine Nummerierung fort. Ein verknüpftes Trägerdesign bleibt erhalten."
 
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx
@@ -5457,7 +5463,7 @@ msgstr "Die App dieses Eintrags ist nicht eingerichtet."
 
 #: src/features/archive/errors.ts
 msgid "The backing design of this type was changed here and differs from the catalog's. Nothing was changed."
-msgstr "Der Rückseitendruck dieses Typs wurde hier geändert und weicht vom Katalog ab. Nichts wurde geändert."
+msgstr "Das Trägerdesign dieses Typs wurde hier geändert und weicht vom Katalog ab. Nichts wurde geändert."
 
 #: src/shell/SignIn.tsx
 msgid "The bootstrap key no longer works because an admin key exists. Sign in with that key."

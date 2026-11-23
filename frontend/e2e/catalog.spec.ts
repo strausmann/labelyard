@@ -61,23 +61,29 @@ test.describe.serial("sheet catalog", () => {
     await page.goto(`/sheets/archive?type=${key}`);
     await expect(page.getByRole("article", { name: key })).toBeVisible();
 
-    await page.goto("/sheets");
-    await page.getByRole("button", { name: "New sheet" }).click();
-    const dialog = page.getByRole("dialog", { name: "Add a sheet" });
-    await chooseType(dialog, new RegExp(key));
-    await dialog.getByRole("button", { name: "Add sheet" }).click();
-    const added = dialog.getByRole("status").filter({ hasText: /^Sheet .+ was added\.$/ });
-    await expect(added).toBeVisible();
-    const addedText = (await added.textContent())!;
-    await dialog.getByRole("button", { name: "Close" }).filter({ hasText: "Close" }).click();
-
-    const after = (await (await page.request.get(`/api/v1/sheet-types/${key}`, { headers: KEY() })).json()) as TypeRead & { catalog_key: string };
-    expect(after.catalog_key).toBe(key);
-    expect(after.usage_state).toBe("in_use");
-
     // The new sheet has every cell free: left active, the planner of later specs would pick it over the seeded sheets.
-    const code = /^Sheet (.+) was added\.$/.exec(addedText)![1]!;
-    expect((await page.request.post(`/api/v1/sheets/${code}/discard`, { headers: KEY() })).status()).toBe(200);
+    // It is discarded whatever happens after it was created.
+    let code: string | null = null;
+    try {
+      await page.goto("/sheets");
+      await page.getByRole("button", { name: "New sheet" }).click();
+      const dialog = page.getByRole("dialog", { name: "Add a sheet" });
+      await chooseType(dialog, new RegExp(key));
+      await dialog.getByRole("button", { name: "Add sheet" }).click();
+      const added = dialog.getByRole("status").filter({ hasText: /^Sheet .+ was added\.$/ });
+      await expect(added).toBeVisible();
+      code = /^Sheet (.+) was added\.$/.exec((await added.textContent())!)![1]!;
+      await dialog.getByRole("button", { name: "Close" }).filter({ hasText: "Close" }).click();
+
+      const after = (await (await page.request.get(`/api/v1/sheet-types/${key}`, { headers: KEY() })).json()) as TypeRead & { catalog_key: string };
+      expect(after.catalog_key).toBe(key);
+      expect(after.usage_state).toBe("in_use");
+    } finally {
+      // A failure before the status was read can still have created the sheet: discard every active one of the type.
+      const sheets = (await (await page.request.get(`/api/v1/sheets?type=${key}&state=active`, { headers: KEY() })).json()) as { code: string }[];
+      for (const sheet of sheets) await page.request.post(`/api/v1/sheets/${sheet.code}/discard`, { headers: KEY() });
+    }
+    expect(code).not.toBeNull();
   });
 
   test("type ↔ sheets links both ways", async () => {

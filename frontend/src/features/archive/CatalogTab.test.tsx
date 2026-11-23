@@ -150,6 +150,44 @@ describe("catalog tab", () => {
     await waitFor(() => expect(bodies).toEqual([{}, { prefix: "L47362" }]));
   });
 
+  it("the counter reads the shown entries of the whole catalog", async () => {
+    // Like the server: `total` counts under the filters; only the unfiltered count is the size of the catalog.
+    const filtered = (url: URL) => ["q", "w", "h", "page", "vendor", "verified"].some((k) => url.searchParams.has(k));
+    mockApi({
+      "GET /api/v1/sheet-catalog": (_init: RequestInit, url: URL) =>
+        filtered(url) ? { items: [ENTRY], total: 1, facets: FACETS } : { items: [ENTRY, INSTALLED], total: 39, facets: FACETS },
+      "GET /api/v1/sheet-types": [],
+    });
+    await renderApp({ path: "/sheets/archive?tab=catalog&q=l4736" });
+    await screen.findByRole("article", { name: ENTRY.key });
+    expect(await screen.findByText("1 of 39 entries")).toBeVisible();
+  });
+
+  it("a taken key offers a new key and prefix, installed as a copy", async () => {
+    const bodies: unknown[] = [];
+    mockApi({
+      "GET /api/v1/sheet-catalog": page([ENTRY]),
+      "GET /api/v1/sheet-types": [],
+      "POST /api/v1/sheet-catalog/avery-zweckform-l4736rev/install": (init: RequestInit) => {
+        const body = JSON.parse(String(init.body ?? "{}"));
+        bodies.push(body);
+        if (!body.as_new_key) return respond(409, apiErrorBody("type_exists", "taken"));
+        return respond(201, { ...SHEET_TYPE, key: body.as_new_key, prefix: body.prefix, origin: "imported", also_updated: [] });
+      },
+    });
+    await renderApp({ path: "/sheets/archive?tab=catalog" });
+    const card = await screen.findByRole("article", { name: ENTRY.key });
+    await userEvent.click(within(card).getByRole("button", { name: "Add" }));
+    expect(await within(card).findByText(/A type with the key avery-zweckform-l4736rev exists already/)).toBeVisible();
+    expect(within(card).getByRole("textbox", { name: "New key" })).toHaveValue("avery-zweckform-l4736rev-2");
+    // Without a prefix the button waits.
+    expect(within(card).getByRole("button", { name: "Add under this key" })).toBeDisabled();
+    await userEvent.type(within(card).getByRole("textbox", { name: "New code prefix" }), "L4736C");
+    await userEvent.click(within(card).getByRole("button", { name: "Add under this key" }));
+    await waitFor(() => expect(bodies).toEqual([{}, { as_new_key: "avery-zweckform-l4736rev-2", prefix: "L4736C" }]));
+    expect(await within(card).findByText("Added as avery-zweckform-l4736rev-2.")).toBeVisible();
+  });
+
   it("opening an entry shows its grid and where the values come from", async () => {
     mockApi({
       "GET /api/v1/sheet-catalog": page([ENTRY]),

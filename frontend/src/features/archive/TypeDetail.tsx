@@ -4,7 +4,6 @@
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 import { ApiError } from "../../api/client";
@@ -77,7 +76,6 @@ function UsageTiles({ type }: { type: SheetTypeDetail }) {
 function CatalogUpdatePanel({ type, admin }: { type: SheetTypeDetail; admin: boolean }) {
   const { t, i18n } = useLingui();
   const errorText = useArchiveErrorText();
-  const client = useQueryClient();
   const rowsOf = useGeometryRows();
   const entry = useCatalogEntry(type.update_available ? (type.catalog_key ?? type.key) : null);
   const update = useCatalogUpdate();
@@ -150,12 +148,7 @@ function CatalogUpdatePanel({ type, admin }: { type: SheetTypeDetail; admin: boo
             {admin ? (
               <Button
                 isDisabled={update.isPending}
-                onPress={() =>
-                  update.mutate(type.key, {
-                    // Types that share the backing design change with it: refresh every open type.
-                    onSuccess: () => void client.invalidateQueries({ queryKey: ["sheet-types", "detail"] }),
-                  })
-                }
+                onPress={() => update.mutate(type.key)}
                 className={PRIMARY_BUTTON}
               >
                 {t`Update to catalog version ${revision}`}

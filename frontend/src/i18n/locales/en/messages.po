@@ -277,6 +277,10 @@ msgstr "{hidden, plural, one {# more print notification} other {# more print not
 msgid "{hidden, plural, one {# used-up sheet hidden} other {# used-up sheets hidden}}"
 msgstr "{hidden, plural, one {# used-up sheet hidden} other {# used-up sheets hidden}}"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "{hiddenChosen, plural, one {{chosenCount} chosen, # of them hidden by the filter.} other {{chosenCount} chosen, # of them hidden by the filter.}}"
+msgstr "{hiddenChosen, plural, one {{chosenCount} chosen, # of them hidden by the filter.} other {{chosenCount} chosen, # of them hidden by the filter.}}"
+
 #: src/features/lookup/CartPage.tsx
 msgid "{hiddenTypes, plural, one {# more layout is not shown.} other {# more layouts are not shown.}}"
 msgstr "{hiddenTypes, plural, one {# more layout is not shown.} other {# more layouts are not shown.}}"
@@ -1709,6 +1713,7 @@ msgstr "current"
 msgid "Current values"
 msgstr "Current values"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 msgid "custom"
 msgstr "custom"
@@ -2402,6 +2407,7 @@ msgstr "Import under a new key"
 msgid "Import with the new key"
 msgstr "Import with the new key"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 msgid "imported"
 msgstr "imported"

@@ -6,7 +6,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useId, useState } from "react";
 import { Button } from "react-aria-components";
 import { FIELD } from "../../shell/SignIn";
-import { typeLabelWithKey } from "../sheets/typeLabel";
+import { typeLabel, typeLabelWithKey } from "../sheets/typeLabel";
 import { LABEL, ModalDialog } from "../settings/controls";
 import { SECONDARY_BUTTON } from "../ui";
 import { useDeleteUnused, useSheetTypes, type SheetTypeRead } from "./api";
@@ -33,6 +33,17 @@ function Body({ onClose }: { onClose: () => void }) {
   const types = list.data ?? [];
   const shown = types.filter((type) => matches(type, filter));
   const keys = types.map((type) => type.key).filter((key) => chosen.has(key));
+  // A chosen type the filter hides stays chosen: the line below says so, so nothing is removed unseen.
+  const chosenCount = keys.length;
+  const hiddenChosen = keys.filter((key) => !shown.some((type) => type.key === key)).length;
+  const originWord = { seed: null, imported: t`imported`, custom: t`custom` };
+  // The short name (vendor and code); a type without them is named by its description, then its key.
+  const nameOf = (type: SheetTypeRead) => {
+    const label = typeLabel(type);
+    const base = label === type.key && type.description?.trim() ? type.description.trim() : label;
+    const word = originWord[type.origin];
+    return word ? `${base} (${word})` : base;
+  };
 
   const toggle = (key: string) =>
     setChosen((current) => {
@@ -74,9 +85,9 @@ function Body({ onClose }: { onClose: () => void }) {
             <li key={type.key}>
               <label className="grid min-h-11 cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-r2 border border-line p-3 has-[:checked]:border-accent has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-link">
                 <input type="checkbox" checked={chosen.has(type.key)} onChange={() => toggle(type.key)} className="row-span-2 size-5 shrink-0 accent-accent" />
-                <span className="font-bold [overflow-wrap:anywhere]">{typeLabelWithKey(type)}</span>
-                <span className="text-small text-ink-2">
-                  {t`never used`} · {type.geometry.page_size} · {type.geometry.cols} × {type.geometry.rows}
+                <span className="font-bold [overflow-wrap:anywhere]">{nameOf(type)}</span>
+                <span className="text-small text-ink-2 [overflow-wrap:anywhere]">
+                  {t`never used`} · {type.geometry.page_size} · {type.geometry.cols} × {type.geometry.rows} · <span className="font-mono">{type.key}</span>
                 </span>
               </label>
             </li>
@@ -84,6 +95,14 @@ function Body({ onClose }: { onClose: () => void }) {
         </ul>
       ) : null}
       {types.length > 0 && shown.length === 0 ? <p className="text-ink-2">{t`No unused type matches the filter.`}</p> : null}
+      {hiddenChosen > 0 ? (
+        <p role="status" className="m-0 text-small font-bold">
+          {plural(hiddenChosen, {
+            one: `${chosenCount} chosen, # of them hidden by the filter.`,
+            other: `${chosenCount} chosen, # of them hidden by the filter.`,
+          })}
+        </p>
+      ) : null}
       <p className="m-0 rounded-r2 bg-info-soft p-3 text-small">
         {t`Sheet codes are never issued twice: the counter of a prefix stays, so a type you add back continues its numbering. A linked backing design is kept.`}
       </p>

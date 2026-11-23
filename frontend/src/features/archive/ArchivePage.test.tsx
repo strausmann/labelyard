@@ -110,7 +110,8 @@ describe("archive list and filters", () => {
     const { calls } = mockApi(LIST);
     await renderApp({ path: "/sheets/archive?page=A3&w=-4&h=abc" });
     await screen.findByRole("link", { name: /L4736REV/ });
-    expect(typeCalls(calls).every((c) => c.search === "")).toBe(true);
+    // The tab count asks for every type, archived ones included; the list itself goes without a filter.
+    expect(typeCalls(calls).every((c) => c.search === "" || c.search === "?include_archived=true")).toBe(true);
   });
 
   it("marks types by origin, verification and archive state with words", async () => {
@@ -819,5 +820,68 @@ describe("versions and imports that touch the open type", () => {
     await userEvent.click(screen.getByRole("button", { name: "Import with the new key" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The code prefix is 2 to 10 capital letters or digits"));
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(before);
+  });
+});
+
+describe("installed types: usage (#335)", () => {
+  it("the State, Sort by and Not used since filters ask the server for usage_state, sort and unused_since", async () => {
+    const { calls } = mockApi(LIST);
+    await renderApp({ path: "/sheets/archive" });
+    await screen.findByRole("link", { name: /L4736REV/ });
+    await userEvent.click(screen.getByRole("button", { name: /State/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Used before" }));
+    await waitFor(() => expect(typeCalls(calls).some((c) => new URLSearchParams(c.search).get("usage_state") === "used_before")).toBe(true));
+    await userEvent.click(screen.getByRole("button", { name: /Sort by/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Last used" }));
+    await waitFor(() => expect(typeCalls(calls).some((c) => new URLSearchParams(c.search).get("sort") === "last_used")).toBe(true));
+    const since = screen.getByLabelText("Not used since");
+    await userEvent.type(since, "2026-06-01");
+    await waitFor(() => {
+      const last = typeCalls(calls).find((c) => new URLSearchParams(c.search).get("unused_since") === "2026-06-01");
+      expect(last).toBeDefined();
+      const params = new URLSearchParams(last!.search);
+      expect(params.get("usage_state")).toBe("used_before");
+      expect(params.get("sort")).toBe("last_used");
+    });
+    // The vendor facets follow the state filter.
+    expect(calls.some((c) => c.path === "/api/v1/sheet-types/facets" && new URLSearchParams(c.search).get("usage_state") === "used_before")).toBe(true);
+  });
+
+  it("a row shows its usage state and numbers in words", async () => {
+    const used = { ...SHEET_TYPE, sheets_total: 5, sheets_with_free_cells: 2, free_labels: 301, last_used_at: "2026-11-20T09:00:00Z", usage_state: "in_use" as const };
+    const before = { ...CUSTOM, key: "old-type", sheets_total: 3, sheets_with_free_cells: 0, free_labels: 0, last_used_at: "2026-09-02T09:00:00Z", usage_state: "used_before" as const };
+    mockApi({ ...LIST, "GET /api/v1/sheet-types": [used, before, CUSTOM] });
+    await renderApp({ path: "/sheets/archive" });
+    const row = (await screen.findByRole("link", { name: /L4736REV-25/ })).closest("li")!;
+    expect(within(row).getByText("In use")).toBeVisible();
+    expect(within(row).getByText(/^5 sheets · last used/)).toBeVisible();
+    expect(within(row).getByText("2 sheets with free cells · 301 free labels")).toBeVisible();
+    const old = screen.getByRole("link", { name: /old-type/ }).closest("li")!;
+    expect(within(old).getByText("Used before")).toBeVisible();
+    expect(within(old).getByText("No sheet with free cells")).toBeVisible();
+    const fresh = screen.getByRole("link", { name: /my-custom/ }).closest("li")!;
+    expect(within(fresh).getByText("Unused")).toBeVisible();
+    expect(within(fresh).getByText("Never used")).toBeVisible();
+    expect(within(fresh).getByText("0 sheets · last used —")).toBeVisible();
+  });
+
+  it("a fresh hub shows the way to the catalog and no Remove unused types", async () => {
+    mockApi({ "GET /api/v1/sheet-types": [], "GET /api/v1/sheet-catalog": { items: [], total: 39, facets: { vendors: [], page_sizes: [] } } });
+    const { router } = await renderApp({ path: "/sheets/archive" });
+    expect(await screen.findByRole("heading", { name: "No sheet types yet" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Remove unused types" })).toBeNull();
+    const empty = screen.getByRole("region", { name: "No sheet types yet" });
+    expect(within(empty).getByRole("button", { name: "Import type" })).toBeVisible();
+    await userEvent.click(within(empty).getByRole("button", { name: "Open the catalog" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ tab: "catalog" }));
+  });
+
+  it("a hub whose only types are archived is not a fresh hub", async () => {
+    const archived = { ...CUSTOM, archived_at: "2026-11-02T00:00:00Z" };
+    mockApi({ "GET /api/v1/sheet-types": (_init: RequestInit, url: URL) => (url.searchParams.get("include_archived") === "true" ? [archived] : []) });
+    await renderApp({ path: "/sheets/archive" });
+    expect(await screen.findByText("No sheet type matches.")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "No sheet types yet" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Remove unused types" })).toBeVisible();
   });
 });

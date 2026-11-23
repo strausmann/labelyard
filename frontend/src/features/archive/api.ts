@@ -70,18 +70,29 @@ export const useSheetType = (key: string, enabled = true) =>
  * A type write changes the lists, the type and (through the usage counts) the sheet lists.
  * `keyOf` names the type that changed: from the request, or (an import) from the answer.
  */
-function useTypeWrite<V, R>(run: (v: V) => Promise<R>, keyOf: (v: V, data: R | undefined) => string | null) {
+function useTypeWrite<V, R>(
+  run: (v: V) => Promise<R>,
+  keyOf: (v: V, data: R | undefined) => string | null,
+  { allDetails = false }: { allDetails?: boolean } = {},
+) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: run,
     onSettled: (data, _error, v) => {
       void client.invalidateQueries({ queryKey: typesListKey });
       void client.invalidateQueries({ queryKey: sheetsListKey });
+      // A catalog write can change other types with it (`also_updated`, a shared backing design): every open type.
+      if (allDetails) {
+        void client.invalidateQueries({ queryKey: typeDetailsKey });
+        return;
+      }
       const key = keyOf(v, data);
       if (key) void client.invalidateQueries({ queryKey: typeKey(key) });
     },
   });
 }
+
+const typeDetailsKey = ["sheet-types", "detail"] as const;
 
 export const useCreateType = () =>
   useTypeWrite((body: SheetTypeCreate) => apiFetch<SheetTypeRead>("/api/v1/sheet-types", { method: "POST", json: body }), () => null);
@@ -174,11 +185,14 @@ export const useInstallCatalogEntry = () =>
         json: { ...(asNewKey ? { as_new_key: asNewKey } : {}), ...(prefix ? { prefix } : {}) },
       }),
     (_v, data) => data?.key ?? null,
+    { allDetails: true },
   );
 
 /** `POST /api/v1/sheet-types/{key}/catalog-update`: the newer catalog revision as the next version. */
 export const useCatalogUpdate = () =>
-  useTypeWrite((key: string) => apiFetch<CatalogWriteRead>(`${typePath(key)}/catalog-update`, { method: "POST" }), (key) => key);
+  useTypeWrite((key: string) => apiFetch<CatalogWriteRead>(`${typePath(key)}/catalog-update`, { method: "POST" }), (key) => key, {
+    allDetails: true,
+  });
 
 /** `POST /api/v1/sheet-types/delete-unused`: all the named unused types, or none. */
 export const useDeleteUnused = () =>

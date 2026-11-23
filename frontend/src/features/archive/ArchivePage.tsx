@@ -183,11 +183,12 @@ export function SheetArchivePage() {
     unused_since: search.since,
   });
   // The counts of the two tabs: every installed type, and every catalog entry.
-  const installedAll = useSheetTypes({});
+  // Archived types included: a hub whose only types are archived is not a fresh one.
+  const installedAll = useSheetTypes({ include_archived: true });
   const catalogAll = useCatalog({ limit: 1 });
-  const installedCount = installedAll.data?.length;
+  const installedCount = installedAll.data?.filter((type) => type.archived_at === null).length;
   const catalogCount = catalogAll.data?.total;
-  const freshHub = installedAll.data?.length === 0 && !search.archived;
+  const freshHub = installedAll.data?.length === 0;
   // Changing tabs starts the other tab without the filters of this one.
   const showTab = (tab: "installed" | "catalog") =>
     void navigate({ to: "/sheets/archive", search: tab === "catalog" ? { tab: "catalog" } : {} });

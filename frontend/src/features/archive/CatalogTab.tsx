@@ -219,7 +219,9 @@ export function CatalogTab({ search, admin, commit }: { search: ArchiveSearch; a
   const list = useCatalog(filters);
   const vendors = (list.data?.facets.vendors ?? []).map((f) => f.value);
   if (search.vendor && !vendors.includes(search.vendor)) vendors.push(search.vendor);
-  const total = list.data?.total;
+  // The catalog's `total` counts under the filters; "4 of 39" needs the whole catalog (the tab count's query).
+  const all = useCatalog({ limit: 1 });
+  const total = all.data?.total ?? list.data?.total;
 
   return (
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start">
