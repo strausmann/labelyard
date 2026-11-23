@@ -21,7 +21,7 @@ const matches = (type: SheetTypeRead, filter: string) => {
   return [typeLabelWithKey(type), type.description ?? ""].some((s) => s.toLowerCase().includes(needle));
 };
 
-function Body({ onClose }: { onClose: () => void }) {
+function Body({ onClose, onRemoved }: { onClose: () => void; onRemoved: (keys: string[]) => void }) {
   const { t } = useLingui();
   const errorText = useArchiveErrorText();
   // Exactly the types in state unused, archived ones included: none is chosen until the person ticks it.
@@ -97,10 +97,7 @@ function Body({ onClose }: { onClose: () => void }) {
       {types.length > 0 && shown.length === 0 ? <p className="text-ink-2">{t`No unused type matches the filter.`}</p> : null}
       {hiddenChosen > 0 ? (
         <p role="status" className="m-0 text-small font-bold">
-          {plural(hiddenChosen, {
-            one: `${chosenCount} chosen, # of them hidden by the filter.`,
-            other: `${chosenCount} chosen, # of them hidden by the filter.`,
-          })}
+          {t`${chosenCount} chosen, ${hiddenChosen} of them hidden by the filter.`}
         </p>
       ) : null}
       <p className="m-0 rounded-r2 bg-info-soft p-3 text-small">
@@ -112,7 +109,14 @@ function Body({ onClose }: { onClose: () => void }) {
         <Button onPress={onClose} className={SECONDARY_BUTTON}>{t`Cancel`}</Button>
         <Button
           isDisabled={keys.length === 0 || remove.isPending}
-          onPress={() => remove.mutate(keys, { onSuccess: onClose })}
+          onPress={() =>
+            remove.mutate(keys, {
+              onSuccess: (result) => {
+                onRemoved(result.deleted);
+                onClose();
+              },
+            })
+          }
           className={DANGER_BUTTON}
         >
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" className="fill-none stroke-current stroke-[1.5]">
@@ -126,11 +130,20 @@ function Body({ onClose }: { onClose: () => void }) {
 }
 
 /** "Remove unused types" (#335, mockup M5): exactly the types in state unused, none preselected, all or nothing. */
-export function RemoveUnusedDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function RemoveUnusedDialog({
+  isOpen,
+  onClose,
+  onRemoved = () => {},
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  /** The keys the server deleted. */
+  onRemoved?: (keys: string[]) => void;
+}) {
   const { t } = useLingui();
   return (
     <ModalDialog title={t`Remove unused types`} isOpen={isOpen} onClose={onClose}>
-      {isOpen ? <Body onClose={onClose} /> : null}
+      {isOpen ? <Body onClose={onClose} onRemoved={onRemoved} /> : null}
     </ModalDialog>
   );
 }

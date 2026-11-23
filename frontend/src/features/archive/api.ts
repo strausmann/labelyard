@@ -73,7 +73,7 @@ export const useSheetType = (key: string, enabled = true) =>
 function useTypeWrite<V, R>(
   run: (v: V) => Promise<R>,
   keyOf: (v: V, data: R | undefined) => string | null,
-  { allDetails = false }: { allDetails?: boolean } = {},
+  { allDetails = false, keysOf }: { allDetails?: boolean; keysOf?: (v: V) => string[] } = {},
 ) {
   const client = useQueryClient();
   return useMutation({
@@ -88,6 +88,7 @@ function useTypeWrite<V, R>(
       }
       const key = keyOf(v, data);
       if (key) void client.invalidateQueries({ queryKey: typeKey(key) });
+      for (const other of keysOf?.(v) ?? []) void client.invalidateQueries({ queryKey: typeKey(other) });
     },
   });
 }
@@ -199,4 +200,6 @@ export const useDeleteUnused = () =>
   useTypeWrite(
     (keys: string[]) => apiFetch<Schemas["DeleteUnusedResult"]>("/api/v1/sheet-types/delete-unused", { method: "POST", json: { keys } }),
     () => null,
+    // Every removed type: an open detail of one must not keep showing it.
+    { keysOf: (keys) => keys },
   );

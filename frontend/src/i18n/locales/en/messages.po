@@ -192,6 +192,10 @@ msgstr "{appName} is not set up yet, so there is nothing to look up."
 msgid "{cells} on sheet {code}"
 msgstr "{cells} on sheet {code}"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "{chosenCount} chosen, {hiddenChosen} of them hidden by the filter."
+msgstr "{chosenCount} chosen, {hiddenChosen} of them hidden by the filter."
+
 #: src/features/sheets/print/SheetPicker.tsx
 msgid "{code} could not be checked. Try again."
 msgstr "{code} could not be checked. Try again."
@@ -276,10 +280,6 @@ msgstr "{hidden, plural, one {# more print notification} other {# more print not
 #: src/features/sheets/SheetsPage.tsx
 msgid "{hidden, plural, one {# used-up sheet hidden} other {# used-up sheets hidden}}"
 msgstr "{hidden, plural, one {# used-up sheet hidden} other {# used-up sheets hidden}}"
-
-#: src/features/archive/RemoveUnusedDialog.tsx
-msgid "{hiddenChosen, plural, one {{chosenCount} chosen, # of them hidden by the filter.} other {{chosenCount} chosen, # of them hidden by the filter.}}"
-msgstr "{hiddenChosen, plural, one {{chosenCount} chosen, # of them hidden by the filter.} other {{chosenCount} chosen, # of them hidden by the filter.}}"
 
 #: src/features/lookup/CartPage.tsx
 msgid "{hiddenTypes, plural, one {# more layout is not shown.} other {# more layouts are not shown.}}"

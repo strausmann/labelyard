@@ -192,6 +192,10 @@ export function SheetArchivePage() {
   // Changing tabs starts the other tab without the filters of this one.
   const showTab = (tab: "installed" | "catalog") =>
     void navigate({ to: "/sheets/archive", search: tab === "catalog" ? { tab: "catalog" } : {} });
+  // A type that was just created or imported opens on the Installed tab, wherever the action started (the Catalog
+  // tab shows no type detail).
+  const openType = (key: string) =>
+    void navigate({ to: "/sheets/archive", search: (prev) => ({ ...prev, tab: undefined, type: key }) });
   // The vendors to choose from are counted under every filter except the vendor,
   // so choosing one does not hide the others (and a long list is not fetched twice).
   const facets = useSheetTypeFacets({
@@ -234,7 +238,7 @@ export function SheetArchivePage() {
           mode={{ kind: "create" }}
           onDone={(key) => {
             setCreating(false);
-            if (key) void navigate({ to: "/sheets/archive", search: (prev) => ({ ...prev, type: key }) });
+            if (key) openType(key);
           }}
         />
       ) : (
@@ -382,12 +386,23 @@ export function SheetArchivePage() {
         </Tabs>
       )}
 
-      {admin ? <RemoveUnusedDialog isOpen={removing} onClose={() => setRemoving(false)} /> : null}
+      {admin ? (
+        <RemoveUnusedDialog
+          isOpen={removing}
+          onClose={() => setRemoving(false)}
+          // The open type may be one of the removed ones: then nothing is left to show.
+          onRemoved={(keys) => {
+            if (search.type && keys.includes(search.type)) {
+              void navigate({ to: "/sheets/archive", search: (prev) => ({ ...prev, type: undefined }), replace: true });
+            }
+          }}
+        />
+      ) : null}
       {admin ? (
         <ImportDialog
           isOpen={importing}
           onClose={() => setImporting(false)}
-          onShow={(key) => void navigate({ to: "/sheets/archive", search: (prev) => ({ ...prev, type: key }) })}
+          onShow={openType}
         />
       ) : null}
     </div>

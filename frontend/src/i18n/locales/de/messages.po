@@ -192,6 +192,10 @@ msgstr "{appName} ist noch nicht eingerichtet, deshalb gibt es nichts nachzuschl
 msgid "{cells} on sheet {code}"
 msgstr "{cells} auf Bogen {code}"
 
+#: src/features/archive/RemoveUnusedDialog.tsx
+msgid "{chosenCount} chosen, {hiddenChosen} of them hidden by the filter."
+msgstr "{chosenCount} ausgewählt, {hiddenChosen} davon vom Filter ausgeblendet."
+
 #: src/features/sheets/print/SheetPicker.tsx
 msgid "{code} could not be checked. Try again."
 msgstr "{code} konnte nicht geprüft werden. Versuche es noch einmal."
@@ -276,10 +280,6 @@ msgstr "{hidden, plural, one {# weitere Druckmeldung} other {# weitere Druckmeld
 #: src/features/sheets/SheetsPage.tsx
 msgid "{hidden, plural, one {# used-up sheet hidden} other {# used-up sheets hidden}}"
 msgstr "{hidden, plural, one {# aufgebrauchter Bogen ausgeblendet} other {# aufgebrauchte Bögen ausgeblendet}}"
-
-#: src/features/archive/RemoveUnusedDialog.tsx
-msgid "{hiddenChosen, plural, one {{chosenCount} chosen, # of them hidden by the filter.} other {{chosenCount} chosen, # of them hidden by the filter.}}"
-msgstr "{hiddenChosen, plural, one {{chosenCount} ausgewählt, # davon vom Filter ausgeblendet.} other {{chosenCount} ausgewählt, # davon vom Filter ausgeblendet.}}"
 
 #: src/features/lookup/CartPage.tsx
 msgid "{hiddenTypes, plural, one {# more layout is not shown.} other {# more layouts are not shown.}}"

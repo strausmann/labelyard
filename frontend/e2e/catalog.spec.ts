@@ -80,8 +80,16 @@ test.describe.serial("sheet catalog", () => {
       expect(after.usage_state).toBe("in_use");
     } finally {
       // A failure before the status was read can still have created the sheet: discard every active one of the type.
-      const sheets = (await (await page.request.get(`/api/v1/sheets?type=${key}&state=active`, { headers: KEY() })).json()) as { code: string }[];
-      for (const sheet of sheets) await page.request.post(`/api/v1/sheets/${sheet.code}/discard`, { headers: KEY() });
+      // Best effort: a cleanup that throws would hide the failure that brought us here.
+      try {
+        const answer = await page.request.get(`/api/v1/sheets?type=${key}&state=active`, { headers: KEY() });
+        const sheets: unknown = answer.ok() ? await answer.json() : [];
+        for (const sheet of Array.isArray(sheets) ? (sheets as { code: string }[]) : []) {
+          await page.request.post(`/api/v1/sheets/${sheet.code}/discard`, { headers: KEY() });
+        }
+      } catch {
+        // Nothing to add: the test's own error (if any) is the one that matters.
+      }
     }
     expect(code).not.toBeNull();
   });
