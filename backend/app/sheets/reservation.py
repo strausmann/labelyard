@@ -52,6 +52,7 @@ from app.sheets.geometry import cell_count
 from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
     FeedMarkPlacement,
+    FeedMarkWait,
     MarginContext,
     MarginPlacement,
     PlacementIn,
@@ -151,6 +152,10 @@ class ReservedPage:
     feed_mark: FeedMarkPlacement | None = None
     # The sheet's code goes on the back and is not confirmed yet (#350).
     back_side_pending: bool = False
+    # The waiting signal (#403): response-only, never stored with the job.
+    id_pending: bool = False
+    feed_mark_pending: bool = False
+    feed_mark_reason: FeedMarkWait | None = None
 
 
 @dataclass
@@ -318,6 +323,7 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
             earlier_margin_rects=_earlier_rects(sheet.margin_id_rect),
             printed_mark_rect=_rect_or_none(sheet.feed_mark_rect),
             in_flight_boxes=in_flight_boxes,
+            hub_cell_state=next((c.state for c in rows if c.source == HUB_SOURCE), None),
         )
     return views
 
@@ -526,6 +532,9 @@ async def _attempt(
                     back_side_pending=(
                         page.sheet.id_placement == "back_side" and not page.sheet.id_printed
                     ),
+                    id_pending=page.id_pending,
+                    feed_mark_pending=page.feed_mark_pending,
+                    feed_mark_reason=page.feed_mark_reason,
                 )
             )
             t = touched.setdefault(
@@ -704,6 +713,9 @@ async def reserve_exact(
         id_not_printed=decision.id_not_printed,
         feed_mark=decision.feed_mark,
         back_side_pending=view.id_placement == "back_side" and not view.id_printed,
+        id_pending=decision.id_pending,
+        feed_mark_pending=decision.feed_mark_pending,
+        feed_mark_reason=decision.feed_mark_reason,
     )
 
 

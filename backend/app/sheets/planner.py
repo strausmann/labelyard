@@ -41,6 +41,7 @@ __all__ = [
     "FEED_MARK_TEXTS",
     "FeedMarkPlacement",
     "FeedMarkReason",
+    "FeedMarkWait",
     "IdPlacementReason",
     "MarginBand",
     "MarginBandRule",
@@ -79,6 +80,9 @@ MarginBandRule = Literal["auto", "top", "bottom", "left", "right"]
 MarginContent = Literal["qr_code_type", "qr_code", "code"]
 FeedMarkEnd = Literal["top_right", "top_left"]
 FeedMarkReason = Literal["no_free_place"]
+# Why a due feed mark is not on a page (#403, spec 5.6): another job carries it, or no zone-free
+# place is left after the ID.
+FeedMarkWait = Literal["in_flight", "no_free_place"]
 IdPlacementReason = Literal["outside_printable", "overlaps_preprint", "too_small", "no_margin_band"]
 
 BAND_ORDER: Final[tuple[MarginBand, ...]] = ("top", "bottom", "right", "left")  # OC-46
@@ -179,6 +183,9 @@ class SheetView:
     # The boxes of a margin code or feed mark another job carries onto this sheet (its stored
     # page), so this page keeps clear of what is on its way (``printed_boxes``).
     in_flight_boxes: tuple[Rect, ...] = ()
+    # The state of the cell that holds the hub's ID label of a ``cell`` sheet (``has_hub_cell``),
+    # or ``None`` without one; ``reserved`` or ``unconfirmed`` means another job carries it (#403).
+    hub_cell_state: str | None = None
 
 
 @dataclass
@@ -200,7 +207,11 @@ class PagePlan:
     margin_placement: MarginPlacement | None = None
     id_not_printed: bool = False
     feed_mark: FeedMarkPlacement | None = None
-    feed_mark_reason: FeedMarkReason | None = None
+    feed_mark_reason: FeedMarkWait | None = None
+    # The waiting signal (#403): the ID or the feed mark is not on this page because another job
+    # carries it, or (the mark) no free place is left. Response-only, never stored.
+    id_pending: bool = False
+    feed_mark_pending: bool = False
 
 
 @dataclass
@@ -732,7 +743,13 @@ def _printed_id_box(view: SheetView, margin: MarginContext, hw: Margins | None) 
 
 @dataclass(frozen=True)
 class MarginDecision:
-    """Whether the sheet's margin ID and feed mark are due on a page, and where they go."""
+    """Whether the sheet's margin ID and feed mark are due on a page, and where they go.
+
+    ``id_pending`` and ``feed_mark_pending`` (#403, spec 5.6) say that the ID or the mark is not
+    on the page because it waits: another job carries it, or (the mark) no free place is left
+    after the ID. ``id_not_printed`` stays for an ID without room; the two never hold together.
+    ``feed_mark_reason`` is ``None`` when the mark is printed or not due.
+    """
 
     id_was_due: bool
     margin_id: bool
@@ -740,7 +757,29 @@ class MarginDecision:
     id_not_printed: bool
     mark_was_due: bool
     feed_mark: FeedMarkPlacement | None
-    feed_mark_reason: FeedMarkReason | None = None
+    feed_mark_reason: FeedMarkWait | None = None
+    id_pending: bool = False
+    feed_mark_pending: bool = False
+
+
+# The states of a cell another job holds: not settled yet, or possibly printed (F3-1).
+_HELD_STATES: Final = frozenset({"reserved", "unconfirmed"})
+
+
+def id_pending_of(view: SheetView) -> bool:
+    """Whether the sheet's ID is not printed yet because another job carries it (#403).
+
+    Per placement: ``margin`` while ``margin_id_in_flight``; ``cell`` while the hub's ID cell is
+    ``reserved`` or ``unconfirmed``; ``back_side`` and ``manual`` never (their code is not on a
+    page of this hub).
+    """
+    if view.id_printed:
+        return False
+    if view.id_placement == "margin":
+        return view.margin_id_in_flight
+    if view.id_placement == "cell":
+        return view.has_hub_cell and view.hub_cell_state in _HELD_STATES
+    return False
 
 
 FeedMarkMemo = dict[
@@ -786,7 +825,7 @@ def decide_margin_and_mark(
     id_not_printed = False
     mark_due = not view.feed_mark_printed and not view.feed_mark_in_flight and not mark_done
     feed_mark: FeedMarkPlacement | None = None
-    reason: FeedMarkReason | None = None
+    reason: FeedMarkWait | None = None
     # What is already on the sheet, or on its way there, stays free (``printed_boxes``).
     printed = printed_boxes(view, margin, hw_margins_hmm) if margin is not None else ()
     if due and margin is not None:
@@ -823,7 +862,19 @@ def decide_margin_and_mark(
             )
             if feed_marks is not None:
                 feed_marks[key] = (feed_mark, reason)
-    return MarginDecision(due, margin_id, placement, id_not_printed, mark_due, feed_mark, reason)
+    if not view.feed_mark_printed and view.feed_mark_in_flight:
+        reason = "in_flight"  # known without a printer context
+    return MarginDecision(
+        due,
+        margin_id,
+        placement,
+        id_not_printed,
+        mark_due,
+        feed_mark,
+        reason,
+        id_pending=id_pending_of(view),
+        feed_mark_pending=reason is not None,
+    )
 
 
 def _hw_margin_cells(g: Geometry, cells: Sequence[int], hw: Margins | None) -> list[int]:
@@ -888,7 +939,9 @@ class _Draft:
     id_was_due: bool = False
     feed_mark: FeedMarkPlacement | None = None
     mark_was_due: bool = False
-    feed_mark_reason: FeedMarkReason | None = None
+    feed_mark_reason: FeedMarkWait | None = None
+    id_pending: bool = False
+    feed_mark_pending: bool = False
 
 
 def _draft(
@@ -984,6 +1037,8 @@ def _draft(
         feed_mark=feed_mark,
         mark_was_due=mark_due,
         feed_mark_reason=decision.feed_mark_reason,
+        id_pending=decision.id_pending,
+        feed_mark_pending=decision.feed_mark_pending,
     )
 
 
@@ -1073,6 +1128,8 @@ def plan(
             id_not_printed=d.id_not_printed,
             feed_mark=d.feed_mark,
             feed_mark_reason=d.feed_mark_reason,
+            id_pending=d.id_pending,
+            feed_mark_pending=d.feed_mark_pending,
         )
         for i, d in enumerate(drafts)
     ]

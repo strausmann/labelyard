@@ -2312,6 +2312,10 @@ msgstr "Fehlgeschlagen"
 msgid "Feed mark printed"
 msgstr "Einzugsmarke gedruckt"
 
+#: src/features/sheets/print/SheetPreview.tsx
+msgid "Feed mark: no free place on this sheet"
+msgstr "Einzugsmarke: kein freier Platz auf diesem Bogen"
+
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Filament name"
 msgstr "Filamentname"
@@ -6774,6 +6778,11 @@ msgstr "Der Bogencode erkennt einen Bogen, wenn du ihn scannst. Wähle, wo der H
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "The sheet code is in the print queue."
 msgstr "Der Bogencode ist in der Druckwarteschlange."
+
+#: src/features/sheets/print/PrintResult.tsx
+#: src/features/sheets/print/SheetPreview.tsx
+msgid "The sheet code will be printed with the page that is still in the queue."
+msgstr "Der Bogencode wird mit der Seite gedruckt, die noch in der Warteschlange liegt."
 
 #: src/features/archive/MarginPlacement.tsx
 msgid "The sheet code, enlarged"

@@ -406,7 +406,9 @@ export const sheetPreview = (over: Partial<Schemas["SheetPreview"]> = {}): Schem
       margin_band: null,
       margin_id: false,
       id_not_printed: false,
+      id_pending: false,
       feed_mark: false,
+      feed_mark_pending: false,
       load_hint: "Print side up",
     },
   ],
@@ -428,6 +430,8 @@ export const PRINTED_PAGE: Schemas["PrintedPage"] = {
   margin_band: null,
   margin_id: false,
   feed_mark: false,
+  feed_mark_pending: false,
+  id_pending: false,
   back_side_pending: false,
 };
 

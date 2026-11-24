@@ -3769,12 +3769,29 @@ export interface components {
              * @description The end of the top band the feed mark takes, or `null`.
              */
             feed_mark_end?: ("top_right" | "top_left") | null;
+            /**
+             * Feed Mark Pending
+             * @description The feed-direction mark is due but not on this page (see `feed_mark_reason`).
+             * @default false
+             */
+            feed_mark_pending: boolean;
+            /**
+             * Feed Mark Reason
+             * @description Why the mark is not on this page: `in_flight`, another job carries it; `no_free_place`, no end of the top band is free of zones and the code. It stays due for a later page. `null` when the mark is printed or not due.
+             */
+            feed_mark_reason?: ("in_flight" | "no_free_place") | null;
             geometry: components["schemas"]["GeometryMm"];
             /**
              * Id Not Printed
              * @description No margin band is deep enough: no ID on this page.
              */
             id_not_printed: boolean;
+            /**
+             * Id Pending
+             * @description The sheet code is not printed yet and not on this page because another job carries it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). `id_not_printed` is for no room; the two are never both true.
+             * @default false
+             */
+            id_pending: boolean;
             /**
              * Load Hint
              * @description How to load the tray, if the printer has a hint.
@@ -3947,6 +3964,17 @@ export interface components {
              */
             feed_mark: boolean;
             /**
+             * Feed Mark Pending
+             * @description The feed-direction mark is due but not on this page (see `feed_mark_reason`).
+             * @default false
+             */
+            feed_mark_pending: boolean;
+            /**
+             * Feed Mark Reason
+             * @description Why the mark is not on this page: `in_flight`, another job carries it; `no_free_place`, no end of the top band is free of zones and the code. It stays due for a later page. `null` when the mark is printed or not due.
+             */
+            feed_mark_reason?: ("in_flight" | "no_free_place") | null;
+            /**
              * Id Cell
              * @description The cell of a `cell` sheet's ID label, if any.
              */
@@ -3956,6 +3984,12 @@ export interface components {
              * @description No margin band is deep enough: no ID on this page.
              */
             id_not_printed: boolean;
+            /**
+             * Id Pending
+             * @description The sheet code is not printed yet and not on this page because another job carries it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). `id_not_printed` is for no room; the two are never both true.
+             * @default false
+             */
+            id_pending: boolean;
             /**
              * Job Id
              * Format: uuid
