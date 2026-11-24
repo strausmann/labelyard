@@ -240,6 +240,9 @@ async def submit_with_run(
     transaction if no job row with that id exists; the counter stays advanced, a gap and never a
     reuse. A ``CancelledError`` (a ``BaseException``) is not compensated: the queue may have
     committed the row already and prints it on the next start.
+
+    The returned run is a detached snapshot (unlike ``allocate_run``'s): re-read it with a
+    session before changing it.
     """
     job_id = uuid4()
     run = await allocate_run(

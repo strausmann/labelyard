@@ -396,6 +396,20 @@ async def test_a_job_cancelled_before_it_started_is_not_asked_for_its_tray(env: 
     assert run.media_source_reported is False and run.actual_media_source is None
 
 
+async def test_a_job_aborted_before_it_started_is_not_asked_for_its_tray(env: _Env) -> None:
+    """Re-review M4: the aborted twin of the cancel test. The printer aborts the job before any
+    page came out (``ipp_aborted``): nothing was printed, nothing is asked."""
+    env.fake.job_media_source = "tray-2"
+    env.fake.job_script = [3, 8]  # pending, then aborted; no impression
+    env.fake.impressions_script = [0, 0]
+    job_id = await env.post_page()
+    run = await env.settled(job_id)
+    job = await env.queue.get(job_id)
+    assert job.state.value == "failed" and job.error_code == "ipp_aborted"
+    assert env.transport.asked == 0
+    assert run.media_source_reported is False and run.actual_media_source is None
+
+
 @pytest.fixture
 def server_in_utc(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """The server's own zone is UTC for the test (``TZ``), whatever the machine runs in."""
