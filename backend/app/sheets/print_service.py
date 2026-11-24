@@ -191,6 +191,7 @@ from app.sheets.sheet_page import (
     feed_mark_payload,
     margin_id_payload,
     margin_rect_of,
+    merged_margin_rect,
     render_preview_png,
 )
 from app.sheets.sheet_service import ID_CELL_PURPOSE
@@ -2365,6 +2366,15 @@ async def print_margin_id(
                     job_name=f"Sheet {sheet.code} · margin code",
                     calibration=snapshot,
                     detail=detail.model_dump(mode="json"),
+                )
+                # The reprint has no cells, so no outcome settles it: its box is recorded here,
+                # with the earlier code's kept (``merged_margin_rect``), in the transaction that
+                # stores the request. A reprint that never prints keeps its box reserved: the
+                # conservative side, a later feed mark never lands on a code that did print.
+                assert placement is not None  # ``margin`` is ``None`` without one
+                r = placement.rect
+                sheet.margin_id_rect = merged_margin_rect(
+                    sheet.margin_id_rect, {"x": r.x, "y": r.y, "w": r.w, "h": r.h}
                 )
                 await session.commit()
             try:

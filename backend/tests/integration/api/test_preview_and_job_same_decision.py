@@ -269,8 +269,9 @@ async def test_mark_after_a_moved_reprint_keeps_both_codes_free() -> None:
     """Review round 5 (Codex on #439, print_service.py:2358): the first page has no room at the
     top (20 mm lost), so the code goes to the bottom band and the mark stays due. The code is
     reprinted with the top margin back and moves to the top band's right end. The reprint has no
-    cells, yet the sheet now records its rectangle and keeps the first one; the next print places
-    the due mark clear of both codes."""
+    cells, so no outcome settles it: the request itself records its rectangle on the sheet and
+    keeps the first one (review round 5, also the restart window Codex raised on 32990a27); the
+    next print places the due mark clear of both codes."""
     import asyncio
 
     from app.sheets.free_rects import Rect
@@ -296,6 +297,8 @@ async def test_mark_after_a_moved_reprint_keeps_both_codes_free() -> None:
         r = (await rig.job_payload(again.json()["job_id"]))["detail"]["margin_id_rect"]
         assert r["y_hmm"] < 2130  # the top band now
         reprinted = {"x": r["x_hmm"], "y": r["y_hmm"], "w": r["w_hmm"], "h": r["h_hmm"]}
+        queued = (await _sheet_row(code)).margin_id_rect  # recorded with the request
+        assert queued is not None and {k: queued[k] for k in "xywh"} == reprinted
         async with asyncio.timeout(15):  # the reprint is over: nothing is in flight any more
             while (await _job_state(again.json()["job_id"])) != "done":
                 await asyncio.sleep(0.05)

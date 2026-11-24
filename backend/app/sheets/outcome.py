@@ -45,12 +45,7 @@ from app.services.event_bus import EventBus
 from app.services.page_jobs import PagePayload
 from app.sheets.events import SheetTouched, publish_touched
 from app.sheets.geometry import cell_count
-from app.sheets.sheet_page import (
-    SheetPageDetail,
-    merged_margin_rect,
-    printed_margin_rect,
-    printed_mark_rect,
-)
+from app.sheets.sheet_page import SheetPageDetail, printed_margin_rect, printed_mark_rect
 from app.sheets.sheet_service import HUB_SOURCE
 from app.sheets.text import log_value
 from app.sheets.type_service import version_geometry
@@ -163,35 +158,6 @@ async def _settle_locked(
     return touched
 
 
-async def _record_reprinted_code(session: AsyncSession, job: Job | None) -> None:
-    """Record where a margin-code reprint put the code (#246, review round 5).
-
-    The reprint (``print_service.print_margin_id``) has no cells, so ``_settle_locked`` never
-    sees it. A page that printed, or may have, adds its rectangle to ``Sheet.margin_id_rect``
-    and keeps the earlier one (``merged_margin_rect``): both codes are on the sheet, and a feed
-    mark printed later keeps clear of both. Idempotent; any other page changes nothing.
-    """
-    if job is None or not isinstance(job.payload, dict) or job.payload.get("kind") != "sheet_page":
-        return
-    detail = job.payload.get("detail")
-    if not isinstance(detail, dict) or detail.get("cells") or detail.get("id_cell"):
-        return
-    rect = printed_margin_rect(detail)
-    if rect is None:
-        return
-    try:
-        sheet_id = UUID(str(detail.get("sheet_id")))
-    except ValueError:
-        return
-    sheet = await session.get(Sheet, sheet_id, populate_existing=True)
-    if sheet is None or sheet.id_placement != "margin":
-        return
-    merged = merged_margin_rect(sheet.margin_id_rect, rect)
-    if merged != sheet.margin_id_rect:
-        sheet.margin_id_rect = merged
-        await session.flush()
-
-
 # ---------------------------------------------------------------------------- handler
 
 
@@ -252,8 +218,6 @@ class SheetCellsOutcome:
             rows = await repo.reserved_cells_of_job(session, job_id)
             jobs = await repo.jobs_by_id(session, [job_id])
             touched = await _settle_locked(session, [(r, outcome) for r in rows], jobs)
-            if not rows and outcome != "free":
-                await _record_reprinted_code(session, jobs.get(job_id))
             await session.commit()
         publish_touched(self._bus, touched)
         if touched:
