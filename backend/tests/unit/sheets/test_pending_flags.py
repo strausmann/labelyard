@@ -19,6 +19,7 @@ from app.sheets.geometry import Geometry
 from app.sheets.planner import (
     MarginContext,
     MarginRule,
+    PagePlan,
     PlacementIn,
     SheetView,
     decide_margin_and_mark,
@@ -88,7 +89,7 @@ def test_cell_sheet_with_reserved_id_cell_sets_id_pending() -> None:
     used = _view("cell", non_free={1: "used"}, has_hub_cell=True, hub_cell_state="used")
     assert decide_margin_and_mark(used, _ctx(), None).id_pending is False
     for other in ("back_side", "manual"):
-        assert decide_margin_and_mark(_view(other), _ctx(), None).id_pending is False  # type: ignore[arg-type]
+        assert decide_margin_and_mark(_view(other), _ctx(), None).id_pending is False
 
 
 def test_no_room_sets_id_not_printed_not_id_pending() -> None:
@@ -133,3 +134,32 @@ def test_mark_without_place_reason_no_free_place_and_stays_due() -> None:
     placed = decide_margin_and_mark(_view("manual"), _ctx(), None)
     assert placed.feed_mark is not None
     assert placed.feed_mark_pending is False and placed.feed_mark_reason is None
+
+
+def _two_pages(view: SheetView) -> list[PagePlan]:
+    placements = [PlacementIn(view, "first_free", count=1) for _ in range(2)]
+    return list(plan(placements, 2, hw_margins_hmm=None, margin=_ctx()).pages)
+
+
+def test_later_page_of_the_same_request_waits_for_the_page_that_carries_them() -> None:
+    """Codex on #443: one request, two pages of one sheet. The first page carries the code and
+    the mark; the second waits for it, as for a page queued by an earlier request."""
+    first, second = _two_pages(_view("margin"))
+
+    assert first.margin_id is True and first.feed_mark is not None
+    assert first.id_pending is False and first.feed_mark_pending is False
+    assert second.margin_id is False and second.feed_mark is None
+    assert second.id_pending is True and second.id_not_printed is False
+    assert second.feed_mark_pending is True
+    assert second.feed_mark_reason == "in_flight"
+    cell_first, cell_second = _two_pages(_view("cell"))
+    assert cell_first.id_cell is not None and cell_first.id_pending is False
+    assert cell_second.id_cell is None and cell_second.id_pending is True
+
+
+def test_later_page_does_not_wait_for_a_code_the_first_page_had_no_room_for() -> None:
+    first, second = _two_pages(_view("margin", rule=MarginRule(band="right", zones=BOTH_ENDS)))
+
+    assert first.id_not_printed is True and first.feed_mark is None
+    assert second.id_pending is False
+    assert second.feed_mark_reason != "in_flight"
