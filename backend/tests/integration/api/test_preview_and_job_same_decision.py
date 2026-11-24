@@ -13,17 +13,21 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from app.models.sheet import Sheet
 from app.page_render.pdf import PT_PER_MM
 from app.printer_backends.ipp.attributes import Margins
 from app.services.page_jobs import PagePayload
 from app.sheets import type_service as ts
 from app.sheets.planner import MARGIN_TEXT_GAP_HMM
 from app.sheets.sheet_page import render_sheet_page
+from sqlalchemy import select
+from sqlmodel import col
 
 from tests.helpers import pdf_inspect as pi
 from tests.integration.api.test_page_job_retry import _fail_cleanly, _retried_detail, _retry
 from tests.integration.api.test_sheet_print_api import (
     EN_MARK,
+    G48,
     _body,
     _set_margins,
     _sheet,
@@ -64,6 +68,11 @@ def _expected_text_x(rect: dict[str, Any]) -> int:
     return int(rect["x_hmm"] + lead)
 
 
+async def _sheet_row(code: str) -> Sheet:
+    async with _factory()() as s:
+        return (await s.execute(select(Sheet).where(col(Sheet.code) == code))).scalar_one()
+
+
 async def _zone_the_logo() -> None:
     async with _factory()() as s:
         await ts.patch_type(s, "acme-t1", {"preprint_zones": [LOGO]}, actor="t")
@@ -92,6 +101,11 @@ async def test_preview_and_job_store_the_same_decision() -> None:
         assert stored == shown_rect
         assert _drawn_id_x_hmm(payload) == _expected_text_x(stored)  # the job draws the stored one
         await rig.until_sheet(code, _used(1, 2))
+        # review round 3: the sheet records where its code sits, for a feed mark printed later
+        recorded = await _sheet_row(code)
+        assert recorded.margin_id_rect == {
+            "x": stored["x_hmm"], "y": stored["y_hmm"], "w": stored["w_hmm"], "h": stored["h_hmm"],
+        }  # fmt: skip
 
 
 async def test_retry_on_a_printer_with_a_larger_margin_moves_the_id() -> None:
@@ -118,3 +132,36 @@ async def test_retry_on_a_printer_with_a_larger_margin_moves_the_id() -> None:
         assert _drawn_id_x_hmm(retried) == _expected_text_x(rect)
         assert _expected_text_x(rect) != 985 + rect["h_hmm"] + MARGIN_TEXT_GAP_HMM
         await rig.until_sheet(code, lambda s: s["id_printed"])
+
+
+async def test_margin_reprint_keeps_a_printed_feed_mark_free() -> None:
+    """Review round 3 (Codex on #439): on a sheet whose feed mark is printed (1.7.x put it at the
+    top band's right end), a reprinted margin code with a long text stops before the mark."""
+    from app.page_render.transform import Deviation
+    from app.sheets.planner import choose_feed_mark
+
+    async with running(margins=Margins(top=423, left=423, bottom=423, right=423)) as rig:
+        code = await _sheet(placement="margin")
+        async with _factory()() as s:
+            row = (await s.execute(select(Sheet).where(col(Sheet.code) == code))).scalar_one()
+            row.id_printed = True
+            row.feed_mark_printed = True
+            await s.commit()
+            await ts.patch_type(
+                s, "acme-t1", {"vendor": "Acme " + "very long vendor " * 8}, actor="t"
+            )
+
+        resp = await rig.client.post(
+            f"/api/v1/sheets/{code}/margin-id", json={"printer": "page-1"}, headers=rig.key
+        )
+
+        assert resp.status_code in (200, 201, 202), resp.text
+        rect = (await rig.job_payload(resp.json()["job_id"]))["detail"]["margin_id_rect"]
+        hw = Margins(top=423, left=423, bottom=423, right=423)
+        mark, _ = choose_feed_mark(G48, hw=hw, dev=Deviation(), text=EN_MARK)
+        assert mark is not None and mark.end == "top_right"
+        from app.sheets.free_rects import Rect
+
+        drawn = Rect(rect["x_hmm"], rect["y_hmm"], rect["w_hmm"], rect["h_hmm"])
+        mark_box = Rect(mark.x_hmm, 423, mark.width_hmm, 2130 - 100 - 423)
+        assert not drawn.overlaps(mark_box.grown(MARGIN_TEXT_GAP_HMM, MARGIN_TEXT_GAP_HMM))

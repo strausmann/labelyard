@@ -29,11 +29,15 @@ from app.repositories.write_lock import write_transaction
 from app.sheets.errors import (
     BackingDesignPageSizeMismatchError,
     IdCellOutOfRangeError,
+    IdPositionOffPageError,
+    IdPositionOverlapsCellError,
     InvalidFieldError,
     InvalidGeometryError,
     PrefixLockedError,
     PrefixTakenError,
     PreprintPresetPageSizeMismatchError,
+    PreprintZoneOffPageError,
+    PreprintZoneOverlapsCellError,
     SheetTypeInUseError,
     SheetTypeNotFoundError,
     SheetTypeVersionNotFoundError,
@@ -486,6 +490,42 @@ async def _design_id_for(session: AsyncSession, t: SheetType, key: str | None) -
     return design.id
 
 
+_ZONES_FIRST = "Adjust or remove the sheet type's preprinted areas first, then add the version."
+_POSITION_FIRST = "Change the sheet code position first, then add the version."
+
+
+async def _check_position_on(session: AsyncSession, t: SheetType, g: Geometry) -> None:
+    """A new geometry keeps the type's zones and code position valid, or is refused (#246).
+
+    The zones (own and the preset's) must stay on the page and off every cell of the new
+    geometry, and a configured code position must stay valid: 422 with the codes of a write.
+    Zones are never dropped silently; the message says to adjust them first.
+    """
+    from app.models.preprint_preset import PreprintPreset
+    from app.sheets import preprint_service as pps  # deferred: it imports this module
+
+    page = {"page_w": g.page_w, "page_h": g.page_h, "geometry": g}
+    try:
+        pps.check_zones(t.preprint_zones or [], field="preprint_zones", **page)  # type: ignore[arg-type]
+        if t.preprint_preset_id is not None:
+            preset = await session.get(PreprintPreset, t.preprint_preset_id)
+            if preset is not None:
+                pps.check_zones(preset.zones, field="preprint_preset", **page)  # type: ignore[arg-type]
+    except (PreprintZoneOverlapsCellError, PreprintZoneOffPageError) as exc:
+        exc.message = f"{exc.message} {_ZONES_FIRST}"
+        raise
+    try:
+        pps.check_id_position(
+            g,
+            band=t.id_margin_band,
+            align=t.id_margin_align,  # type: ignore[arg-type]
+            offset_hmm=t.id_margin_offset_hmm,
+        )
+    except (IdPositionOffPageError, IdPositionOverlapsCellError) as exc:
+        exc.message = f"{exc.message} {_POSITION_FIRST}"
+        raise
+
+
 async def add_version_locked(
     session: AsyncSession, key: str, geometry: Geometry, *, actor: str, change_note: str
 ) -> SheetTypeVersion:
@@ -498,6 +538,7 @@ async def add_version_locked(
     latest = await current_version(session, t.id)
     if latest.geometry_hash == geometry_hash(geometry):
         raise InvalidGeometryError("geometry", "unchanged")
+    await _check_position_on(session, t, geometry)
     v = _new_version(t.id, latest.version + 1, geometry, actor=actor, change_note=change_note)
     session.add(v)
     t.updated_at = _now()

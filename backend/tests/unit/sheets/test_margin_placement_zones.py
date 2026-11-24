@@ -423,3 +423,32 @@ def test_overlaps_preprint_only_when_the_zones_block() -> None:
         None,
         "overlaps_preprint",
     )
+
+
+def test_mark_due_after_the_code_was_printed_never_overlaps_it() -> None:
+    """Review round 3 (Codex on #439): the code went to the top band's right end and the mark,
+    blocked at the left end, stayed due. On the next page the printed code keeps its place:
+    recorded on the sheet, or, for a code printed by 1.7.x, the 1.7.x band box."""
+    from app.sheets.planner import legacy_margin_box
+
+    left_zone = (Rect(985, 500, 4000, 1530),)
+    printed = Rect(14000, 500, 6015, 1530)  # the code at the right end, as recorded
+    view = replace(_view(MarginRule(zones=left_zone)), id_printed=True, printed_margin_rect=printed)
+
+    decision = decide_margin_and_mark(view, _ctx(), None)
+
+    assert decision.margin_id is False and decision.mark_was_due is True
+    assert decision.feed_mark is None and decision.feed_mark_reason == "no_free_place"
+    free = replace(view, margin_rule=MarginRule())
+    moved = decide_margin_and_mark(free, _ctx(), None).feed_mark
+    assert moved is not None and moved.end == "top_left"  # the left end, clear of the code
+    legacy = replace(free, printed_margin_rect=None)  # printed by 1.7.x: nothing recorded
+    old = decide_margin_and_mark(legacy, _ctx(), None).feed_mark
+    # 1.7.x put the mark first and ended the code's text before it: the box of that rule keeps
+    # the code's place, and the mark at the right end stays clear of it.
+    box = legacy_margin_box(L4736, "top", 1530, text_end_hmm=17300 - 200)
+    assert old is not None and old.end == "top_right"
+    assert not Rect(old.x_hmm, 500, old.width_hmm, 1530).overlaps(box)
+    assert (box.x, box.x2) == (985, 17100)
+    blocked = replace(legacy, margin_rule=MarginRule(zones=left_zone))
+    assert decide_margin_and_mark(blocked, _ctx(), None).feed_mark is not None  # right end free

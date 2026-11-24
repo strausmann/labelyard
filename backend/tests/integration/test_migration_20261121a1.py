@@ -34,6 +34,11 @@ def _columns(db: Path) -> set[str]:
         return {r[1] for r in con.execute("PRAGMA table_info(sheet_types)")}
 
 
+def _sheet_columns(db: Path) -> set[str]:
+    with sqlite3.connect(db) as con:
+        return {r[1] for r in con.execute("PRAGMA table_info(sheets)")}
+
+
 def _tables(db: Path) -> set[str]:
     with sqlite3.connect(db) as con:
         return {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -54,6 +59,7 @@ async def test_a1_downgrade_on_a_populated_db(tmp_path: Path) -> None:
     await migrate(db, _REV)
 
     assert _columns(db) >= _COLUMNS
+    assert "margin_id_rect" in _sheet_columns(db)
     # every existing type gets the defaults that place the code as 1.7.x did
     assert _one(
         db,
@@ -70,6 +76,9 @@ async def test_a1_downgrade_on_a_populated_db(tmp_path: Path) -> None:
             (preset_id, json.dumps([{"x": 15000, "y": 500, "w": 4000, "h": 1000}]), now, now),
         )
         key = con.execute("SELECT key FROM sheet_types ORDER BY key LIMIT 1").fetchone()[0]
+        con.execute(
+            "UPDATE sheets SET margin_id_rect = ?", (json.dumps({"x": 1, "y": 2, "w": 3, "h": 4}),)
+        )
         con.execute(
             "UPDATE sheet_types SET id_margin_band = 'top', id_margin_align = 'end',"
             " id_margin_offset_hmm = 2550, preprint_zones = ?, preprint_preset_id = ?"
@@ -89,6 +98,7 @@ async def test_a1_downgrade_on_a_populated_db(tmp_path: Path) -> None:
     await migrate(db, f"-{_PREV}")
 
     assert not _columns(db) & _COLUMNS and "preprint_presets" not in _tables(db)
+    assert "margin_id_rect" not in _sheet_columns(db)
     assert _one(db, "SELECT count(*) FROM sheet_types") == types
     assert _one(db, "SELECT count(*) FROM sheets") == sheets
 

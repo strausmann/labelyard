@@ -190,6 +190,12 @@ class Sheet(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default=false()),
     )
     note: str | None = Field(default=None, sa_column=Column(String, nullable=True))
+    # #246: where the printed margin code sits (``{"x", "y", "w", "h"}`` in hmm, page
+    # coordinates), recorded with ``id_printed``; a feed mark printed later keeps it free.
+    # ``None`` for a code printed by 1.7.x or not printed in the margin.
+    margin_id_rect: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     created_at: datetime = Field(default_factory=_now, sa_column=_dt())
     created_by: str | None = Field(default=None, sa_column=Column(String, nullable=True))
     last_used_at: datetime | None = Field(default=None, sa_column=_dt(nullable=True))

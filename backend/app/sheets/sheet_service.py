@@ -532,6 +532,12 @@ async def _settle_unconfirmed(
             before.sheet.id_printed = True
         elif row.job_id is not None and repo.margin_id_sheet(margin_jobs.get(row.job_id)):
             before.sheet.id_printed = True  # the job carried the margin ID
+            from app.sheets.sheet_page import printed_margin_rect  # deferred: heavy renderer
+
+            job = margin_jobs[row.job_id]
+            rect = printed_margin_rect((job.payload or {}).get("detail"))
+            if rect is not None:  # where it sits, for a feed mark printed later (#246)
+                before.sheet.margin_id_rect = rect
         # A separate check, not a third ``elif``: the ID-cell job of a ``cell`` sheet
         # carries the mark too, and its hub cell must set both flags.
         if row.job_id is not None and repo.feed_mark_sheet(margin_jobs.get(row.job_id)):

@@ -61,6 +61,7 @@ __all__ = [
     "decide_margin_and_mark",
     "feed_mark_text",
     "grown_zones",
+    "legacy_margin_box",
     "margin_bands_hmm",
     "margin_id_text",
     "margin_placement_with_reason",
@@ -166,6 +167,8 @@ class SheetView:
     # The type's placement rule and zones (#246) and its label, which the margin text carries.
     margin_rule: MarginRule = MarginRule()
     type_label: str | None = None
+    # Where the printed margin code sits (``Sheet.margin_id_rect``); ``None`` if not recorded.
+    printed_margin_rect: Rect | None = None
 
 
 @dataclass
@@ -618,6 +621,61 @@ def choose_feed_mark(
     return None, "no_free_place"
 
 
+def legacy_margin_box(
+    g: Geometry, band: MarginBand, depth_hmm: int, *, text_end_hmm: int | None = None
+) -> Rect:
+    """The box a margin code drawn by the band rule of 1.7.x takes: ``depth_hmm`` deep on the
+    grid side of ``band``, the whole grid long (up to ``text_end_hmm`` in the top band)."""
+    right, bottom = remaining_margins(g)
+    grid_right, grid_bottom = g.page_w - right, g.page_h - bottom
+    if band in ("top", "bottom"):
+        end = grid_right if band != "top" or text_end_hmm is None else min(grid_right, text_end_hmm)
+        y = g.margin_top - SAFETY_HMM - depth_hmm if band == "top" else grid_bottom + SAFETY_HMM
+        return Rect(g.margin_left, y, max(0, end - g.margin_left), depth_hmm)
+    x = grid_right + SAFETY_HMM if band == "right" else g.margin_left - SAFETY_HMM - depth_hmm
+    return Rect(x, g.margin_top, depth_hmm, grid_bottom - g.margin_top)
+
+
+def _printed_id_box(view: SheetView, margin: MarginContext, hw: Margins | None) -> Rect | None:
+    """Where the sheet's printed margin code sits, for a feed mark printed after it (#246).
+
+    The rectangle recorded with ``id_printed``; for a code printed by 1.7.x (none recorded) the
+    box of the 1.7.x rule on this printer (the mark placed first, the code beside it, its text up
+    to the mark or the grid's end), so a due mark keeps clear of wherever that code went.
+    ``None`` when the sheet has no printed margin code.
+    """
+    if view.id_placement != "margin" or not view.id_printed:
+        return None
+    if view.printed_margin_rect is not None:
+        return view.printed_margin_rect
+    # 1.7.x placed the mark first (OC-57) and the code with what was left, ending its text before
+    # the mark: the same decision on this printer gives the box that code took.
+    code = view.code or view.code_hint
+    mark, _ = choose_feed_mark(
+        view.geometry, hw=hw, dev=margin.deviation, text=feed_mark_text(margin.language)
+    )
+    mark_box = None
+    if mark is not None:
+        depth = min(
+            margin_bands_hmm(view.geometry, hw=hw, dev=margin.deviation)["top"], MAX_MARGIN_ID_HMM
+        )
+        mark_box = Rect(
+            mark.x_hmm, view.geometry.margin_top - SAFETY_HMM - depth, mark.width_hmm, depth
+        )
+    legacy = choose_margin_placement(
+        view.geometry,
+        hw=hw,
+        dev=margin.deviation,
+        payload=margin.scan_payload(code) if code else None,
+        dpi=margin.render_dpi,
+        taken=() if mark_box is None else (mark_box,),
+    )
+    if legacy is None:
+        return None
+    end = mark.x_hmm - MARGIN_TEXT_GAP_HMM if mark is not None and legacy.band == "top" else None
+    return legacy_margin_box(view.geometry, legacy.band, legacy.depth_hmm, text_end_hmm=end)
+
+
 @dataclass(frozen=True)
 class MarginDecision:
     """Whether the sheet's margin ID and feed mark are due on a page, and where they go."""
@@ -693,7 +751,10 @@ def decide_margin_and_mark(
         margin_id = placement is not None
         id_not_printed = placement is None
     if mark_due and margin is not None:
-        taken = (placement.rect,) if placement is not None else ()
+        printed = None if placement is not None else _printed_id_box(view, margin, hw_margins_hmm)
+        taken = (
+            (placement.rect,) if placement is not None else (() if printed is None else (printed,))
+        )
         key = (g, rule.zones, taken)
         if feed_marks is not None and key in feed_marks:
             feed_mark, reason = feed_marks[key]

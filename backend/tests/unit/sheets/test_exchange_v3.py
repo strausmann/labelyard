@@ -221,3 +221,44 @@ async def test_default_position_never_refuses_a_geometry_1_7_accepted(
     doc["type"]["id_margin_band"] = "top"
     with pytest.raises(IdPositionOffPageError):
         exchange.parse_import(_raw(doc))
+
+
+async def test_new_version_over_a_zone_or_the_code_position_is_refused(
+    session: AsyncSession,
+) -> None:
+    """Review round 3 (Codex on #439): a new geometry version that puts a cell under a zone or
+    makes the configured code position invalid is refused, on the write and on an import in mode
+    ``new_version``; the zones are never dropped silently."""
+    from dataclasses import replace
+
+    from app.sheets.errors import PreprintZoneOverlapsCellError as ZoneOverCell
+
+    await ts.create_type(session, _fields(), G, actor="tester")
+    logo = [{"x": 1000, "y": 600, "w": 3000, "h": 1000, "note": "Logo"}]
+    await ts.patch_type(session, "avery-l4736", {"preprint_zones": logo}, actor="tester")
+    lower = replace(G, margin_top=1000, rows=11)  # the first row now starts at 10 mm
+
+    with pytest.raises(ZoneOverCell) as exc:
+        await ts.add_version(session, "avery-l4736", lower, actor="t", change_note="Margin")
+    assert exc.value.status == 422 and "preprinted areas first" in exc.value.message
+    doc = _doc_dict(await exchange.export_type(session, "avery-l4736", None))
+    doc["version"]["geometry"]["margin_top"] = 10.0
+    doc["version"]["geometry"]["rows"] = 11
+    with pytest.raises(ZoneOverCell):
+        await exchange.import_type(
+            session, exchange.parse_import(_raw(doc)), mode="new_version", actor="t"
+        )
+    t = await ts.get_type(session, "avery-l4736")
+    assert t.preprint_zones == logo  # nothing dropped
+    assert len(await ts.list_versions_with_sheet_counts(session, t.id)) == 1
+
+    await ts.patch_type(
+        session, "avery-l4736", {"preprint_zones": [], "id_margin_band": "top"}, actor="tester"
+    )
+    tight = replace(G, margin_top=800, rows=12)
+    with pytest.raises(IdPositionOverlapsCellError) as pos:
+        await ts.add_version(session, "avery-l4736", tight, actor="t", change_note="Margin")
+    assert "position first" in pos.value.message
+    await ts.patch_type(session, "avery-l4736", {"id_margin_band": "auto"}, actor="tester")
+    added = await ts.add_version(session, "avery-l4736", tight, actor="t", change_note="Margin")
+    assert added.version == 2

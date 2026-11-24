@@ -50,6 +50,7 @@ from app.models.print_batch import PrintBatch
 from app.models.printer import Printer, is_page_printer
 from app.models.printer_tray import PrinterTray
 from app.models.sheet import SheetType, SheetTypeVersion
+from app.page_render.transform import Deviation
 from app.printer_backends.exceptions import ContentTypeDataMismatchError
 from app.printer_backends.ipp.attributes import Margins
 from app.repositories import print_batches as batches_repo
@@ -136,6 +137,7 @@ from app.sheets.errors import (
     SheetTypeVersionNotFoundError,
 )
 from app.sheets.exchange import geometry_to_doc
+from app.sheets.free_rects import Rect
 from app.sheets.geometry import Geometry, cell_count, hmm_to_mm
 from app.sheets.id_placement import (
     ResolvedPlacement,
@@ -145,6 +147,8 @@ from app.sheets.id_placement import (
 from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
     MARGIN_TEXT_GAP_HMM,
+    MAX_MARGIN_ID_HMM,
+    SAFETY_HMM,
     FeedMarkPlacement,
     FeedMarkReason,
     IdPlacementReason,
@@ -2268,7 +2272,7 @@ async def print_margin_id(
     queue: PageQueue,
     api_key_id: UUID | None,
     source_ip: str | None,
-    language: str | None,  # noqa: ARG001 - no mark on this page since the ID goes first (D33)
+    language: str | None,
 ) -> UUID:
     """Queue a ``sheet_page`` that prints only the margin ID of a printed ``margin`` sheet.
 
@@ -2308,16 +2312,32 @@ async def print_margin_id(
                 sheet_type = await session.get(SheetType, sheet.type_id)
                 assert sheet_type is not None  # the foreign key holds it
                 rule = (await margin_rules(session, [sheet_type]))[sheet_type.id]
-                # The ID is placed first (D33), as on the sheet's first page: the mark printed
-                # there, if any, sits in what that decision left free.
+                # A feed mark already on the sheet keeps its box: 1.7.x put it at the top
+                # band's right end before the code, so that box is reserved (review round 3).
+                printed_mark = (
+                    choose_feed_mark(
+                        geometry, hw=facts.margins_hmm, dev=deviation, text=feed_mark_text(language)
+                    )[0]
+                    if sheet.feed_mark_printed
+                    else None
+                )
                 placement = _place_id(
-                    geometry, rule, facts, deviation, scan, sheet.code, info.label
+                    geometry,
+                    rule,
+                    facts,
+                    deviation,
+                    scan,
+                    sheet.code,
+                    info.label,
+                    taken=()
+                    if printed_mark is None
+                    else (_mark_box(geometry, printed_mark, facts.margins_hmm, deviation),),
                 )
                 margin = _margin_payload(
                     code=sheet.code,
                     margin_id=True,
                     placement=placement,
-                    feed_mark=None,
+                    feed_mark=printed_mark,
                     type_label=info.label,
                     scan=scan,
                 )
@@ -2387,6 +2407,12 @@ class MarginCheck:
 NO_MARGIN_BAND_REASON: Final = "no margin band is 4 mm deep on this printer"
 
 
+def _mark_box(g: Geometry, mark: FeedMarkPlacement, hw: Margins | None, dev: Deviation) -> Rect:
+    """The box a feed mark takes in the top band: its text width, the band's drawn depth."""
+    depth = min(margin_bands_hmm(g, hw=hw, dev=dev)["top"], MAX_MARGIN_ID_HMM)
+    return Rect(mark.x_hmm, g.margin_top - SAFETY_HMM - depth, mark.width_hmm, depth)
+
+
 def _place_id(
     geometry: Geometry,
     rule: MarginRule,
@@ -2395,8 +2421,12 @@ def _place_id(
     scan: Callable[[str], str],
     code: str,
     type_label: str,
+    *,
+    taken: Sequence[Rect] = (),
 ) -> MarginPlacement | None:
-    return _place_id_with_reason(geometry, rule, facts, deviation, scan, code, type_label)[0]
+    return _place_id_with_reason(
+        geometry, rule, facts, deviation, scan, code, type_label, taken=taken
+    )[0]
 
 
 def _place_id_with_reason(
@@ -2407,6 +2437,8 @@ def _place_id_with_reason(
     scan: Callable[[str], str],
     code: str,
     type_label: str,
+    *,
+    taken: Sequence[Rect] = (),
 ) -> tuple[MarginPlacement | None, IdPlacementReason | None]:
     """The margin ID of ``code`` by the one placement function (spec 5.2), as a page decides it."""
     return margin_placement_with_reason(
@@ -2421,6 +2453,7 @@ def _place_id_with_reason(
         offset_hmm=rule.offset_hmm,
         text=margin_id_text(code, type_label),
         code_text=code,
+        taken=taken,
     )
 
 

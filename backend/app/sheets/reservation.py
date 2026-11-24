@@ -47,6 +47,7 @@ from app.sheets.errors import (
     SheetTypeMismatchError,
 )
 from app.sheets.events import SheetTouched, publish_touched
+from app.sheets.free_rects import Rect
 from app.sheets.geometry import cell_count
 from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
@@ -281,8 +282,17 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
             type_label=sheet_type_label(
                 sheet_type.vendor, sheet_type.product_codes, sheet_type.key
             ),
+            printed_margin_rect=_rect_or_none(sheet.margin_id_rect),
         )
     return views
+
+
+def _rect_or_none(stored: Any) -> Rect | None:
+    """``Sheet.margin_id_rect`` as a ``Rect``; anything unreadable counts as not recorded."""
+    try:
+        return Rect(int(stored["x"]), int(stored["y"]), int(stored["w"]), int(stored["h"]))
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 async def load_sheet_view(session: AsyncSession, code: str) -> SheetView:

@@ -79,6 +79,7 @@ __all__ = [
     "feed_mark_payload",
     "margin_id_payload",
     "margin_rect_of",
+    "printed_margin_rect",
     "render_preview_png",
     "render_sheet_page",
 ]
@@ -207,6 +208,32 @@ class MarginRect(BaseModel):
 def margin_rect_of(placement: MarginPlacement) -> MarginRect:
     r = placement.rect
     return MarginRect(x_hmm=r.x, y_hmm=r.y, w_hmm=r.w, h_hmm=r.h, content=placement.content)
+
+
+def printed_margin_rect(detail: Any) -> dict[str, int] | None:
+    """Where the margin code of a stored ``sheet_page`` detail sits on the page (#246).
+
+    The stored ``margin_id_rect``; a page stored by 1.7.x has none, then the box of its band rule
+    (``legacy_margin_box``). ``None`` when the page carries no margin code or the detail is not
+    readable."""
+    from app.sheets.planner import legacy_margin_box
+
+    if not isinstance(detail, dict) or not detail.get("margin_id"):
+        return None
+    try:
+        page = SheetPageDetail.model_validate(detail)
+    except ValueError:
+        return None
+    if page.margin_id is None:
+        return None
+    if page.margin_id_rect is not None:
+        r = page.margin_id_rect
+        return {"x": r.x_hmm, "y": r.y_hmm, "w": r.w_hmm, "h": r.h_hmm}
+    m = page.margin_id
+    box = legacy_margin_box(
+        Geometry(**page.geometry), m.band, m.usable_hmm, text_end_hmm=m.text_end_hmm
+    )
+    return {"x": box.x, "y": box.y, "w": box.w, "h": box.h}
 
 
 def feed_mark_payload(p: FeedMarkPlacement) -> FeedMarkPayload:
