@@ -257,6 +257,7 @@ async def print_calibration_page(
                 type_version_id=version.id,
                 actor=actor(auth),
                 submit=submit,
+                time_zone=str(_setting(request, "general.time_zone")),
             )
         except KeyError:
             raise _printer_unavailable(printer_id) from None
@@ -294,10 +295,13 @@ async def list_calibration_runs(
     )
 
 
-def _job_retention_days(request: Request) -> int:
+def _setting(request: Request, key: str) -> object:
     store = getattr(request.app.state, "settings_store", None)
-    key = "jobs.retention_days"
-    return int(store.get(key) if store is not None else SETTINGS[key].default)
+    return store.get(key) if store is not None else SETTINGS[key].default
+
+
+def _job_retention_days(request: Request) -> int:
+    return int(str(_setting(request, "jobs.retention_days")))
 
 
 @router.get(

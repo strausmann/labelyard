@@ -319,8 +319,28 @@ async def test_submit_with_run_stamps_the_payload_and_uses_the_run_job_id(
     [(payload, sent_id)] = seen
     assert sent_id == job_id == run.job_id
     assert payload.detail["run_no"] == 1 and payload.detail["run_id"] == str(run.id)
-    assert payload.detail["time"] == run.created_at.astimezone().strftime("%H:%M")
+    assert payload.detail["time"] == run.created_at.astimezone(UTC).strftime("%H:%M")  # default
     assert payload.detail["type_key"] == "acme"  # the rest of the detail stays
+
+
+@pytest.mark.parametrize(
+    ("zone", "expected"),
+    [
+        ("Europe/Berlin", "15:05"),
+        ("America/New_York", "09:05"),
+        ("UTC", "14:05"),
+        ("No/Zone", "14:05"),
+    ],
+)
+async def test_the_run_time_is_in_the_hub_time_zone(zone: str, expected: str) -> None:
+    """Codex review on #440: ``general.time_zone`` decides, not the server's zone; an unknown
+    zone falls back to UTC."""
+    run = CalibrationRun(
+        printer_id=uuid4(), tray="tray-1", run_no=7, kind="calibration_page", job_id=uuid4(),
+        type_version_id=uuid4(), requested_tray="tray-1",
+        created_at=datetime(2026, 11, 21, 14, 5, tzinfo=UTC),
+    )  # fmt: skip
+    assert runs.stamp(_payload(), run, time_zone=zone).detail["time"] == expected
 
 
 async def test_cancel_after_the_job_row_keeps_the_run(async_session_factory: Factory) -> None:

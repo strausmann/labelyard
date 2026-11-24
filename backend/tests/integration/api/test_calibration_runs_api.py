@@ -14,6 +14,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import app.models  # noqa: F401
 import bcrypt
@@ -150,6 +151,18 @@ class _Timeouts(httpx.AsyncBaseTransport):
         return await self._inner.handle_async_request(request)
 
 
+class _Settings:
+    """The two settings the calibration routes read; the rest comes from the registry."""
+
+    def __init__(self, values: dict[str, object]) -> None:
+        self._values = values
+
+    def get(self, key: str) -> object:
+        from app.settings_store.registry import SETTINGS
+
+        return self._values.get(key, SETTINGS[key].default)
+
+
 class _Env:
     def __init__(self, **kw: Any) -> None:
         self.__dict__.update(kw)
@@ -226,6 +239,7 @@ async def env(async_session_factory: async_sessionmaker[AsyncSession]) -> AsyncI
         app.include_router(calibration_router)
         app.include_router(jobs_router)
         app.state.print_queue = queue
+        app.state.settings_store = _Settings({"general.time_zone": "Pacific/Chatham"})
 
         async def _session() -> AsyncIterator[AsyncSession]:
             async with async_session_factory() as s:
@@ -262,7 +276,9 @@ async def test_a_calibration_page_is_run_1_with_its_number_in_the_payload(env: _
     assert job is not None
     assert job.payload["detail"]["run_no"] == 1
     assert job.payload["detail"]["run_id"] == str(run.id)
-    assert job.payload["detail"]["time"] == run.created_at.astimezone().strftime("%H:%M")
+    assert job.payload["detail"]["time"] == run.created_at.astimezone(
+        ZoneInfo("Pacific/Chatham")
+    ).strftime("%H:%M")  # the hub's zone (``general.time_zone``), not the server's
     second = await env.post_page(corrected=True)
     assert (await env.run_row(second)).kind == "check_page"
     listed = await env.runs()

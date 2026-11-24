@@ -20,9 +20,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any, Final, Literal
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, literal_column, select
@@ -175,8 +176,16 @@ async def _drop_old_runs(session: AsyncSession, printer_id: UUID, tray: str) -> 
     await session.execute(delete(CalibrationRun).where(col(CalibrationRun.id).in_(old_ids)))
 
 
-def stamp(payload: PagePayload, run: CalibrationRun) -> PagePayload:
-    """The payload with the run's number, local time (``HH:MM``) and id in ``detail``.
+def _zone(name: str) -> tzinfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return UTC
+
+
+def stamp(payload: PagePayload, run: CalibrationRun, *, time_zone: str = "UTC") -> PagePayload:
+    """The payload with the run's number, time (``HH:MM`` in the hub's ``time_zone``, the setting
+    ``general.time_zone``; an unknown zone is UTC) and id in ``detail``.
 
     ``detail`` ignores unknown keys in every release since 1.7.0 (ADR 0034); a retry copies the
     payload and so prints the same number and time.
@@ -184,7 +193,7 @@ def stamp(payload: PagePayload, run: CalibrationRun) -> PagePayload:
     detail = {
         **payload.detail,
         "run_no": run.run_no,
-        "time": run.created_at.astimezone().strftime("%H:%M"),
+        "time": run.created_at.astimezone(_zone(time_zone)).strftime("%H:%M"),
         "run_id": str(run.id),
     }
     return payload.model_copy(update={"detail": detail})
@@ -203,6 +212,7 @@ async def submit_with_run(
     actor: str | None,
     submit: SubmitFn,
     check_sheet: CheckSheetChoice | None = None,
+    time_zone: str = "UTC",
 ) -> tuple[CalibrationRun, UUID]:
     """Allocate a run, stamp the payload and ``submit(payload, job_id)`` with the run's job id.
 
@@ -227,7 +237,7 @@ async def submit_with_run(
     # and break every later read of it; the caller keeps a detached, fully loaded copy.
     session.expunge(run)
     try:
-        submitted = await submit(stamp(payload, run), job_id)
+        submitted = await submit(stamp(payload, run, time_zone=time_zone), job_id)
     except Exception:
         await _discard_unsubmitted(session, run)
         raise
