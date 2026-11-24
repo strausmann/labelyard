@@ -65,6 +65,24 @@ describe("edit details: preprinted areas and the sheet code position", () => {
     expect(done).not.toHaveBeenCalled();
   });
 
+  it("saving an area does not submit the details form around it (Codex on #441)", async () => {
+    const { calls } = mockApi({ "GET /api/v1/preprint-presets": [], [`PATCH ${PATH}`]: TYPE });
+    const done = await show();
+    // Another change first: a submit of the outer form would save it and close the editor.
+    await userEvent.clear(screen.getByRole("textbox", { name: "Vendor" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Vendor" }), "Other vendor");
+    await addZone({ note: "Logo", x: "10", y: "6", w: "30", h: "8" });
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+    expect(done).not.toHaveBeenCalled();
+    expect(screen.queryByText("Nothing changed.")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    await waitFor(() => expect(done).toHaveBeenCalled());
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({
+      vendor: "Other vendor",
+      preprint_zones: [BOTTOM, { x_mm: 10, y_mm: 6, w_mm: 30, h_mm: 8, note: "Logo" }],
+    });
+  });
+
   it("saves the code position with the details", async () => {
     const { calls } = mockApi({ "GET /api/v1/preprint-presets": [], [`PATCH ${PATH}`]: TYPE });
     const done = await show();

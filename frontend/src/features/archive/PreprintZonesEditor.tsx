@@ -285,6 +285,9 @@ function ZoneDialog({
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
+          // The dialog renders in a portal, but React submit events still bubble through the component tree: without this
+          // the Edit details form around the editor would submit too (Codex on #441).
+          event.stopPropagation();
           save();
         }}
       >
