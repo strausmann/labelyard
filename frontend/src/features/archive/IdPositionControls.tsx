@@ -17,7 +17,7 @@ export interface PositionDraft {
 
 const FOCUS = "data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 const SEGMENTS = "flex w-fit max-w-full flex-wrap gap-1 rounded-r2 border border-line-strong bg-surface p-1";
-const SEGMENT = `press flex min-h-10 cursor-pointer items-center rounded-r1 px-3 text-small font-bold text-ink transition-colors duration-150 data-[hovered]:bg-sunken data-[selected]:bg-ink data-[selected]:text-surface data-[disabled]:cursor-not-allowed data-[disabled]:opacity-60 ${FOCUS}`;
+const SEGMENT = `press flex min-h-10 cursor-pointer items-center whitespace-nowrap rounded-r1 px-3 text-small font-bold text-ink transition-colors duration-150 data-[hovered]:bg-sunken data-[selected]:bg-ink data-[selected]:text-surface data-[disabled]:cursor-not-allowed data-[disabled]:opacity-60 ${FOCUS}`;
 const STEP = `press flex size-11 shrink-0 items-center justify-center text-ink transition-colors duration-150 data-[hovered]:bg-line data-[pressed]:bg-line data-[disabled]:opacity-50 ${FOCUS}`;
 
 /** The draft from what the type stores. */
@@ -78,13 +78,13 @@ export function IdPositionControls({
           {t`Automatic chooses the largest free band. A band you choose is a rule: if it has no room on a printer, the code is not printed there.`}
         </p>
       </RadioGroup>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
         <RadioGroup
           value={value.align}
           onChange={(v) => onChange({ ...value, align: v as MarginAlign })}
           orientation="horizontal"
           isDisabled={isDisabled}
-          className="flex min-w-0 flex-col gap-1.5"
+          className="flex min-w-0 shrink-0 flex-col gap-1.5"
         >
           <Label className={LABEL}>{t`Start from`}</Label>
           <div className={SEGMENTS}>
@@ -97,10 +97,10 @@ export function IdPositionControls({
           onChange={(offset) => onChange({ ...value, offset })}
           isDisabled={isDisabled}
           isInvalid={invalidOffset}
-          className="flex min-w-0 flex-col gap-1.5"
+          className="flex min-w-0 max-w-72 flex-1 basis-56 flex-col gap-1.5"
         >
           <Label className={LABEL}>{t`Offset from that end`}</Label>
-          <Group className="flex h-11 w-fit items-stretch overflow-hidden rounded-r2 border border-line-strong bg-sunken data-[invalid]:border-bad has-[input:focus-visible]:outline-3 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-link">
+          <Group data-stepper="" className="flex h-11 w-fit items-stretch overflow-hidden rounded-r2 border border-line-strong bg-sunken data-[invalid]:border-bad has-[input:focus-visible]:outline-3 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-link">
             <Button
               aria-label={t`Decrease the offset by 0.5 mm`}
               onPress={() => step(-1)}

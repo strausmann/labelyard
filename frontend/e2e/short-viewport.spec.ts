@@ -498,14 +498,12 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await page.keyboard.press("End");
         await page.keyboard.type("5");
         // The browser scrolls the focused field into the visible area; the stand-in for a "covered" keyboard does not, so the
-        // test does it. The steppers sit on the field's own row: when the field is in sight, so are they.
-        await field.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        // test does it, with the stepper the field sits in: the − and + buttons are on the field's own row, one box with it.
+        await field.evaluate((el) => el.closest("[data-stepper]")!.scrollIntoView({ block: "start" }));
         await expectInSight(page, field, "the offset field");
         await expectInSight(page, page.getByRole("button", { name: "Increase the offset by 0.5 mm" }), "the + button");
         await expectInSight(page, page.getByRole("button", { name: "Decrease the offset by 0.5 mm" }), "the − button");
-        const save = page.getByRole("button", { name: "Save position" });
-        await save.evaluate((el) => el.scrollIntoView({ block: "start" }));
-        await expectInSight(page, save, "the Save position button");
+        await expect(field).toBeFocused();
       });
 
       /** #350: the add dialog with the 3490 type (its code goes on the back), handed over to the activation steps. */
