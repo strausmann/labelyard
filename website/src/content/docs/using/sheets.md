@@ -41,7 +41,7 @@ Each physical sheet gets its own code. When you add a sheet, you can print an ID
 
 ## Where the sheet code goes
 
-The sheet code identifies a sheet when you scan it, for example `A3490-0001`. Each sheet type says where the hub prints it; change it in the **Sheet archive**, tab **Sheet code**. The chosen place is shown as one card marked **Chosen**; the line **Other choices** below it switches to another one:
+The sheet code identifies a sheet when you scan it, for example `A3490-0001`. Each sheet type says where the hub prints it; change it in the **Sheet archive**, tab **Sheet code**. The chosen place is shown as one card marked **Chosen** (**Chosen automatically** while the type keeps the automatic choice); the line **Other choices** below it switches to another one:
 
 - **In the margin**: the code goes in the free band around the labels, with the sheet's first print. No extra pass.
 - **Back of the liner**: the code goes on the back of the liner, in a pass of its own.

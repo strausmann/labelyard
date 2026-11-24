@@ -1562,8 +1562,8 @@ msgid "Chosen"
 msgstr "Gewählt"
 
 #: src/features/archive/IdPlacementSection.tsx
-msgid "Chosen automatically from the usable margin. You can change it."
-msgstr "Automatisch nach dem nutzbaren Rand gewählt. Du kannst es ändern."
+msgid "Chosen automatically"
+msgstr "Automatisch gewählt"
 
 #: src/features/archive/MarginPlacement.tsx
 msgid "Chosen place"
@@ -6143,6 +6143,10 @@ msgstr "der Hub kennt dieses Druckermodell nicht"
 msgid "the hub is not connected to this printer"
 msgstr "der Hub ist mit diesem Drucker nicht verbunden"
 
+#: src/features/archive/IdPlacementSection.tsx
+msgid "The hub picked this place from the usable margin. You can change it."
+msgstr "Der Hub hat diese Stelle nach dem nutzbaren Rand gewählt. Du kannst sie ändern."
+
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub restarted while this label waited for the next part. Print it again."
 msgstr "Der Hub wurde neu gestartet, während dieses Etikett auf den nächsten Teil wartete. Drucke es noch einmal."
@@ -7307,6 +7311,10 @@ msgstr "Markierung an der Oberkante"
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "Tray"
 msgstr "Fach"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Tray check needs the printer status, which could not be read."
+msgstr "Die Fachprüfung braucht den Druckerstatus, und der war nicht lesbar."
 
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx

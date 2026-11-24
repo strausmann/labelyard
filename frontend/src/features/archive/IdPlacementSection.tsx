@@ -11,6 +11,7 @@ import { placeStrip, widestMargin } from "../sheets/backSide/strip";
 import { PANEL, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../ui";
 import { useBackingDesigns, usePatchType, type SheetTypeDetail } from "./api";
 import { useArchiveErrorText } from "./errors";
+import { positionOf, type PositionDraft } from "./IdPositionControls";
 import { ChosenPlace, MarginPosition, OnYourPrinters, type TrayChoice } from "./MarginPlacement";
 
 type Choice = "margin" | "back_side" | "cell";
@@ -25,7 +26,7 @@ const OTHER =
   "inline-flex min-h-11 cursor-pointer items-center rounded-r1 px-1 font-bold text-link underline underline-offset-2 data-[disabled]:cursor-not-allowed data-[disabled]:text-ink-3 data-[disabled]:no-underline data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 
 /** The chosen place as one card (mockup M2): its name, "Chosen", and what it means for printing. */
-function ChosenCard({ choice, automatic }: { choice: Choice; automatic: Choice }) {
+function ChosenCard({ choice, automatic, auto }: { choice: Choice; automatic: Choice; auto: boolean }) {
   const { t } = useLingui();
   const title = { margin: t`In the margin`, back_side: t`On the back of the liner`, cell: t`In a label cell` }[choice];
   const text = {
@@ -37,7 +38,7 @@ function ChosenCard({ choice, automatic }: { choice: Choice; automatic: Choice }
     <div role="group" aria-labelledby="chosen-placement" className="flex flex-col gap-1.5 rounded-r3 border-2 border-accent bg-surface p-4">
       <span className="flex flex-wrap items-center gap-2">
         <span id="chosen-placement" className="font-bold">{title}</span>
-        <span className="rounded-full bg-info-soft px-2 py-0.5 text-small font-bold text-ink">{t({ message: "Chosen", context: "placement" })}</span>
+        <span className="rounded-full bg-info-soft px-2 py-0.5 text-small font-bold text-ink">{auto ? t`Chosen automatically` : t({ message: "Chosen", context: "placement" })}</span>
         {automatic === choice ? <DefaultBadge /> : null}
       </span>
       <span className="text-ink-2">{text}</span>
@@ -67,6 +68,8 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
   const [cell, setCell] = useState(String(type.id_cell ?? 1));
   const [design, setDesign] = useState(type.backing_design?.key ?? PLAIN);
   const [saved, setSaved] = useState(false);
+  /** The margin position being edited: kept here so a switch to another choice and back does not drop it. */
+  const [position, setPosition] = useState<PositionDraft>(() => positionOf(type, i18n.locale));
   /** The tray picked on a printer row; the chosen place follows it. */
   const [trays, setTrays] = useState<TrayChoice>({});
 
@@ -75,7 +78,8 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
   const strips = chosenDesign?.strips ?? [];
   const where = placeStrip(strips);
   const widest = formatMm(Math.max(0, widestMargin(g)), i18n.locale);
-  const autoNow = type.id_placement === "auto" || (backToAuto && choice === automatic);
+  // Automatic only while the automatic place is the one shown: picking another place leaves it, "Automatic" returns.
+  const autoNow = choice === automatic && (type.id_placement === "auto" || backToAuto);
   const dirty =
     choice !== stored ||
     (backToAuto && type.id_placement !== "auto") ||
@@ -134,7 +138,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
           <h3 id="placement-h" className="text-section font-bold">{t`Where the sheet code goes`}</h3>
           <p className="text-ink-2">{t`The sheet code identifies a sheet when you scan it. Choose where the hub prints it.`}</p>
         </div>
-        <ChosenCard choice={choice} automatic={automatic} />
+        <ChosenCard choice={choice} automatic={automatic} auto={autoNow} />
         {admin ? (
           <div className="flex flex-col gap-1">
             <p className="m-0 flex flex-wrap items-center gap-x-1 text-small text-ink-2">
@@ -166,7 +170,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
             <p className={HINT}>{t`Choose any cell. It is left out of planning.`}</p>
           </div>
         ) : null}
-        {autoNow ? <p className="m-0 text-small text-ink-2">{t`Chosen automatically from the usable margin. You can change it.`}</p> : null}
+        {autoNow ? <p className="m-0 text-small text-ink-2">{t`The hub picked this place from the usable margin. You can change it.`}</p> : null}
         {choice === "back_side" ? (
         <div className="flex max-w-sm flex-col gap-1">
           <SelectField
@@ -198,7 +202,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
         {patch.isError ? <p role="alert" className="font-bold text-bad">{errorText(patch.error)}</p> : null}
         {choice === "margin" ? (
           <>
-            <MarginPosition type={type} admin={admin} />
+            <MarginPosition type={type} admin={admin} value={position} onChange={setPosition} />
             <OnYourPrinters type={type} trays={trays} onTray={(printer, tray) => setTrays((prev) => ({ ...prev, [printer]: tray }))} />
           </>
         ) : null}

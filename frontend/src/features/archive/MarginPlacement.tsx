@@ -12,7 +12,7 @@ import { SheetFrontDiagram, SheetFrontLegend } from "../sheets/GeometryDiagram";
 import { PANEL, PRIMARY_BUTTON } from "../ui";
 import { idPlacementQuery, useIdPlacement, usePatchType, type IdPlacementRow, type SheetTypeDetail, type SheetTypePatch } from "./api";
 import { useArchiveErrorText } from "./errors";
-import { IdPositionControls, positionOf, type PositionDraft } from "./IdPositionControls";
+import { IdPositionControls, type PositionDraft } from "./IdPositionControls";
 import { allZones, formatTenth } from "./preprint";
 import { parseDecimal } from "./search";
 import { rectOf } from "./SheetFrontPanel";
@@ -85,11 +85,21 @@ export function usePlacementRows(key: string, trays: TrayChoice) {
 }
 
 /** "Position in the margin" of the type page (mockup M2): the same controls as Edit details, saved on their own. */
-export function MarginPosition({ type, admin }: { type: SheetTypeDetail; admin: boolean }) {
-  const { t, i18n } = useLingui();
+export function MarginPosition({
+  type,
+  admin,
+  value,
+  onChange: setValue,
+}: {
+  type: SheetTypeDetail;
+  admin: boolean;
+  /** The draft lives in the section, so switching to another choice and back keeps it (re-review 1 of #441). */
+  value: PositionDraft;
+  onChange: (next: PositionDraft) => void;
+}) {
+  const { t } = useLingui();
   const errorText = useArchiveErrorText();
   const patch = usePatchType();
-  const [value, setValue] = useState<PositionDraft>(() => positionOf(type, i18n.locale));
   const [saved, setSaved] = useState(false);
   const offset = parseDecimal(value.offset);
   const offsetOk = offset !== null && offset >= 0 && offset <= 1000;
@@ -207,6 +217,9 @@ function PrinterRow({
             </>
           ) : null}
         </p>
+      ) : null}
+      {status.isError ? (
+        <p className="m-0 text-small text-ink-2">{t`Tray check needs the printer status, which could not be read.`}</p>
       ) : null}
       {trays.length > 1 ? (
         <div className="flex max-w-xs flex-col gap-1">

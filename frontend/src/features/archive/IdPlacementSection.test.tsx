@@ -61,9 +61,9 @@ describe("where the sheet code goes", () => {
   it("auto shows the resolved place as the chosen card and the automatic note", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490);
-    expect(chosen("On the back of the liner")).toHaveTextContent("Chosen");
+    expect(within(chosen("On the back of the liner")).getByText("Chosen automatically")).toBeVisible();
     expect(within(chosen("On the back of the liner")).getByText("Default for this sheet")).toBeVisible();
-    expect(screen.getByText("Chosen automatically from the usable margin. You can change it.")).toBeVisible();
+    expect(screen.getByText("The hub picked this place from the usable margin. You can change it.")).toBeVisible();
   });
 
   it("the margin is offered as another choice but disabled, with the reason, when the type has no usable band", async () => {
@@ -132,6 +132,20 @@ describe("where the sheet code goes", () => {
     expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({ id_placement: "auto", backing_design: ULTRAGRIP.key });
   });
 
+  it("with a stored automatic setting, another place is plainly chosen and Automatic is offered to return (re-review 1)", async () => {
+    mockApi({ "GET /api/v1/backing-designs": [], [`GET /api/v1/sheet-types/${T_MARGIN.key}/id-placement`]: [] });
+    await show(T_MARGIN);
+    expect(within(chosen("In the margin")).getByText("Chosen automatically")).toBeVisible();
+    await userEvent.click(other("Back of the liner"));
+    const card = chosen("On the back of the liner");
+    expect(within(card).getByText("Chosen")).toBeVisible();
+    expect(within(card).queryByText("Chosen automatically")).toBeNull();
+    expect(screen.queryByText(/picked this place from the usable margin/)).toBeNull();
+    await userEvent.click(other("Automatic"));
+    expect(within(chosen("In the margin")).getByText("Chosen automatically")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Automatic" })).toBeNull();
+  });
+
   it("automatic is not offered while the setting is already automatic", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490);
@@ -150,7 +164,7 @@ describe("where the sheet code goes", () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490, true, "de");
     expect(screen.getByRole("heading", { name: "Wo der Bogencode hinkommt" })).toBeVisible();
-    expect(chosen("Auf der Rückseite des Trägerpapiers")).toHaveTextContent("Gewählt");
+    expect(chosen("Auf der Rückseite des Trägerpapiers")).toHaveTextContent("Automatisch gewählt");
     expect(other("Im Rand")).toBeDisabled();
     expect(other("Eine Etikettenzelle")).toBeVisible();
     expect(screen.getByText("Standard für diesen Bogen")).toBeVisible();
@@ -320,6 +334,68 @@ describe("the sheet code in the margin", () => {
     const inkjet = within(screen.getByRole("list", { name: "Printers" })).getAllByRole("listitem")[1]!;
     expect(within(inkjet).getByText("Does not fit")).toBeVisible();
     expect(screen.getByText("Top band, 58.4 mm from the left")).toBeVisible();
+  });
+
+  it("an unsaved offset survives switching to another choice and back (re-review 1)", async () => {
+    mockApi(routes());
+    await show(POSITIONED);
+    const field = await screen.findByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "12");
+    await userEvent.click(other("A label cell"));
+    expect(screen.queryByRole("textbox", { name: "Offset from that end" })).toBeNull();
+    await userEvent.click(other("In the margin"));
+    expect(await screen.findByRole("textbox", { name: "Offset from that end" })).toHaveValue("12");
+    expect(screen.getByRole("button", { name: "Save position" })).toBeEnabled();
+  });
+
+  it("a late answer for an older tray never overwrites the newer tray (re-review 1)", async () => {
+    const t2 = [{ ...ROWS[0]!, tray: "tray-2", offset_mm: 50, x_mm: 58.4, w_mm: 30, content: "qr_code" }, ROWS[1]!];
+    const t3 = [{ ...ROWS[0]!, tray: "tray-3", offset_mm: 70, x_mm: 78.4, w_mm: 31, content: "qr_code" }, ROWS[1]!];
+    let release2: () => void = () => {};
+    const gate2 = new Promise<void>((r) => (release2 = r));
+    mockApi(
+      routes({
+        [`GET /api/v1/sheet-types/${POSITIONED.key}/id-placement`]: async (_i: RequestInit, url: URL) => {
+          const tray = url.searchParams.get("tray");
+          if (tray === "tray-2") {
+            await gate2;
+            return t2;
+          }
+          return tray === "tray-3" ? t3 : ROWS;
+        },
+        [`GET /api/v1/printers/${OFFICE}/status`]: status(OFFICE, {
+          trays: ["tray-1", "tray-2", "tray-3"].map((k, i) => ({ key: k, label: `Tray ${i + 1}`, enabled: true, is_default: i === 0, load_hint: null })),
+        }),
+      }),
+    );
+    await show(POSITIONED);
+    const office = within(await screen.findByRole("list", { name: "Printers" })).getAllByRole("listitem")[0]!;
+    await userEvent.click(await within(office).findByRole("button", { name: / Check on tray$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Tray 2" }));
+    await userEvent.click(await within(office).findByRole("button", { name: / Check on tray$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Tray 3" }));
+    await waitFor(() => expect(office).toHaveTextContent("Office laser · Tray 3"));
+    expect(screen.getByText("Top band, 78.4 mm from the left")).toBeVisible();
+    release2();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByText("Top band, 78.4 mm from the left")).toBeVisible();
+    expect(office).toHaveTextContent("Office laser · Tray 3");
+  });
+
+  it("a printer whose status cannot be read keeps its row and says why it has no tray check (re-review 1)", async () => {
+    mockApi(
+      routes({
+        [`GET /api/v1/printers/${OFFICE}/status`]: () => {
+          throw new TypeError("offline");
+        },
+      }),
+    );
+    await show(POSITIONED);
+    const office = within(await screen.findByRole("list", { name: "Printers" })).getAllByRole("listitem")[0]!;
+    expect(within(office).getByText("Fits")).toBeVisible();
+    expect(await within(office).findByText("Tray check needs the printer status, which could not be read.")).toBeVisible();
+    expect(within(office).queryByRole("button", { name: / Check on tray$/ })).toBeNull();
   });
 
   it("a tray the printer cannot use now is said, and its default tray is shown", async () => {

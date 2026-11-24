@@ -41,7 +41,7 @@ Jeder echte Bogen bekommt einen eigenen Code. Wenn du einen Bogen hinzufügst, k
 
 ## Wo der Bogencode hinkommt
 
-Der Bogencode erkennt einen Bogen, wenn du ihn scannst, zum Beispiel `A3490-0001`. Jeder Bogentyp legt fest, wo der Hub ihn druckt; ändern kannst du das im **Bogenarchiv**, Reiter **Bogencode**. Die gewählte Stelle steht als eine Karte mit **Gewählt** da; die Zeile **Andere Möglichkeiten** darunter wechselt zu einer anderen:
+Der Bogencode erkennt einen Bogen, wenn du ihn scannst, zum Beispiel `A3490-0001`. Jeder Bogentyp legt fest, wo der Hub ihn druckt; ändern kannst du das im **Bogenarchiv**, Reiter **Bogencode**. Die gewählte Stelle steht als eine Karte mit **Gewählt** da (**Automatisch gewählt**, solange der Typ die automatische Wahl behält); die Zeile **Andere Möglichkeiten** darunter wechselt zu einer anderen:
 
 - **Im Rand**: Der Code kommt in den freien Rand um die Etiketten, mit dem ersten Druck auf den Bogen. Kein zusätzlicher Durchgang.
 - **Rückseite des Trägerpapiers**: Der Code kommt auf die Rückseite des Trägerpapiers, in einem eigenen Durchgang.
