@@ -53,6 +53,7 @@ from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
     FeedMarkPlacement,
     FeedMarkWait,
+    IdPendingReason,
     MarginContext,
     MarginPlacement,
     PlacementIn,
@@ -154,6 +155,7 @@ class ReservedPage:
     back_side_pending: bool = False
     # The waiting signal (#403): response-only, never stored with the job.
     id_pending: bool = False
+    id_pending_reason: IdPendingReason | None = None
     feed_mark_pending: bool = False
     feed_mark_reason: FeedMarkWait | None = None
 
@@ -218,7 +220,7 @@ async def _in_flight_many(
     still own unconfirmed cells of the sheet, and those of finished jobs whose cells are not
     settled yet (R10-4). A sheet with an unattached reservation answers at once."""
     return {
-        sid: flags for sid, (flags, _) in (await _in_flight_details(session, sheet_ids)).items()
+        sid: flags for sid, (flags, _, _) in (await _in_flight_details(session, sheet_ids)).items()
     }
 
 
@@ -243,21 +245,25 @@ def _in_flight_boxes(payloads: Sequence[dict[str, Any]], sheet_id: UUID) -> tupl
 
 async def _in_flight_details(
     session: AsyncSession, sheet_ids: Sequence[UUID]
-) -> dict[UUID, tuple[tuple[bool, bool], tuple[Rect, ...]]]:
-    """``_in_flight_many`` with the boxes those pages carry (``_in_flight_boxes``). A sheet with
-    an unattached reservation has no stored page yet: both in flight, no box known."""
+) -> dict[UUID, tuple[tuple[bool, bool], tuple[Rect, ...], bool]]:
+    """``_in_flight_many`` with the boxes those pages carry (``_in_flight_boxes``) and whether
+    the margin ID is in flight only through jobs that own unconfirmed cells (``SheetView.
+    margin_id_unconfirmed``, #403). A sheet with an unattached reservation has no stored page yet:
+    both in flight, no box known, not unconfirmed."""
     unattached = await repo.unattached_reservation_sheets(session, sheet_ids)
     rest = [sid for sid in sheet_ids if sid not in unattached]
-    payloads: list[dict[str, Any]] = []
+    on_the_way: list[dict[str, Any]] = []
+    unconfirmed: list[dict[str, Any]] = []
     if rest:
-        payloads = [
+        on_the_way = [
             *await repo.active_job_payloads(session, rest),
-            *await repo.unconfirmed_job_payloads(session, rest),
             *await repo.unsettled_job_payloads(session, rest),
         ]
+        unconfirmed = await repo.unconfirmed_job_payloads(session, rest)
+    payloads = [*on_the_way, *unconfirmed]
     return {
         sid: (
-            ((True, True), ())
+            ((True, True), (), False)
             if sid in unattached
             else (
                 (
@@ -265,6 +271,8 @@ async def _in_flight_details(
                     _active_sheet_page_carries(payloads, sid, "feed_mark"),
                 ),
                 _in_flight_boxes(payloads, sid),
+                _active_sheet_page_carries(unconfirmed, sid, "margin_id")
+                and not _active_sheet_page_carries(on_the_way, sid, "margin_id"),
             )
         )
         for sid in sheet_ids
@@ -298,7 +306,7 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
         if sheet_type is None or version is None:  # foreign keys make this unreachable
             raise SheetNotFoundError()
         rows = cells[sheet.id]
-        (margin_in_flight, mark_in_flight), in_flight_boxes = flags[sheet.id]
+        (margin_in_flight, mark_in_flight), in_flight_boxes, margin_unconfirmed = flags[sheet.id]
         views[code] = SheetView(
             code=sheet.code,
             type_key=sheet_type.key,
@@ -323,6 +331,7 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
             earlier_margin_rects=_earlier_rects(sheet.margin_id_rect),
             printed_mark_rect=_rect_or_none(sheet.feed_mark_rect),
             in_flight_boxes=in_flight_boxes,
+            margin_id_unconfirmed=sheet.id_placement == "margin" and margin_unconfirmed,
             hub_cell_state=next((c.state for c in rows if c.source == HUB_SOURCE), None),
         )
     return views
@@ -533,6 +542,7 @@ async def _attempt(
                         page.sheet.id_placement == "back_side" and not page.sheet.id_printed
                     ),
                     id_pending=page.id_pending,
+                    id_pending_reason=page.id_pending_reason,
                     feed_mark_pending=page.feed_mark_pending,
                     feed_mark_reason=page.feed_mark_reason,
                 )
@@ -714,6 +724,7 @@ async def reserve_exact(
         feed_mark=decision.feed_mark,
         back_side_pending=view.id_placement == "back_side" and not view.id_printed,
         id_pending=decision.id_pending,
+        id_pending_reason=decision.id_pending_reason,
         feed_mark_pending=decision.feed_mark_pending,
         feed_mark_reason=decision.feed_mark_reason,
     )

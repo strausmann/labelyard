@@ -3793,6 +3793,11 @@ export interface components {
              */
             id_pending: boolean;
             /**
+             * Id Pending Reason
+             * @description Why the sheet code waits: `in_flight`, a page still in the queue carries it; `unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits until they are resolved. `null` when `id_pending` is false.
+             */
+            id_pending_reason?: ("in_flight" | "unconfirmed") | null;
+            /**
              * Load Hint
              * @description How to load the tray, if the printer has a hint.
              */
@@ -3990,6 +3995,11 @@ export interface components {
              * @default false
              */
             id_pending: boolean;
+            /**
+             * Id Pending Reason
+             * @description Why the sheet code waits: `in_flight`, a page still in the queue carries it; `unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits until they are resolved. `null` when `id_pending` is false.
+             */
+            id_pending_reason?: ("in_flight" | "unconfirmed") | null;
             /**
              * Job Id
              * Format: uuid

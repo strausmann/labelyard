@@ -6781,6 +6781,11 @@ msgstr "Der Bogencode ist in der Druckwarteschlange."
 
 #: src/features/sheets/print/PrintResult.tsx
 #: src/features/sheets/print/SheetPreview.tsx
+msgid "The sheet code waits until the unconfirmed page is resolved."
+msgstr "Der Bogencode wartet, bis die unbestätigte Seite geklärt ist."
+
+#: src/features/sheets/print/PrintResult.tsx
+#: src/features/sheets/print/SheetPreview.tsx
 msgid "The sheet code will be printed with the page that is still in the queue."
 msgstr "Der Bogencode wird mit der Seite gedruckt, die noch in der Warteschlange liegt."
 

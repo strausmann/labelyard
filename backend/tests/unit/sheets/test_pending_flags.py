@@ -69,11 +69,26 @@ def test_margin_id_in_flight_sets_id_pending_not_id_not_printed() -> None:
 
     assert decision.margin_id is False and decision.placement is None
     assert decision.id_pending is True
+    assert decision.id_pending_reason == "in_flight"
     assert decision.id_not_printed is False
 
 
+def test_margin_id_on_an_unconfirmed_page_reason_unconfirmed() -> None:
+    """Operator ruling on #443: a job that owns unconfirmed cells has ended; the code waits for
+    a human to resolve them, not for the queue."""
+    view = _view(margin_id_in_flight=True, margin_id_unconfirmed=True)
+
+    decision = decide_margin_and_mark(view, _ctx(), None)
+
+    assert decision.id_pending is True and decision.id_not_printed is False
+    assert decision.id_pending_reason == "unconfirmed"
+    (page,) = plan([PlacementIn(view, "first_free", count=1)], 1, hw_margins_hmm=None,
+                   margin=_ctx()).pages  # fmt: skip
+    assert page.id_pending is True and page.id_pending_reason == "unconfirmed"
+
+
 def test_cell_sheet_with_reserved_id_cell_sets_id_pending() -> None:
-    for state in ("reserved", "unconfirmed"):
+    for state, reason in (("reserved", "in_flight"), ("unconfirmed", "unconfirmed")):
         view = _view(
             "cell", non_free={1: state}, has_hub_cell=True, hub_cell_state=state, id_cell_no=1
         )
@@ -81,13 +96,16 @@ def test_cell_sheet_with_reserved_id_cell_sets_id_pending() -> None:
         decision = decide_margin_and_mark(view, _ctx(), None)
 
         assert decision.id_pending is True, state
+        assert decision.id_pending_reason == reason, state
         assert decision.id_not_printed is False and decision.margin_id is False
         # The planner places no second ID cell on the page (needs_id_cell is false).
         (page,) = plan([PlacementIn(view, "first_free", count=1)], 1, hw_margins_hmm=None,
                        margin=_ctx()).pages  # fmt: skip
         assert page.id_cell is None and page.id_pending is True
+        assert page.id_pending_reason == reason
     used = _view("cell", non_free={1: "used"}, has_hub_cell=True, hub_cell_state="used")
     assert decide_margin_and_mark(used, _ctx(), None).id_pending is False
+    assert decide_margin_and_mark(used, _ctx(), None).id_pending_reason is None
     for other in ("back_side", "manual"):
         assert decide_margin_and_mark(_view(other), _ctx(), None).id_pending is False
 
@@ -98,7 +116,7 @@ def test_no_room_sets_id_not_printed_not_id_pending() -> None:
     decision = decide_margin_and_mark(_view(rule=rule), _ctx(), None)
 
     assert decision.id_not_printed is True
-    assert decision.id_pending is False
+    assert decision.id_pending is False and decision.id_pending_reason is None
 
 
 def test_mark_in_flight_reason_in_flight() -> None:
@@ -127,8 +145,8 @@ def test_mark_without_place_reason_no_free_place_and_stays_due() -> None:
                    margin=_ctx()).pages  # fmt: skip
     assert page.feed_mark is None and page.feed_mark_pending is True
     assert page.feed_mark_reason == "no_free_place"
-    # Not recorded: the sheet's flag stays unset, so the next page decides again.
-    assert view.feed_mark_printed is False
+    # Not recorded: the sheet's flag stays unset after the page has printed; the API test
+    # ``test_mark_without_place_stays_due_after_printing`` checks that on the stored sheet.
     again = decide_margin_and_mark(view, _ctx(), None)
     assert again.mark_was_due is True and again.feed_mark_reason == "no_free_place"
     placed = decide_margin_and_mark(_view("manual"), _ctx(), None)
@@ -150,6 +168,7 @@ def test_later_page_of_the_same_request_waits_for_the_page_that_carries_them() -
     assert first.id_pending is False and first.feed_mark_pending is False
     assert second.margin_id is False and second.feed_mark is None
     assert second.id_pending is True and second.id_not_printed is False
+    assert second.id_pending_reason == "in_flight"
     assert second.feed_mark_pending is True
     assert second.feed_mark_reason == "in_flight"
     cell_first, cell_second = _two_pages(_view("cell"))

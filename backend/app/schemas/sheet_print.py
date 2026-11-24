@@ -225,6 +225,14 @@ class PreviewPage(BaseModel):
             "`id_not_printed` is for no room; the two are never both true."
         ),
     )
+    id_pending_reason: Literal["in_flight", "unconfirmed"] | None = Field(
+        default=None,
+        description=(
+            "Why the sheet code waits: `in_flight`, a page still in the queue carries it; "
+            "`unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits "
+            "until they are resolved. `null` when `id_pending` is false."
+        ),
+    )
     feed_mark_pending: bool = Field(
         default=False,
         description="The feed-direction mark is due but not on this page (see `feed_mark_reason`).",
@@ -319,6 +327,14 @@ class PrintedPage(BaseModel):
             "The sheet code is not printed yet and not on this page because another job carries "
             "it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). "
             "`id_not_printed` is for no room; the two are never both true."
+        ),
+    )
+    id_pending_reason: Literal["in_flight", "unconfirmed"] | None = Field(
+        default=None,
+        description=(
+            "Why the sheet code waits: `in_flight`, a page still in the queue carries it; "
+            "`unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits "
+            "until they are resolved. `null` when `id_pending` is false."
         ),
     )
     feed_mark_pending: bool = Field(

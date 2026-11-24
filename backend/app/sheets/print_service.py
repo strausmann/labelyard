@@ -1312,6 +1312,7 @@ async def preview(
                 margin_id_rect=None if rect is None else _rect_mm(rect),
                 feed_mark_end=None if page.feed_mark is None else page.feed_mark.end,
                 id_pending=page.id_pending,
+                id_pending_reason=page.id_pending_reason,
                 feed_mark_pending=page.feed_mark_pending,
                 feed_mark_reason=page.feed_mark_reason,
             )
@@ -1743,6 +1744,7 @@ def _printed_page(page: ReservedPage) -> PrintedPage:
         feed_mark=page.feed_mark is not None,
         back_side_pending=page.back_side_pending,
         id_pending=page.id_pending,
+        id_pending_reason=page.id_pending_reason,
         feed_mark_pending=page.feed_mark_pending,
         feed_mark_reason=page.feed_mark_reason,
     )

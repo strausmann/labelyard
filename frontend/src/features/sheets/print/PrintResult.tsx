@@ -50,7 +50,11 @@ export function PrintResult({ pages, printerId }: { pages: Page[]; printerId?: s
               ) : page.margin_id ? (
                 <span className="text-small text-ink-2">{sheetIdBand(page.margin_band)}</span>
               ) : page.id_pending ? (
-                <span className="text-small text-ink-2">{t`The sheet code will be printed with the page that is still in the queue.`}</span>
+                <span className="text-small text-ink-2">
+                  {page.id_pending_reason === "unconfirmed"
+                    ? t`The sheet code waits until the unconfirmed page is resolved.`
+                    : t`The sheet code will be printed with the page that is still in the queue.`}
+                </span>
               ) : null}
               {page.back_side_pending ? (
                 <span className="flex flex-wrap items-center gap-x-3">

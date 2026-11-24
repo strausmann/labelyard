@@ -6781,6 +6781,11 @@ msgstr "The sheet code is in the print queue."
 
 #: src/features/sheets/print/PrintResult.tsx
 #: src/features/sheets/print/SheetPreview.tsx
+msgid "The sheet code waits until the unconfirmed page is resolved."
+msgstr "The sheet code waits until the unconfirmed page is resolved."
+
+#: src/features/sheets/print/PrintResult.tsx
+#: src/features/sheets/print/SheetPreview.tsx
 msgid "The sheet code will be printed with the page that is still in the queue."
 msgstr "The sheet code will be printed with the page that is still in the queue."
 
