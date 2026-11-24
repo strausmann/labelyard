@@ -2838,6 +2838,30 @@
             ],
             "description": "Width of the code's rectangle on the page.",
             "title": "W Mm"
+          },
+          "x_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Left edge of the code's rectangle, from the page's left.",
+            "title": "X Mm"
+          },
+          "y_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Top edge of the code's rectangle, from the page's top.",
+            "title": "Y Mm"
           }
         },
         "required": [

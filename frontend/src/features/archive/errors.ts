@@ -152,6 +152,18 @@ export function useArchiveErrorText(): (error: unknown, fallback?: string) => st
             ? t`Other types use the same backing design and cannot take the catalog's change: ${types}. Nothing was changed.`
             : t`Other types use the same backing design and cannot take the catalog's change. Nothing was changed.`;
         }
+        case "id_position_overlaps_cell":
+          return t`At this position the sheet code would cover a label. Choose another band or offset.`;
+        case "id_position_off_page":
+          return t`At this position the sheet code would leave the page. Make the offset smaller.`;
+        case "preprint_zone_overlaps_cell":
+          return t`A preprinted area covers a label. Move it out of the labels or remove it.`;
+        case "preprint_zone_off_page":
+          return t`A preprinted area reaches outside the page.`;
+        case "preprint_preset_page_size_mismatch":
+          return t`That preset is for another paper size.`;
+        case "preprint_preset_not_found":
+          return t`That preset no longer exists.`;
         case "sheet_type_archived":
           return t`This type is archived. Bring it back first.`;
         case "sheet_type_not_found":

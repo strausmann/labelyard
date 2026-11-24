@@ -3,19 +3,23 @@
 
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "react-aria-components";
 import { PRIMARY_BUTTON } from "../../shell/SignIn";
 import { PANEL, SECONDARY_BUTTON } from "../ui";
 import { SelectField, SwitchField, TextInput } from "../settings/controls";
 import { SaveFeedback } from "../settings/feedback";
 import { invalidGeometry } from "../../api/errorDetail";
-import { useAddVersion, useCreateType, usePatchType, type SheetTypeCreate, type SheetTypeDetail, type SheetTypePatch } from "./api";
+import { SheetFrontPanel } from "./SheetFrontPanel";
+import { useAddVersion, useCreateType, usePatchType, usePreprintPresets, type SheetTypeCreate, type SheetTypeDetail, type SheetTypePatch } from "./api";
+import { IdPositionControls, positionOf, type PositionDraft } from "./IdPositionControls";
+import { allZones, coveredCells, rowCol, zoneRefusal, type Zone } from "./preprint";
+import { PreprintZonesEditor, type ZonesDraft } from "./PreprintZonesEditor";
 import { useArchiveErrorText } from "./errors";
 import { TextAreaField } from "./fields";
 import { draftOf, EMPTY_DRAFT, geometryOf, sameGeometry, type FieldName, type GeometryDraft } from "./geometryDraft";
 import { PREFIX, KEY } from "./patterns";
-import { httpUrl } from "./search";
+import { httpUrl, parseDecimal } from "./search";
 
 // The server's field names for the measurement inputs, to mark the one it complained about.
 const SERVER_FIELD: Record<string, FieldName> = {
@@ -43,6 +47,12 @@ function hasUserInfo(value: string): boolean {
 const MAX = { vendor: 200, description: 200, sourceName: 200, sourceUrl: 500, notes: 2000, changeNote: 500, codes: 50, code: 40 };
 
 export type FormMode = { kind: "create" } | { kind: "details"; type: SheetTypeDetail } | { kind: "geometry"; type: SheetTypeDetail };
+
+/** Same zones in the same order (the note counts: it is stored). */
+function sameZones(a: readonly Zone[], b: readonly Zone[]): boolean {
+  const key = (z: Zone) => [z.x_mm, z.y_mm, z.w_mm, z.h_mm, z.note ?? ""].join("|");
+  return a.length === b.length && a.every((z, i) => key(z) === key(b[i]!));
+}
 
 const nullable = (value: string): string | null => (value.trim() === "" ? null : value.trim());
 const splitCodes = (value: string): string[] => value.split(/[,\n]/).map((c) => c.trim()).filter((c) => c !== "");
@@ -126,7 +136,7 @@ function useFieldMessage(draft: GeometryDraft): (field: FieldName) => string {
  * because they share the measurement fields and the way they report what is wrong.
  */
 export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey?: string) => void }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const errorText = useArchiveErrorText();
   const create = useCreateType();
   const patchType = usePatchType();
@@ -146,6 +156,12 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
   const [draft, setDraft] = useState<GeometryDraft>(type ? draftOf(type.geometry) : EMPTY_DRAFT);
   const [changeNote, setChangeNote] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
+  // Edit details also holds the sheet code position and the preprinted areas (#246, mockup M1).
+  const [position, setPosition] = useState<PositionDraft>(() =>
+    type ? positionOf(type, i18n.locale) : { band: "auto", align: "start", offset: "0" },
+  );
+  const [zonesDraft, setZonesDraft] = useState<ZonesDraft>({ preset: type?.preprint_preset?.key ?? null, zones: type?.preprint_zones ?? [] });
+  const presets = usePreprintPresets(mode.kind === "details");
   const [badField, setBadField] = useState<FieldName | null>(null);
   const fieldMessage = useFieldMessage(draft);
   // Sheets already made on the current version keep that version when a new one is saved.
@@ -200,6 +216,13 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
         if (!PREFIX.test(prefix)) return setProblem(t`The code prefix is 2 to 10 capital letters or digits and starts with a letter.`);
         patch.prefix = prefix;
       }
+      if (position.band !== before.id_margin_band) patch.id_margin_band = position.band;
+      if (position.align !== before.id_margin_align) patch.id_margin_align = position.align;
+      const offset = parseDecimal(position.offset);
+      if (offset === null || offset < 0 || offset > 1000) return setProblem(t`The offset is a number of mm from 0 to 1000, for example 12.5.`);
+      if (Math.round(offset * 100) !== Math.round(before.id_margin_offset_mm * 100)) patch.id_margin_offset_mm = Math.round(offset * 100) / 100;
+      if (!sameZones(zonesDraft.zones, before.preprint_zones ?? [])) patch.preprint_zones = zonesDraft.zones;
+      if (zonesDraft.preset !== (before.preprint_preset?.key ?? null)) patch.preprint_preset = zonesDraft.preset;
       if (Object.keys(patch).length === 0) return setProblem(t`Nothing changed.`);
       patchType.mutate({ key: before.key, patch }, { onSuccess: () => onDone() });
       return;
@@ -251,7 +274,21 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
   const measured = mode.kind === "geometry" ? geometryOf(draft, mode.type.geometry) : null;
   const noChange = mode.kind === "geometry" && measured !== null && "geometry" in measured && sameGeometry(measured.geometry, mode.type.geometry);
 
-  return (
+  const refusal = mode.kind === "details" ? zoneRefusal(patchType.error) : null;
+  const linkedPreset = type?.preprint_preset ?? null;
+  const presetList = presets.data ?? [];
+  const presetZones =
+    zonesDraft.preset === null
+      ? []
+      : (presetList.find((p) => p.key === zonesDraft.preset)?.zones ?? (linkedPreset?.key === zonesDraft.preset ? linkedPreset.zones : []));
+  const shownZones = allZones(zonesDraft.zones, presetZones);
+  const refusedIndex = refusal ? (refusal.list === "preset" ? refusal.index : presetZones.length + refusal.index) : null;
+  const changeZones = (next: ZonesDraft) => {
+    setZonesDraft(next);
+    patchType.reset();
+  };
+
+  const form = (
     <form
       aria-label={heading}
       noValidate
@@ -262,6 +299,9 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
       }}
     >
       <h2 className="text-section font-bold">{heading}</h2>
+      {mode.kind === "details" && refusal && refusedIndex !== null ? (
+        <ZoneRefusalNote geometry={mode.type.geometry} zone={shownZones[refusedIndex]} number={refusedIndex + 1} code={refusal.code} />
+      ) : null}
 
       {mode.kind === "create" ? (
         <div className="grid gap-5 sm:grid-cols-2">
@@ -296,6 +336,37 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
         </fieldset>
       ) : null}
 
+      {mode.kind === "details" ? (
+        <>
+          <fieldset className="flex flex-col gap-4">
+            <legend className="mb-1 text-section font-bold">{t`Sheet code position`}</legend>
+            <p className="-mt-2 text-ink-2">{t`Where the margin sheet code is printed. Checked against every page printer on the type page.`}</p>
+            <IdPositionControls
+              value={position}
+              onChange={(next) => {
+                setPosition(next);
+                patchType.reset();
+              }}
+              invalidOffset={parseDecimal(position.offset) === null}
+            />
+          </fieldset>
+          <fieldset className="flex flex-col gap-4">
+            <legend className="mb-1 text-section font-bold">{t`Preprinted areas`}</legend>
+            <p className="-mt-2 text-ink-2">
+              {t`Where the vendor printed on the front of the sheet. The hub keeps the sheet code, its QR code and the feed mark out of these areas.`}
+            </p>
+            <PreprintZonesEditor
+              geometry={mode.type.geometry}
+              presets={presetList}
+              linked={linkedPreset}
+              value={zonesDraft}
+              onChange={changeZones}
+              refusal={refusal}
+            />
+          </fieldset>
+        </>
+      ) : null}
+
       {mode.kind !== "details" ? <GeometryFields draft={draft} onChange={setDraft} invalid={badField ?? serverField} /> : null}
 
       {mode.kind === "geometry" ? (
@@ -322,7 +393,49 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
           {t`Cancel`}
         </Button>
       </div>
-      <SaveFeedback error={problem ?? (serverError ? errorText(serverError) : null)} saved={false} />
+      {mode.kind === "details" ? <p className="m-0 text-small text-ink-2">{t`Saving checks the areas against the labels and refuses a bad one.`}</p> : null}
+      {/* A refused zone is reported at the top of the form, next to the list it marks. */}
+      <SaveFeedback error={problem ?? (serverError && !refusal ? errorText(serverError) : null)} saved={false} />
     </form>
+  );
+
+  if (mode.kind !== "details") return form;
+  return (
+    <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,42rem)_minmax(0,20rem)]">
+      {form}
+      <SheetFrontPanel geometry={mode.type.geometry} typeKey={mode.type.key} zones={shownZones} refused={refusedIndex === null ? [] : [refusedIndex]} />
+    </div>
+  );
+}
+
+/** "1 area was not saved": the zone the server refused, in words, above the form (mockup M1). */
+function ZoneRefusalNote({ geometry, zone, number, code }: { geometry: SheetTypeDetail["geometry"]; zone: Zone | undefined; number: number; code: string }) {
+  const { t } = useLingui();
+  const cells = zone ? coveredCells(geometry, zone) : [];
+  const first = cells[0];
+  let text: string;
+  if (code === "preprint_zone_off_page") {
+    text = t`Area ${number} reaches outside the page. Move it onto the sheet or remove it.`;
+  } else if (first !== undefined) {
+    const { row, col } = rowCol(geometry, first);
+    text = t`Area ${number} covers label ${first} (row ${row}, column ${col}). Preprint sits in the margins, so a label there would be printed on top of it. Move the area out of the labels or remove it.`;
+  } else {
+    text = t`Area ${number} covers a label. Preprint sits in the margins, so a label there would be printed on top of it. Move the area out of the labels or remove it.`;
+  }
+  // Save is at the foot of a long form: bring the note into sight when it appears.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [number, code]);
+  return (
+    <div ref={ref} role="alert" className="flex scroll-mt-20 items-start gap-3 rounded-r3 border border-bad bg-bad/10 p-4">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" className="mt-0.5 shrink-0 fill-none stroke-bad stroke-2 [stroke-linecap:round]">
+        <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM9 9l6 6M15 9l-6 6" />
+      </svg>
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="m-0 font-bold">{t`1 area was not saved`}</p>
+        <p className="m-0 text-small">{text}</p>
+      </div>
+    </div>
   );
 }

@@ -136,6 +136,24 @@ export const useImportType = () =>
     (_v, data) => data?.key ?? null,
   );
 
+export type PreprintPresetRead = Schemas["PreprintPresetRead"];
+export type IdPlacementRow = Schemas["IdPlacementRow"];
+
+/** The vendor prints on the front of a sheet (#246); a type links one of them. */
+export const usePreprintPresets = (enabled = true) =>
+  useQuery({ queryKey: ["preprint-presets"], queryFn: () => apiFetch<PreprintPresetRead[]>("/api/v1/preprint-presets"), enabled });
+
+/**
+ * Per page printer, whether and where the margin sheet code of a type fits (#246). Lives under the type's key: a write
+ * to the type (its position, its zones) refreshes it.
+ */
+export const useIdPlacement = (key: string, enabled = true) =>
+  useQuery({
+    queryKey: [...typeKey(key), "id-placement"] as const,
+    queryFn: () => apiFetch<IdPlacementRow[]>(`${typePath(key)}/id-placement`),
+    enabled,
+  });
+
 export type BackingDesignRead = Schemas["BackingDesignRead"];
 
 /** The vendor prints on the back of a liner (#350); a type links one of them. */

@@ -64,17 +64,21 @@ async def test_id_placement_route_fits_does_not_fit_overlaps() -> None:
         assert row["fits"] is True and row["band"] == "top" and row["reason"] is None
         assert row["content"] == "qr_code_type" and row["offset_mm"] == 0
         assert row["h_mm"] == round(21.3 - 4.23 - 1, 2)
+        # The rectangle's corner, so the type page can draw it: the grid's start, below the edge.
+        assert row["x_mm"] == 9.85 and 4.23 <= row["y_mm"] <= 21.3 - row["h_mm"]
 
         offset = await _patch(rig, "acme-t1", {"id_margin_offset_mm": 12.5}, admin)
         assert offset.status_code == 200, offset.text
         (moved,) = (await _rows(rig)).json()
         assert moved["fits"] is True and moved["offset_mm"] == 12.5
+        assert moved["x_mm"] == round(9.85 + 12.5, 2)
 
         right = await _patch(rig, "acme-t1", {"id_margin_band": "right"}, admin)
         assert right.status_code == 200, right.text
         (small,) = (await _rows(rig)).json()
         assert small["fits"] is False and small["reason"] == "too_small"
         assert small["band"] is None and small["w_mm"] is None
+        assert small["x_mm"] is None and small["y_mm"] is None
 
         await _patch(rig, "acme-t1", {"id_margin_band": "auto", "id_margin_offset_mm": 0}, admin)
         zoned = await _patch(rig, "acme-t1", {"preprint_zones": ALL_BANDS}, admin)

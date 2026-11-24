@@ -3084,6 +3084,16 @@ export interface components {
              * @description Width of the code's rectangle on the page.
              */
             w_mm: number | null;
+            /**
+             * X Mm
+             * @description Left edge of the code's rectangle, from the page's left.
+             */
+            x_mm?: number | null;
+            /**
+             * Y Mm
+             * @description Top edge of the code's rectangle, from the page's top.
+             */
+            y_mm?: number | null;
         };
         /**
          * IdentityResolve

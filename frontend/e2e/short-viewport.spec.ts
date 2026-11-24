@@ -465,6 +465,49 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await page.keyboard.press("Escape");
       });
 
+      test("zone editor fields and sticky Save stay in view", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
+        await page.getByRole("button", { name: "Edit details" }).click();
+        await page.getByRole("button", { name: "Add area" }).click();
+        const dialog = dialogOf(page);
+        await expect(dialog).toBeVisible();
+        const height = dialog.getByRole("textbox", { name: "Height" });
+        await height.click();
+        await keyboard(mode);
+        await page.keyboard.type("6,5");
+        await expectInSight(page, frameOf(dialog), "the dialog");
+        // The four numbers sit in two columns: with the last one focused, the first one is in sight too.
+        await height.scrollIntoViewIfNeeded();
+        await expectInSight(page, height, "the Height field");
+        await expectInSightOnceSettled(page, dialog.getByRole("textbox", { name: "Width" }), "the Width field");
+        // Save and Cancel sit in a sticky footer: in sight without scrolling.
+        await expectInSightOnceSettled(page, buttonIn(dialog, "Save area"), "the Save area button");
+        await expectInSightOnceSettled(page, buttonIn(dialog, "Cancel"), "the Cancel button");
+        await buttonIn(dialog, "Cancel").click();
+        await expect(dialog).toHaveCount(0);
+      });
+
+      test("ID offset stepper stays in view", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
+        await page.getByRole("tab", { name: "Where the code goes" }).click();
+        const field = page.getByRole("textbox", { name: "Offset from that end" });
+        await field.click();
+        await keyboard(mode);
+        await page.keyboard.press("End");
+        await page.keyboard.type("5");
+        // The browser scrolls the focused field into the visible area; the stand-in for a "covered" keyboard does not, so the
+        // test does it. The steppers sit on the field's own row: when the field is in sight, so are they.
+        await field.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expectInSight(page, field, "the offset field");
+        await expectInSight(page, page.getByRole("button", { name: "Increase the offset by 0.5 mm" }), "the + button");
+        await expectInSight(page, page.getByRole("button", { name: "Decrease the offset by 0.5 mm" }), "the − button");
+        const save = page.getByRole("button", { name: "Save position" });
+        await save.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expectInSight(page, save, "the Save position button");
+      });
+
       /** #350: the add dialog with the 3490 type (its code goes on the back), handed over to the activation steps. */
       async function openActivation() {
         const dialog = await openAddSheet();

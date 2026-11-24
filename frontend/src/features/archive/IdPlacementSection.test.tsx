@@ -3,7 +3,7 @@
 
 import { I18nProvider } from "@lingui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { i18n, initI18n } from "../../i18n";
@@ -142,3 +142,67 @@ describe("where the sheet code goes", () => {
     await initI18n("en");
   });
 });
+
+describe("the sheet code in the margin", () => {
+  const POSITIONED: SheetTypeDetail = {
+    ...T_MARGIN,
+    id_margin_band: "top",
+    id_margin_align: "end",
+    id_margin_offset_mm: 54,
+    preprint_zones: [{ x_mm: 150, y_mm: 7.5, w_mm: 48, h_mm: 7, note: "Size text" }],
+  };
+  const OFFICE = "11111111-1111-4111-8111-111111111111";
+  const INKJET = "33333333-3333-4333-8333-333333333333";
+  const ROWS = [
+    { printer_id: OFFICE, printer_name: "Office laser", tray: "tray-1", fits: true, band: "top", offset_mm: 95.2, x_mm: 103.6, y_mm: 5.2, w_mm: 42, h_mm: 12, content: "qr_code_type", reason: null },
+    { printer_id: INKJET, printer_name: "Desk inkjet", tray: "tray-1", fits: false, band: null, offset_mm: null, x_mm: null, y_mm: null, w_mm: null, h_mm: null, content: null, reason: "too_small" },
+  ];
+  const routes = (over: Record<string, unknown> = {}) => ({
+    "GET /api/v1/backing-designs": [],
+    [`GET /api/v1/sheet-types/${POSITIONED.key}/id-placement`]: ROWS,
+    ...over,
+  });
+
+  it("per-printer table shows fits, reason and band", async () => {
+    mockApi(routes());
+    await show(POSITIONED);
+    const list = await screen.findByRole("list", { name: "Printers" });
+    const [office, inkjet] = within(list).getAllByRole("listitem");
+    expect(office).toHaveTextContent("Office laser");
+    expect(within(office!).getByText("Fits")).toBeVisible();
+    expect(within(office!).getByText("QR + code + type text")).toBeVisible();
+    expect(within(office!).getByText("Top band, 54.0 mm from the right")).toBeVisible();
+    expect(inkjet).toHaveTextContent("Desk inkjet");
+    expect(within(inkjet!).getByText("Does not fit")).toBeVisible();
+    expect(within(inkjet!).getByText("Not printed in the margin")).toBeVisible();
+    expect(within(inkjet!).getByText(/The band left on this printer is too shallow or too short for the code\./)).toBeVisible();
+    expect(within(inkjet!).getByText("too_small")).toBeVisible();
+    expect(screen.getByText("1 of 2 printers do not print the code in the margin")).toBeVisible();
+    // The chosen place of the first row, drawn and in words.
+    expect(screen.getByRole("img", { name: /Sheet front/ }).querySelector("[data-id-rect]")).not.toBeNull();
+    expect(screen.getByText("Top band, 103.6 mm from the left")).toBeVisible();
+    expect(screen.getByText("42.0 × 12.0 mm")).toBeVisible();
+  });
+
+  it("save position sends the band, the start and the offset", async () => {
+    const { calls } = mockApi(routes({ [`PATCH /api/v1/sheet-types/${POSITIONED.key}`]: POSITIONED }));
+    await show(POSITIONED);
+    await userEvent.click(screen.getByRole("radio", { name: "Bottom" }));
+    const field = screen.getByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "12,5");
+    await userEvent.click(screen.getByRole("button", { name: "Save position" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+    expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({
+      id_margin_band: "bottom",
+      id_margin_offset_mm: 12.5,
+    });
+  });
+
+  it("the position is not offered while the code goes on the back", async () => {
+    mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
+    await show(T3490);
+    expect(screen.queryByRole("heading", { name: "Position in the margin" })).toBeNull();
+  });
+});
+

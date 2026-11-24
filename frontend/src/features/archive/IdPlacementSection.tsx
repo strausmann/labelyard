@@ -11,6 +11,7 @@ import { placeStrip, widestMargin } from "../sheets/backSide/strip";
 import { PANEL, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../ui";
 import { useBackingDesigns, usePatchType, type SheetTypeDetail } from "./api";
 import { useArchiveErrorText } from "./errors";
+import { ChosenPlace, MarginPosition, OnYourPrinters } from "./MarginPlacement";
 
 type Choice = "margin" | "back_side" | "cell";
 const PLAIN = "";
@@ -88,7 +89,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
   }
 
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
+    <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
       <section aria-labelledby="placement-h" className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h3 id="placement-h" className="text-section font-bold">{t`Where the sheet code goes`}</h3>
@@ -195,7 +196,16 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
           </div>
         ) : null}
         {patch.isError ? <p role="alert" className="font-bold text-bad">{errorText(patch.error)}</p> : null}
+        {choice === "margin" ? (
+          <>
+            <MarginPosition type={type} admin={admin} />
+            <OnYourPrinters type={type} />
+          </>
+        ) : null}
       </section>
+      {choice === "margin" ? (
+        <ChosenPlace type={type} />
+      ) : (
       <aside aria-labelledby="liner-h" className={`${PANEL} flex h-fit flex-col gap-3`}>
         <h4 id="liner-h" className="font-bold">{t`Preview`}</h4>
         <div className="flex justify-center rounded-r2 bg-sunken p-3">
@@ -205,6 +215,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
           {where ? t`Back of the liner. The code goes in the marked strip.` : t`No free strip of this print takes the code.`}
         </p>
       </aside>
+      )}
     </div>
   );
 }

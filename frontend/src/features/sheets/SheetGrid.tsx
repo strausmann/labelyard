@@ -231,6 +231,8 @@ export interface SheetGridProps {
   selectable?: (cell: GridCell) => boolean;
   /** Test seam: skips measuring the container. */
   containerWidth?: number;
+  /** Preprinted areas of the sheet's type (#246), drawn hatched over the page: nothing is printed there. */
+  zones?: readonly { x_mm: number; y_mm: number; w_mm: number; h_mm: number }[];
 }
 
 /**
@@ -239,7 +241,7 @@ export interface SheetGridProps {
  * On phones, selecting opens a zoomed view in its own scroll container so every cell is at least
  * 44 × 44 px (spec 17.6); the page itself never scrolls sideways.
  */
-export function SheetGrid({ geometry: g, cells, mode, onToggle, onInspect, overlayPng, zoom = 1, label, selectable, containerWidth }: SheetGridProps) {
+export function SheetGrid({ geometry: g, cells, mode, onToggle, onInspect, overlayPng, zoom = 1, label, selectable, containerWidth, zones = [] }: SheetGridProps) {
   const { i18n } = useLingui();
   const t = useCallback<Translate>((d) => i18n._(d), [i18n]);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -327,6 +329,16 @@ export function SheetGrid({ geometry: g, cells, mode, onToggle, onInspect, overl
         <StatePatterns id={patternId} overlay={!!overlayPng} />
         <rect width={layout.pageW} height={layout.pageH} className="fill-surface stroke-line-strong" strokeWidth={0.4} />
         {overlayPng && <image href={overlayPng} x="0" y="0" width={layout.pageW} height={layout.pageH} preserveAspectRatio="none" />}
+        {zones.length > 0 ? (
+          <g data-zones="" aria-hidden="true" pointerEvents="none">
+            <pattern id={`${patternId}-zone`} patternUnits="userSpaceOnUse" width="2.2" height="2.2" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="2.2" className="stroke-ink-3" strokeWidth="0.45" />
+            </pattern>
+            {zones.map((z, i) => (
+              <rect key={i} data-zone="kept" x={z.x_mm} y={z.y_mm} width={z.w_mm} height={z.h_mm} fill={`url(#${patternId}-zone)`} className="stroke-ink-3" strokeWidth={0.3} />
+            ))}
+          </g>
+        ) : null}
         {rows.map((row) => (
           <g key={row} role="row" aria-rowindex={row + 1}>
             {Array.from({ length: g.cols }, (_, col) => {

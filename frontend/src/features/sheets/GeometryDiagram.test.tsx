@@ -7,7 +7,7 @@ import { I18nProvider } from "@lingui/react";
 import type { ReactElement } from "react";
 import { i18n, initI18n } from "../../i18n";
 import type { GeometryMm } from "./cellState";
-import { GeometryDiagram } from "./GeometryDiagram";
+import { GeometryDiagram, SheetFrontDiagram } from "./GeometryDiagram";
 
 const G: GeometryMm = {
   page_size: "A4", page_w: 210, page_h: 297, label_w: 45.7, label_h: 21.2, cols: 4, rows: 12,
@@ -67,3 +67,41 @@ describe("GeometryDiagram", () => {
     expect(screen.getByText("Right margin").nextElementSibling).not.toHaveTextContent("NaN");
   });
 });
+
+describe("SheetFrontDiagram", () => {
+  const logo = { x_mm: 10, y_mm: 6.5, w_mm: 34, h_mm: 9, note: "Logo" };
+  const dust = { x_mm: 12, y_mm: 22, w_mm: 30, h_mm: 6, note: "Dust cover" };
+
+  it("diagram draws zones hatched and the ID rectangle outlined", () => {
+    const { container } = render(
+      <SheetFrontDiagram geometry={G} zones={[logo, dust]} refused={[1]} idRect={{ x_mm: 104.2, y_mm: 5, w_mm: 42, h_mm: 12 }} label="Sheet front" />,
+    );
+    const svg = screen.getByRole("img", { name: "Sheet front" });
+    const zones = svg.querySelectorAll("[data-zone]");
+    expect(zones).toHaveLength(2);
+    const [kept, refused] = [...zones] as SVGRectElement[];
+    // Hatched: filled with the hatch pattern, drawn at the zone's place in page mm.
+    expect(kept!.getAttribute("data-zone")).toBe("kept");
+    expect(kept!.getAttribute("fill")).toMatch(/^url\(#.+-zone\)$/);
+    expect([kept!.getAttribute("x"), kept!.getAttribute("y"), kept!.getAttribute("width"), kept!.getAttribute("height")]).toEqual(["10", "6.5", "34", "9"]);
+    // A refused zone is dashed, not only coloured.
+    expect(refused!.getAttribute("data-zone")).toBe("refused");
+    expect(refused!.getAttribute("stroke-dasharray")).not.toBeNull();
+    const id = svg.querySelector("[data-id-rect]")!;
+    expect(id).not.toBeNull();
+    expect([id.getAttribute("x"), id.getAttribute("y"), id.getAttribute("width"), id.getAttribute("height")]).toEqual(["104.2", "5", "42", "12"]);
+    expect(id.getAttribute("fill")).toBeNull();
+    expect(id.getAttribute("class")).toContain("stroke-link");
+    expect(id.getAttribute("stroke-dasharray")).toBeNull();
+    // Every label cell is drawn.
+    expect(container.querySelectorAll("[data-cell-shape]")).toHaveLength(48);
+  });
+
+  it("without zones and without a rectangle it draws only the labels", () => {
+    render(<SheetFrontDiagram geometry={G} zones={[]} label="Sheet front" />);
+    const svg = screen.getByRole("img", { name: "Sheet front" });
+    expect(svg.querySelector("[data-zone]")).toBeNull();
+    expect(svg.querySelector("[data-id-rect]")).toBeNull();
+  });
+});
+
