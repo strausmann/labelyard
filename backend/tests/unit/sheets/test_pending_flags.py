@@ -163,3 +163,13 @@ def test_later_page_does_not_wait_for_a_code_the_first_page_had_no_room_for() ->
     assert first.id_not_printed is True and first.feed_mark is None
     assert second.id_pending is False
     assert second.feed_mark_reason != "in_flight"
+
+
+def test_later_page_keeps_the_no_free_place_of_the_first() -> None:
+    """Codex on #443, round 2: the mark stays due on both pages and has no place on either."""
+    first, second = _two_pages(_view("manual", rule=MarginRule(zones=BOTH_ENDS)))
+
+    assert first.feed_mark is None and first.feed_mark_reason == "no_free_place"
+    assert second.feed_mark is None
+    assert second.feed_mark_pending is True
+    assert second.feed_mark_reason == "no_free_place"
