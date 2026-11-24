@@ -11,7 +11,8 @@ really goes out, ends, and the printer is asked which tray it took.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -393,3 +394,47 @@ async def test_a_job_cancelled_before_it_started_is_not_asked_for_its_tray(env: 
     assert (await env.queue.get(job_id)).state.value == "cancelled"
     assert env.transport.asked == 0
     assert run.media_source_reported is False and run.actual_media_source is None
+
+
+@pytest.fixture
+def server_in_utc(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """The server's own zone is UTC for the test (``TZ``), whatever the machine runs in."""
+    import time
+
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def _zone_on_another_day() -> str:
+    """A hub zone whose date differs from the UTC date right now (UTC+14 from 10:00 UTC on,
+    UTC-12 before 12:00 UTC)."""
+    return "Etc/GMT-14" if datetime.now(UTC).hour >= 10 else "Etc/GMT+12"
+
+
+async def test_page_date_and_time_follow_the_hub_zone_not_the_server(
+    env: _Env, server_in_utc: None
+) -> None:
+    """Fix round 2: ``date`` and ``time`` of the calibration page come from the same zone, the
+    setting ``general.time_zone``; the PDF download carries the same date as the job."""
+    del server_in_utc
+    zone = _zone_on_another_day()
+    assert datetime.now(ZoneInfo(zone)).date() != datetime.now(UTC).date()  # the premise
+    env.app.state.settings_store = _Settings({"general.time_zone": zone})
+    job_id = await env.post_page()
+    run = await env.run_row(job_id)
+    async with env.factory() as s:
+        job = await s.get(Job, UUID(job_id))
+    assert job is not None
+    stamped = run.created_at.astimezone(ZoneInfo(zone))
+    assert job.payload["detail"]["date"] == stamped.date().isoformat()
+    assert job.payload["detail"]["time"] == stamped.strftime("%H:%M")
+    async with env.client() as c:
+        dl = await c.get(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1/page/pdf?type=cal-run"
+        )
+    assert dl.status_code == 200
+    [sent] = [r for r in env.fake.received if r.operation == "Print-Job"]
+    assert dl.content == sent.document  # the download draws the same date (OC-35)

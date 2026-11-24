@@ -176,7 +176,8 @@ async def _drop_old_runs(session: AsyncSession, printer_id: UUID, tray: str) -> 
     await session.execute(delete(CalibrationRun).where(col(CalibrationRun.id).in_(old_ids)))
 
 
-def _zone(name: str) -> tzinfo:
+def hub_zone(name: str) -> tzinfo:
+    """The zone of the setting ``general.time_zone``; an unknown zone is UTC."""
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError):
@@ -193,7 +194,7 @@ def stamp(payload: PagePayload, run: CalibrationRun, *, time_zone: str = "UTC") 
     detail = {
         **payload.detail,
         "run_no": run.run_no,
-        "time": run.created_at.astimezone(_zone(time_zone)).strftime("%H:%M"),
+        "time": run.created_at.astimezone(hub_zone(time_zone)).strftime("%H:%M"),
         "run_id": str(run.id),
     }
     return payload.model_copy(update={"detail": detail})

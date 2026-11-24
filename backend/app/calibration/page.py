@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import asdict
-from datetime import date
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Final, Literal
 from uuid import UUID
 
@@ -69,9 +69,12 @@ _Box = tuple[float, float, float, float]
 _Seg = tuple[float, float, float, float]
 
 
-def today_iso() -> str:
-    """The hub's local date; the routes put it into the payload, the renderer never reads it."""
-    return date.today().isoformat()
+def today_iso(time_zone: str = "UTC") -> str:
+    """The hub's date in ``time_zone`` (the setting ``general.time_zone``, the same zone as the
+    run time); the routes put it into the payload, the renderer never reads it."""
+    from app.calibration.runs import hub_zone
+
+    return datetime.now(hub_zone(time_zone)).date().isoformat()
 
 
 def _short(text: str, limit: int) -> str:
@@ -415,6 +418,7 @@ async def build_payload(
     type_key: str,
     version: int | None,
     corrected: bool,
+    time_zone: str = "UTC",
 ) -> PagePayload:
     """Validate printer, tray and type and build the payload; the only place that does.
 
@@ -443,7 +447,7 @@ async def build_payload(
         "type_key": sheet_type.key,
         "version": v.version,
         "printer_name": printer.name,
-        "date": today_iso(),
+        "date": today_iso(time_zone),
         "corrected": corrected,
         "geometry": asdict(g),
     }

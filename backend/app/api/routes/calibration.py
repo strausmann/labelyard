@@ -229,9 +229,10 @@ async def print_calibration_page(
     check_printer_access(auth, printer_id)
     ensure_not_held(getattr(request.app.state, "print_queue", None), printer_id)  # #231
     with mapped():
+        time_zone = str(_setting(request, "general.time_zone"))
         payload = await page.build_payload(
             session, printer_id, tray, type_key=body.type, version=body.version,
-            corrected=body.corrected,
+            corrected=body.corrected, time_zone=time_zone,
         )  # fmt: skip
         queue = getattr(request.app.state, "print_queue", None)
         if queue is None:
@@ -257,7 +258,7 @@ async def print_calibration_page(
                 type_version_id=version.id,
                 actor=actor(auth),
                 submit=submit,
-                time_zone=str(_setting(request, "general.time_zone")),
+                time_zone=time_zone,
             )
         except KeyError:
             raise _printer_unavailable(printer_id) from None
@@ -334,6 +335,7 @@ def _job_retention_days(request: Request) -> int:
     summary="Download the calibration page as a PDF",
 )
 async def download_calibration_page(
+    request: Request,
     printer_id: PrinterPath,
     tray: TrayPath,
     session: SessionDep,
@@ -349,8 +351,9 @@ async def download_calibration_page(
     check_printer_access(auth, printer_id)
     with mapped():
         payload = await page.build_payload(
-            session, printer_id, tray, type_key=type_key, version=version, corrected=corrected
-        )
+            session, printer_id, tray, type_key=type_key, version=version, corrected=corrected,
+            time_zone=str(_setting(request, "general.time_zone")),
+        )  # fmt: skip
     # No read transaction stays open while the page draws (#405), as in the other bounded renders.
     await session.commit()
     # What the job renders, under the process-wide render slots like the sheet preview (#358).

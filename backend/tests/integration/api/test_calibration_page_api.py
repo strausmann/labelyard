@@ -52,7 +52,7 @@ DAY = "2026-11-05"
 
 @pytest.fixture(autouse=True)
 def _pinned_date(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(page_module, "today_iso", lambda: DAY)
+    monkeypatch.setattr(page_module, "today_iso", lambda *_zone: DAY)
 
 
 async def _type(factory: async_sessionmaker[AsyncSession], key: str, g: Geometry = G48) -> None:
