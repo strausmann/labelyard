@@ -259,6 +259,7 @@ async def print_calibration_page(
                 actor=actor(auth),
                 submit=submit,
                 time_zone=time_zone,
+                retention_days=_job_retention_days(request),
             )
         except KeyError:
             raise _printer_unavailable(printer_id) from None

@@ -235,6 +235,39 @@ async def test_failed_submit_at_the_retention_bound_keeps_the_oldest_run(
     assert len(nos) == 1000 and min(nos) == 1 and max(nos) == 1000
 
 
+async def test_retention_leaves_runs_in_flight_alone(async_session_factory: Factory) -> None:
+    """Codex review on #440: a run another request has allocated but not submitted yet (no job
+    row, inside the job retention window) neither counts nor goes. A: #1001 allocated; B: #1002
+    submitted and prunes; A fails and is compensated: 1000 submitted runs are left, #2 too."""
+    pid = await _printer(async_session_factory)
+    old = datetime.now(UTC) - timedelta(days=2)
+    async with async_session_factory() as s:
+        for n in range(1, 1001):
+            job_id = uuid4()
+            s.add(Job(id=job_id, printer_id=pid, payload={"kind": "calibration_page"}))
+            s.add(
+                CalibrationRun(
+                    printer_id=pid, tray="tray-1", run_no=n, kind="calibration_page",
+                    job_id=job_id, type_version_id=uuid4(), requested_tray="tray-1",
+                    created_at=old + timedelta(seconds=n),
+                )
+            )  # fmt: skip
+        s.add(CalibrationRunCounter(printer_id=pid, tray="tray-1", next_run=1001))
+        await s.commit()
+    in_flight = await _alloc(async_session_factory, pid)  # A: #1001, not submitted yet
+    assert in_flight.run_no == 1001
+    b = await _submitted(async_session_factory, pid)  # B: #1002, prunes
+    assert b.run_no == 1002
+    async with async_session_factory() as s:  # A fails: compensated
+        row = await s.get(CalibrationRun, in_flight.id)
+        assert row is not None  # retention left it alone
+        await s.delete(row)
+        await s.commit()
+    async with async_session_factory() as s:
+        nos = (await s.execute(select(CalibrationRun.run_no))).scalars().all()
+    assert len(nos) == 1000 and min(nos) == 2 and max(nos) == 1002
+
+
 # ---------------------------------------------------------------------------- submitted
 
 

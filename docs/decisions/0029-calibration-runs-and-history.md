@@ -54,7 +54,7 @@ tray key the printer renames starts again at 1; the old runs stay under the old 
   (`media-source`). When the printer names a source that differs from the requested tray, the run
   stores it as bounded text (64 characters, cleaned, never interpreted). When the printer names none,
   or the question fails, the run says "not reported". No operator input is needed.
-- Retention: 1000 runs per printer and tray, the oldest dropped first. The counter is not touched.
+- Retention: 1000 runs per printer and tray, the oldest dropped first, applied after a successful submit. A run still in flight (no job row yet, inside the job retention window) is neither counted nor dropped. The counter is not touched.
 - A printer's runs, history and check sheets go with the printer (foreign keys with `CASCADE`). A
   deleted sheet type leaves them readable: they keep the version id without a foreign key.
 

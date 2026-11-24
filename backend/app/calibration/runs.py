@@ -26,7 +26,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, literal_column, select
+from sqlalchemy import delete, literal_column, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import col
 
@@ -39,6 +39,7 @@ from app.models.job import PAGE_KIND_EXPR, Job, json_at
 from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories.write_lock import write_transaction
 from app.services.page_jobs import PagePayload
+from app.settings_store.registry import SETTINGS
 from app.sheets.text import sanitise_text
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ RUN_RETENTION: Final = 1000
 """Runs kept per printer and tray (design 7.5); the oldest go first."""
 MEDIA_SOURCE_MAX: Final = 64
 """Longest printer-reported tray name stored."""
+
+_JOB_RETENTION: Final = int(SETTINGS["jobs.retention_days"].default)
+"""``jobs.retention_days`` when the caller does not pass the setting."""
 
 RunKind = Literal["calibration_page", "check_page", "probe_page"]
 
@@ -150,15 +154,29 @@ async def allocate_run(
     return run
 
 
-async def _drop_old_runs(session: AsyncSession, printer_id: UUID, tray: str) -> None:
-    """Keep the newest ``RUN_RETENTION`` rows of the tray. Counted in rows, not numbers: a failed
-    submit leaves a gap in the numbers and must not push a kept run out."""
+def _settled(cutoff: datetime) -> Any:
+    """A run whose submit is decided: its job row exists, or it is older than the job retention
+    window (its job was cleaned up). The same rule as ``submitted`` in ``list_runs``."""
+    return or_(col(Job.id).is_not(None), col(CalibrationRun.created_at) <= cutoff)
+
+
+async def _drop_old_runs(
+    session: AsyncSession, printer_id: UUID, tray: str, *, retention_days: int
+) -> None:
+    """Keep the newest ``RUN_RETENTION`` settled runs of the tray. Counted in rows, not numbers
+    (a failed submit leaves a gap), and a run still in flight (no job row yet, inside the job
+    retention window) neither counts nor goes: another request may still submit or compensate
+    it, and its failure must not have pushed a kept run out."""
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
     old_ids = (
         (
             await session.execute(
                 select(col(CalibrationRun.id))
+                .outerjoin(Job, col(Job.id) == col(CalibrationRun.job_id))
                 .where(
-                    col(CalibrationRun.printer_id) == printer_id, col(CalibrationRun.tray) == tray
+                    col(CalibrationRun.printer_id) == printer_id,
+                    col(CalibrationRun.tray) == tray,
+                    _settled(cutoff),
                 )
                 .order_by(col(CalibrationRun.run_no).desc())
                 .offset(RUN_RETENTION)
@@ -214,6 +232,7 @@ async def submit_with_run(
     submit: SubmitFn,
     check_sheet: CheckSheetChoice | None = None,
     time_zone: str = "UTC",
+    retention_days: int = _JOB_RETENTION,
 ) -> tuple[CalibrationRun, UUID]:
     """Allocate a run, stamp the payload and ``submit(payload, job_id)`` with the run's job id.
 
@@ -242,16 +261,18 @@ async def submit_with_run(
     except Exception:
         await _discard_unsubmitted(session, run)
         raise
-    await prune_runs(session, printer_id, payload.tray)
+    await prune_runs(session, printer_id, payload.tray, retention_days=retention_days)
     return run, submitted
 
 
-async def prune_runs(session: AsyncSession, printer_id: UUID, tray: str) -> None:
-    """Keep the newest ``RUN_RETENTION`` runs of the tray; a failure is logged, never raised
-    (the page is already queued)."""
+async def prune_runs(
+    session: AsyncSession, printer_id: UUID, tray: str, *, retention_days: int = _JOB_RETENTION
+) -> None:
+    """Keep the newest ``RUN_RETENTION`` settled runs of the tray; a failure is logged, never
+    raised (the page is already queued)."""
     try:
         async with write_transaction(session):
-            await _drop_old_runs(session, printer_id, tray)
+            await _drop_old_runs(session, printer_id, tray, retention_days=retention_days)
             await session.commit()
     except Exception:
         logger.exception("Calibration runs: retention of a tray failed; the next submit retries")
