@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 import app.models  # noqa: F401
 import pytest
 import pytest_asyncio
+from app.calibration import history as calibration_history
 from app.calibration import service as calibration_service
 from app.calibration.model import CalibrationIn
 from app.models.job import Job as DbJob
@@ -292,7 +293,7 @@ async def test_pages_use_the_one_snapshot_taken_before_the_reservation(
         actor="t",
     )
     order: list[str] = []
-    original_snapshot = calibration_service.snapshot
+    original_snapshot = calibration_service.snapshot_with_history
     original_reserve = print_service.reserve
 
     async def snapshot(*a: Any, **kw: Any) -> Any:
@@ -305,7 +306,7 @@ async def test_pages_use_the_one_snapshot_taken_before_the_reservation(
         assert kw["margin"].deviation.offset_y_hmm == -80
         return await original_reserve(*a, **kw)
 
-    monkeypatch.setattr(calibration_service, "snapshot", snapshot)
+    monkeypatch.setattr(calibration_service, "snapshot_with_history", snapshot)
     monkeypatch.setattr(print_service, "reserve", reserve)
     queue = FakeQueue()
 
@@ -319,6 +320,10 @@ async def test_pages_use_the_one_snapshot_taken_before_the_reservation(
     assert order == ["snapshot", "reserve"]  # taken once, before the reservation
     assert len(queue.payloads) == 1  # #277: one sheet per run
     assert {p.calibration.dy_hmm for p in queue.payloads if p.calibration} == {-80}
+    # #336: the page names the history entry of that same snapshot.
+    latest = await calibration_history.latest_id(session, printer.id, "auto")
+    assert latest is not None
+    assert {p.calibration_history_id for p in queue.payloads} == {latest}
 
 
 async def test_print_after_type_edit_uses_the_pinned_version(
