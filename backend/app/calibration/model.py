@@ -126,11 +126,13 @@ class CalibrationPut(CalibrationIn):
         default=None,
         description=(
             "The run (calibration page print) the readings were taken on; it must belong to this "
-            "printer and tray, else `422 run_not_for_this_tray`."
+            "printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must "
+            "have been printed for that version, else `422 run_version_mismatch`."
         ),
     )
     readings: list[ReadingIn] | None = Field(
         default=None,
+        min_length=3,
         max_length=READINGS_MAX,
         description=(
             "The readings the values were fitted from. With readings the hub fits them again on "

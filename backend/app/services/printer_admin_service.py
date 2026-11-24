@@ -486,10 +486,15 @@ class PrinterAdminService:
         audit_user: str,
         *,
         ipp_transport_factory: IppTransportFactory | None = None,
+        history_actor: str | None = None,
     ) -> None:
         self._session = session
         self._audit_user = audit_user
         self._ipp_transport_factory = ipp_transport_factory
+        # Who a calibration history entry names (``sheet_common.actor``, as every other entry):
+        # never the audit string, which carries the caller's address and is not for read keys
+        # (#336, task review F1). ``None`` when the caller does not say.
+        self._history_actor = history_actor
 
     async def _probe_for_save(
         self, connection: IppConnection, timeout_s: int, slug: str
@@ -535,7 +540,7 @@ class PrinterAdminService:
             .scalars()
             .all()
         )
-        await calibration_history.record_resets(self._session, gone, actor=self._audit_user)
+        await calibration_history.record_resets(self._session, gone, actor=self._history_actor)
         await self._session.execute(
             delete(PrinterCalibration).where(
                 col(PrinterCalibration.printer_id) == printer_id,
@@ -836,7 +841,9 @@ class PrinterAdminService:
                     ).scalars()
                 )
                 # Each removed calibration gets a ``reset`` history entry (#336, review on #442).
-                await calibration_history.record_resets(self._session, rows, actor=self._audit_user)
+                await calibration_history.record_resets(
+                    self._session, rows, actor=self._history_actor
+                )
                 for row in rows:
                     await self._session.delete(row)
                     removed += 1

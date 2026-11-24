@@ -161,3 +161,25 @@ async def test_type_version_restore_refused_when_a_sheet_uses_a_newer_version(
     listed = (await c.get(f"/api/v1/sheet-types/{KEY}/versions", headers=admin)).json()
     assert [v["version"] for v in listed] == [2, 1]
     assert listed[1]["restorable"] is False and listed[0]["restorable"] is False
+
+
+async def test_type_version_restore_adds_nothing_when_the_insert_fails(
+    api_client_with_seed: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#336 task review F5: a failure after the new version was added rolls the restore back."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    await _type_with_two_versions(c, admin)
+    real = ts.add_version_locked
+
+    async def added_then_failed(session: Any, *a: Any, **k: Any) -> SheetTypeVersion:
+        await real(session, *a, **k)
+        await session.flush()  # the row is written in the transaction, then the step fails
+        raise RuntimeError("insert failed")
+
+    monkeypatch.setattr(ts, "add_version_locked", added_then_failed)
+    async with _factory()() as s:
+        with pytest.raises(RuntimeError):
+            await ts.restore_version(s, KEY, 1, actor="t")
+    listed = (await c.get(f"/api/v1/sheet-types/{KEY}/versions", headers=admin)).json()
+    assert [v["version"] for v in listed] == [2, 1]

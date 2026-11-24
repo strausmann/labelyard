@@ -50,6 +50,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.routes.sheet_common import actor
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin
 from app.db.session import get_session
@@ -186,6 +187,7 @@ def _service(session: AsyncSession, auth: AuthContext, request: Request) -> Prin
         session,
         audit_user=_audit_user(auth),
         ipp_transport_factory=_ipp_transport_factory(request),
+        history_actor=actor(auth),
     )
 
 
@@ -318,7 +320,7 @@ async def list_printers(
     _auth: AdminAuthDep,
     include_disabled: bool = False,
 ) -> list[PrinterRead]:
-    svc = PrinterAdminService(session, audit_user=_audit_user(_auth))
+    svc = PrinterAdminService(session, audit_user=_audit_user(_auth), history_actor=actor(_auth))
     printers = await svc.list_printers(include_disabled=include_disabled)
     identities = await svc.get_identities([p.id for p in printers])
     return [await _read(svc, p, request, identities) for p in printers]
@@ -412,7 +414,7 @@ async def get_printer(
     session: SessionDep,
     _auth: AdminAuthDep,
 ) -> PrinterRead:
-    svc = PrinterAdminService(session, audit_user=_audit_user(_auth))
+    svc = PrinterAdminService(session, audit_user=_audit_user(_auth), history_actor=actor(_auth))
     printer = await svc.get_printer(slug)
     if printer is None:
         raise HTTPException(
@@ -515,7 +517,7 @@ async def disable_printer(
     session: SessionDep,
     _auth: AdminAuthDep,
 ) -> PrinterRead:
-    svc = PrinterAdminService(session, audit_user=_audit_user(_auth))
+    svc = PrinterAdminService(session, audit_user=_audit_user(_auth), history_actor=actor(_auth))
     try:
         printer = await svc.disable_printer(slug)
     except PrinterNotFoundBySlugError as exc:
@@ -556,7 +558,7 @@ async def enable_printer(
     session: SessionDep,
     _auth: AdminAuthDep,
 ) -> PrinterRead:
-    svc = PrinterAdminService(session, audit_user=_audit_user(_auth))
+    svc = PrinterAdminService(session, audit_user=_audit_user(_auth), history_actor=actor(_auth))
     try:
         printer = await svc.enable_printer(slug)
     except PrinterNotFoundBySlugError as exc:
@@ -603,7 +605,7 @@ async def resolve_identity(
     # No-op for every key that can reach this admin route (an admin key is never restricted,
     # #283); kept as defence in depth.
     check_printer_access(_auth, printer_id)
-    svc = PrinterAdminService(session, audit_user=_audit_user(_auth))
+    svc = PrinterAdminService(session, audit_user=_audit_user(_auth), history_actor=actor(_auth))
     try:
         printer = await svc.resolve_identity(
             printer_id,

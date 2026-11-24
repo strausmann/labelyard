@@ -2235,7 +2235,7 @@ export interface components {
             id: string;
             /**
              * Jobs Count
-             * @description Jobs printed with this entry (`GET /api/v1/jobs?calibration=<id>`).
+             * @description Jobs on the printer printed with this entry, of every key. `GET /api/v1/jobs?calibration=<id>` lists the same jobs, but shows a key without the admin scope only the jobs it submitted, so its list can be shorter than this count.
              */
             jobs_count: number;
             /** @description Null when no version was named, or when it was deleted since. */
@@ -2363,7 +2363,7 @@ export interface components {
             rotation_deg: number;
             /**
              * Run Id
-             * @description The run (calibration page print) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`.
+             * @description The run (calibration page print) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must have been printed for that version, else `422 run_version_mismatch`.
              */
             run_id?: string | null;
             /**
@@ -8405,7 +8405,7 @@ export interface operations {
                     "application/json": components["schemas"]["CalibrationRead"];
                 };
             };
-            /** @description A value is out of range (`calibration_out_of_range`), the tray is unknown (`tray_unknown`), `run_id` names a run of another printer or tray (`run_not_for_this_tray`), or `readings` came without `measured_on` (`invalid_geometry`, `error_detail.field` is `measured_on`). */
+            /** @description A value is out of range (`calibration_out_of_range`), the tray is unknown (`tray_unknown`), `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version than `measured_on` (`run_version_mismatch`), `readings` came without `measured_on` (`invalid_geometry`, `error_detail.field` is `measured_on`), has fewer than 3 or more than 200 entries (request validation), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`, `error_detail.field` names the reading, such as `readings[0].col_gap`). */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8559,6 +8559,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CalibrationRead"];
                 };
+            };
+            /** @description The key lacks the admin scope (`insufficient_scope`) or may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description No such printer, or no such entry on this printer and tray (`calibration_history_not_found`). */
             404: {

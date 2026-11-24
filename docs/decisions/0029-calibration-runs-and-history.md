@@ -120,6 +120,12 @@ later releases must read it. The grammar's details are added to this ADR with th
   guessed.
 - The run list (`GET /api/v1/printers/{id}/calibration/{tray}/runs`) needs `read` and the key's
   printer access; the printer-reported tray name is shown only there.
+- `jobs_count` in the history counts every job on the printer printed with the entry, of every
+  key; `GET /api/v1/jobs?calibration=<id>` shows a key without the admin scope only its own jobs,
+  so its list can be shorter. A count carries no job data, as the printer-wide queue depth does.
+- Reset entries are also written when the admin removes a calibrated tray or resolves a device swap
+  as `replaced`, in the transaction that deletes the calibration, with the same actor form as every
+  other entry (`user:<name>` or `key:<id>`), never the admin audit string.
 - The history (`GET …/calibration/{tray}/history`) needs `read` and the printer access; restore
   (`POST …/history/{id}/restore`) needs `admin` and writes a `revert` entry.
 - Follow-up in 1.8.0: the check passes and the page layout with the `LYC1` codes (#240), the run

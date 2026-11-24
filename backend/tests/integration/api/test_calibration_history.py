@@ -648,9 +648,9 @@ async def test_removing_a_calibrated_tray_writes_a_reset_entry(api_client_with_s
         printer = await s.get(Printer, pid)
         assert printer is not None
         only_auto = [TrayIn(key="auto", label="Auto", is_default=True)]
-        await PrinterAdminService(s, "user:admin").update_printer(
-            printer.slug, PrinterUpdatePayload(trays=only_auto)
-        )
+        await PrinterAdminService(
+            s, "api-key:not-for-history", history_actor="user:admin"
+        ).update_printer(printer.slug, PrinterUpdatePayload(trays=only_auto))
     reset, saved = await _history(c, pid, "tray-2", admin)
     assert reset["action"] == "reset" and reset["actor"] == "user:admin"
     assert {k: reset["previous"][k] for k in VALUE_KEYS} == BODY
@@ -661,3 +661,143 @@ async def test_removing_a_calibrated_tray_writes_a_reset_entry(api_client_with_s
         await s.commit()
         snap, entry = await service.snapshot_with_history(s, pid, "tray-2")
     assert snap.method == "none" and entry == UUID(reset["id"])
+
+
+# ---------------------------------------------------------------------------- task review round 1
+
+
+async def test_a_history_page_is_one_query(api_client_with_seed: Any) -> None:
+    """F3: the window of an entry ends at its neighbour and ``jobs_count`` is a correlated count;
+    no per-entry queries. Counts every statement ``list_entries`` sends."""
+    from sqlalchemy import event
+
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    base = f"/api/v1/printers/{pid}/calibration/auto"
+    for body in (BODY, OTHER, BODY):
+        assert (await c.put(base, json=body, headers=admin)).status_code == 200
+    seen: list[str] = []
+
+    def capture(_c: Any, _cur: Any, statement: str, *_a: Any) -> None:
+        seen.append(statement)
+
+    engine = _factory()().bind
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        async with _factory()() as s:
+            entries, more = await history.list_entries(s, pid, "auto", limit=2, offset=1)
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+    assert len(seen) == 1, seen
+    assert [e.seq for e in entries] == [2, 1] and more is False
+
+
+async def test_delete_keeps_the_row_when_the_reset_entry_fails(
+    api_client_with_seed: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F5: the reset entry and the row delete are one transaction."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await c.put(f"/api/v1/printers/{pid}/calibration/auto", json=BODY, headers=admin)
+
+    async def broken(*_a: Any, **_k: Any) -> CalibrationHistory:
+        raise RuntimeError("history write failed")
+
+    monkeypatch.setattr(history, "record", broken)
+    async with _factory()() as s:
+        with pytest.raises(RuntimeError):
+            await service.delete(s, pid, "auto", actor="user:admin")
+    async with _factory()() as s:
+        assert await s.get(PrinterCalibration, (pid, "auto")) is not None
+
+
+async def test_replace_trays_keeps_trays_and_calibrations_when_the_reset_fails(
+    api_client_with_seed: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F5: a failing reset entry rolls back the whole tray update."""
+    from app.schemas.printer_admin import PrinterUpdatePayload, TrayIn
+    from app.services.printer_admin_service import PrinterAdminService
+
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await c.put(f"/api/v1/printers/{pid}/calibration/tray-2", json=BODY, headers=admin)
+
+    async def broken(*_a: Any, **_k: Any) -> None:
+        raise RuntimeError("history write failed")
+
+    monkeypatch.setattr(history, "record_resets", broken)
+    async with _factory()() as s:
+        printer = await s.get(Printer, pid)
+        assert printer is not None
+        with pytest.raises(RuntimeError):
+            await PrinterAdminService(s, "t", history_actor="user:admin").update_printer(
+                printer.slug,
+                PrinterUpdatePayload(trays=[TrayIn(key="auto", label="Auto", is_default=True)]),
+            )
+    async with _factory()() as s:
+        assert await s.get(PrinterCalibration, (pid, "tray-2")) is not None
+        assert await s.get(PrinterTray, (pid, "tray-2")) is not None
+
+
+async def test_put_with_a_run_of_another_version_is_422(api_client_with_seed: Any) -> None:
+    """F7: the entry may not name a run and a measured-on version that disagree."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await _type()
+    run = await _run(pid, "auto")  # printed for a version that is not calh-test v1
+    r = await c.put(
+        f"/api/v1/printers/{pid}/calibration/auto",
+        json={**BODY, "run_id": str(run), "measured_on": {"type_key": "calh-test", "version": 1}},
+        headers=admin,
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["error_code"] == "run_version_mismatch"
+    async with _factory()() as s:
+        assert await s.get(PrinterCalibration, (pid, "auto")) is None
+        version = await ts.get_version(s, "calh-test", 1)
+        own = await runs.allocate_run(
+            s,
+            printer_id=pid,
+            tray="auto",
+            kind="calibration_page",
+            job_id=uuid4(),
+            type_version_id=version.id,
+            correction=None,
+            actor="user:admin",
+        )
+    ok = await c.put(
+        f"/api/v1/printers/{pid}/calibration/auto",
+        json={
+            **BODY,
+            "run_id": str(own.id),
+            "measured_on": {"type_key": "calh-test", "version": 1},
+        },
+        headers=admin,
+    )
+    assert ok.status_code == 200, ok.text
+
+
+async def test_fewer_than_three_readings_are_refused_by_the_schema(
+    api_client_with_seed: Any,
+) -> None:
+    """F8: ``readings`` takes 3 to 200, as the fit does; OpenAPI shows the bound."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await _type()
+    for readings in ([], _readings(DEV)[:2]):
+        r = await c.put(
+            f"/api/v1/printers/{pid}/calibration/auto",
+            json={**BODY, "measured_on": {"type_key": "calh-test", "version": 1},
+                  "readings": readings},
+            headers=admin,
+        )  # fmt: skip
+        assert r.status_code == 422, r.text
+        assert r.json()["detail"][0]["loc"][-1] == "readings"
+    schema = (await c.get("/openapi.json")).json()["components"]["schemas"]["CalibrationPut"]
+    branch = next(b for b in schema["properties"]["readings"]["anyOf"] if b.get("type") == "array")
+    assert branch["minItems"] == 3 and branch["maxItems"] == 200

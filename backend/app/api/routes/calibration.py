@@ -107,8 +107,13 @@ async def get_calibration(
             "description": (
                 "A value is out of range (`calibration_out_of_range`), the tray is unknown "
                 "(`tray_unknown`), `run_id` names a run of another printer or tray "
-                "(`run_not_for_this_tray`), or `readings` came without `measured_on` "
-                "(`invalid_geometry`, `error_detail.field` is `measured_on`)."
+                "(`run_not_for_this_tray`) or was printed for another version than `measured_on` "
+                "(`run_version_mismatch`), `readings` came without `measured_on` "
+                "(`invalid_geometry`, `error_detail.field` is `measured_on`), has fewer than 3 or "
+                "more than 200 entries (request validation), the readings lie on one line "
+                "(`readings_insufficient`), or a reading names a gap outside the sheet "
+                "(`invalid_geometry`, `error_detail.field` names the reading, such as "
+                "`readings[0].col_gap`)."
             )
         }
     },
@@ -356,6 +361,12 @@ async def list_calibration_history(
     "/{printer_id}/calibration/{tray}/history/{entry_id}/restore",
     response_model=CalibrationRead,
     responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": (
+                "The key lacks the admin scope (`insufficient_scope`) or may not use this printer "
+                "(`printer_not_allowed`)."
+            )
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": (
                 "No such printer, or no such entry on this printer and tray "

@@ -23,6 +23,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, and_, delete, false, func, literal_column, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from sqlmodel import col
 
 from app.calibration.model import (
@@ -276,30 +277,67 @@ async def restore(
 # ---------------------------------------------------------------------------- jobs
 
 
-def _window_end(next_created: datetime | None) -> ColumnElement[bool] | None:
-    return None if next_created is None else col(Job.created_at) < next_created
+_IDENTITY_VALUES: Final = {
+    "offset_x_hmm": 0,
+    "offset_y_hmm": 0,
+    "scale_x_ppm": 1_000_000,
+    "scale_y_ppm": 1_000_000,
+    "rotation_udeg": 0,
+}
 
 
-def jobs_clause(entry: CalibrationHistory, next_created: datetime | None) -> ColumnElement[bool]:
-    """The jobs printed with ``entry``: named by id, or (before 1.8.0) by equal values inside the
-    entry's window. A reset entry stands for the identity, as a 1.7.x snapshot of no calibration."""
-    dev = entry_deviation(entry) or IDENTITY
-    by_values = [literal_column(_SNAPSHOT_EXPRS[k]) == getattr(dev, k) for k in _VALUE_KEYS]
-    window = [col(Job.created_at) >= entry.created_at]
-    end = _window_end(next_created)
-    if end is not None:
-        window.append(end)
+def _match(
+    *,
+    entry_id_hex: Any,
+    printer_id: Any,
+    tray: Any,
+    values: dict[str, Any],
+    created_at: Any,
+    next_created: Any,
+) -> ColumnElement[bool]:
+    """The jobs printed with an entry: named by id, or (before 1.8.0) by equal values inside the
+    entry's window, ``[created_at, next_created)``. Each argument is a value or a column, so the
+    same rule serves the jobs filter (values) and the history page (one correlated query).
+    ``entry_id_hex`` is the id as SQLite stores it (32 hex digits); the payload holds the
+    hyphenated form."""
+    named = func.replace(literal_column(_HISTORY_ID_EXPR), "-", "")
+    window = [col(Job.created_at) >= created_at]
+    if next_created is not None:
+        window.append(
+            or_(next_created.is_(None), col(Job.created_at) < next_created)
+            if isinstance(next_created, ColumnElement)
+            else col(Job.created_at) < next_created
+        )
     return and_(
-        col(Job.printer_id) == entry.printer_id,
-        literal_column(_TRAY_EXPR) == entry.tray,
+        col(Job.printer_id) == printer_id,
+        literal_column(_TRAY_EXPR) == tray,
         or_(
-            literal_column(_HISTORY_ID_EXPR) == str(entry.id),
-            and_(literal_column(_HISTORY_ID_EXPR).is_(None), *by_values, *window),
+            named == entry_id_hex,
+            and_(
+                literal_column(_HISTORY_ID_EXPR).is_(None),
+                *(literal_column(_SNAPSHOT_EXPRS[k]) == values[k] for k in _VALUE_KEYS),
+                *window,
+            ),
         ),
     )
 
 
+def jobs_clause(entry: CalibrationHistory, next_created: datetime | None) -> ColumnElement[bool]:
+    """The jobs printed with ``entry`` (see ``_match``). A reset entry stands for the identity, as
+    a 1.7.x snapshot of no calibration."""
+    dev = entry_deviation(entry) or IDENTITY
+    return _match(
+        entry_id_hex=entry.id.hex,
+        printer_id=entry.printer_id,
+        tray=entry.tray,
+        values={k: getattr(dev, k) for k in _VALUE_KEYS},
+        created_at=entry.created_at,
+        next_created=next_created,
+    )
+
+
 async def _next_created(session: AsyncSession, entry: CalibrationHistory) -> datetime | None:
+    """When the tray's next entry begins (the end of ``entry``'s window); ``None`` if newest."""
     found: datetime | None = (
         await session.execute(
             select(col(CalibrationHistory.created_at))
@@ -371,7 +409,12 @@ class CalibrationHistoryRead(BaseModel):
     created_at: datetime
     note: str | None
     jobs_count: int = Field(
-        description="Jobs printed with this entry (`GET /api/v1/jobs?calibration=<id>`)."
+        description=(
+            "Jobs on the printer printed with this entry, of every key. "
+            "`GET /api/v1/jobs?calibration=<id>` lists the same jobs, but shows a key without "
+            "the admin scope only the jobs it submitted, so its list can be shorter than "
+            "this count."
+        )
     )
 
 
@@ -404,40 +447,67 @@ def _aware(value: datetime) -> datetime:
 async def list_entries(
     session: AsyncSession, printer_id: UUID, tray: str, *, limit: int, offset: int
 ) -> tuple[list[CalibrationHistoryRead], bool]:
-    """A page of the tray's entries, newest first, and whether more follow."""
+    """A page of the tray's entries, newest first, and whether more follow.
+
+    One SELECT builds the page (task review F3): an entry's window ends where the next entry of
+    the tray begins, its neighbour in the newest-first order (``LAG``), and ``jobs_count`` is a
+    correlated count with the same rule as ``GET /api/v1/jobs?calibration=``.
+    """
+    ordered = (
+        select(
+            CalibrationHistory,
+            func.lag(col(CalibrationHistory.created_at))
+            .over(order_by=col(CalibrationHistory.seq).desc())
+            .label("next_created"),
+        )
+        .where(
+            col(CalibrationHistory.printer_id) == printer_id,
+            col(CalibrationHistory.tray) == tray,
+        )
+        .subquery()
+    )
+    entry_cols = aliased(CalibrationHistory, ordered)
+    next_created = ordered.c.next_created
+    count = (
+        select(func.count())
+        .select_from(Job)
+        .where(
+            _match(
+                entry_id_hex=ordered.c.id,
+                printer_id=ordered.c.printer_id,
+                tray=ordered.c.tray,
+                values={k: func.coalesce(ordered.c[k], _IDENTITY_VALUES[k]) for k in _VALUE_KEYS},
+                created_at=ordered.c.created_at,
+                next_created=next_created,
+            )
+        )
+        .correlate(ordered)
+        .scalar_subquery()
+    )
     rows: Sequence[Any] = (
         await session.execute(
             select(
-                CalibrationHistory,
+                entry_cols,
                 col(SheetType.key),
                 col(SheetTypeVersion.version),
                 col(CalibrationRun.run_no),
+                count.label("jobs_count"),
             )
+            .select_from(ordered)
             .outerjoin(
                 SheetTypeVersion,
-                col(SheetTypeVersion.id) == col(CalibrationHistory.measured_on_type_version_id),
+                col(SheetTypeVersion.id) == ordered.c.measured_on_type_version_id,
             )
             .outerjoin(SheetType, col(SheetType.id) == col(SheetTypeVersion.type_id))
-            .outerjoin(CalibrationRun, col(CalibrationRun.id) == col(CalibrationHistory.run_id))
-            .where(
-                col(CalibrationHistory.printer_id) == printer_id,
-                col(CalibrationHistory.tray) == tray,
-            )
-            .order_by(col(CalibrationHistory.seq).desc())
+            .outerjoin(CalibrationRun, col(CalibrationRun.id) == ordered.c.run_id)
+            .order_by(ordered.c.seq.desc())
             .offset(offset)
             .limit(limit + 1)
         )
     ).all()
     has_more = len(rows) > limit
-    rows = rows[:limit]
     out: list[CalibrationHistoryRead] = []
-    for entry, key, version, run_no in rows:
-        next_created = await _next_created(session, entry)
-        count = (
-            await session.execute(
-                select(func.count()).select_from(Job).where(jobs_clause(entry, next_created))
-            )
-        ).scalar_one()
+    for entry, key, version, run_no, jobs in rows[:limit]:
         values = _api_values(entry_deviation(entry))
         previous = None if entry.previous is None else _api_values(_from_dict(entry.previous))
         out.append(
@@ -460,7 +530,7 @@ async def list_entries(
                 actor=entry.actor,
                 created_at=_aware(entry.created_at),
                 note=entry.note,
-                jobs_count=int(count),
+                jobs_count=int(jobs),
             )
         )
     return out, has_more
