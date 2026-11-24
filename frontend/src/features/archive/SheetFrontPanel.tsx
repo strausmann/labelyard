@@ -44,7 +44,7 @@ export function SheetFrontPanel({
     <aside aria-labelledby="front-h" className={`${PANEL} flex min-w-0 flex-col gap-4 xl:sticky xl:top-20`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id="front-h" className="text-section font-bold">{t`Sheet front`}</h3>
-        <span className="rounded-full border border-line-strong px-2 py-0.5 text-small font-bold text-ink-2">{t`Preview of the saved rules`}</span>
+        <span className="rounded-full border border-line-strong px-2 py-0.5 text-small font-bold text-ink-2">{t`Draft areas, saved code position`}</span>
       </div>
       <div className="mx-auto w-full max-w-80">
         <SheetFrontDiagram
@@ -61,7 +61,7 @@ export function SheetFrontPanel({
         <SheetFrontDiagram geometry={g} zones={zones} refused={refused} idRect={idRect} view={[half, 0, half, depth]} label={t`Right half of the top band, enlarged`} />
         <p className="m-0 text-small text-ink-2">
           {idRect
-            ? t`The sheet code is drawn where the saved rules put it on the first page printer. Saving moves it.`
+            ? t`The areas are the ones in this form, not saved yet. The sheet code is drawn where the saved rules put it on the first page printer; saving can move it.`
             : t`No page printer has room for the sheet code in the margin by the saved rules.`}
         </p>
       </div>

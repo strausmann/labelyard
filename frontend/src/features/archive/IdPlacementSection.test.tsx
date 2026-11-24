@@ -7,7 +7,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { i18n, initI18n } from "../../i18n";
-import { mockApi, SHEET_TYPE } from "../test-api";
+import { apiErrorBody, mockApi, respond, SHEET_TYPE, status } from "../test-api";
 import type { SheetTypeDetail } from "./api";
 import { IdPlacementSection } from "./IdPlacementSection";
 
@@ -36,9 +36,13 @@ const T3490: SheetTypeDetail = {
 const T_MARGIN: SheetTypeDetail = { ...SHEET_TYPE, id_placement: "auto", id_placement_resolved: "margin", versions: [] };
 
 async function show(type: SheetTypeDetail, admin = true, language: "en" | "de" = "en") {
+  return showWith(type, admin, language);
+}
+
+async function showWith(type: SheetTypeDetail, admin = true, language: "en" | "de" = "en") {
   await initI18n(language);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(
+  return render(
     <QueryClientProvider client={client}>
       <I18nProvider i18n={i18n}>
         <IdPlacementSection type={type} admin={admin} />
@@ -49,28 +53,37 @@ async function show(type: SheetTypeDetail, admin = true, language: "en" | "de" =
 
 afterEach(() => vi.unstubAllGlobals());
 
+/** The card of the chosen placement (mockup M2): a group named after the place. */
+const chosen = (name: RegExp | string) => screen.getByRole("group", { name });
+const other = (name: string) => screen.getByRole("button", { name });
+
 describe("where the sheet code goes", () => {
-  it("auto shows the resolved option selected and the automatic note", async () => {
+  it("auto shows the resolved place as the chosen card and the automatic note", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490);
-    expect(screen.getByRole("radio", { name: /Back side/ })).toBeChecked();
-    expect(screen.getByText("Default for this sheet")).toBeVisible();
+    expect(chosen("On the back of the liner")).toHaveTextContent("Chosen");
+    expect(within(chosen("On the back of the liner")).getByText("Default for this sheet")).toBeVisible();
     expect(screen.getByText("Chosen automatically from the usable margin. You can change it.")).toBeVisible();
   });
 
-  it("margin is disabled with the reason when the type has no usable band", async () => {
+  it("the margin is offered as another choice but disabled, with the reason, when the type has no usable band", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490);
-    expect(screen.getByRole("radio", { name: /Margin/ })).toBeDisabled();
-    expect(screen.getByText(/Not available for this sheet: no margin is wide enough/)).toBeVisible();
+    expect(other("In the margin")).toBeDisabled();
+    expect(screen.getByText(/In the margin is not available for this sheet: no margin is wide enough/)).toBeVisible();
   });
 
-  it('choosing reserved cell shows the cell select with "1 (top left)"', async () => {
+  it('the other choices line switches to a label cell, with the cell select at "1 (top left)"', async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490);
-    expect(screen.queryByRole("button", { name: /Cell/ })).toBeNull();
-    await userEvent.click(screen.getByRole("radio", { name: /Reserved cell/ }));
-    expect(screen.getByRole("button", { name: /Cell/ })).toHaveTextContent("1 (top left)");
+    expect(screen.queryByRole("button", { name: / Cell$/ })).toBeNull();
+    expect(screen.getByText("Other choices:")).toBeVisible();
+    await userEvent.click(other("A label cell"));
+    expect(chosen("In a label cell")).toHaveTextContent("Chosen");
+    // The chosen place leaves the line, the one left behind joins it.
+    expect(screen.queryByRole("button", { name: "A label cell" })).toBeNull();
+    expect(other("Back of the liner")).toBeEnabled();
+    expect(screen.getByRole("button", { name: / Cell$/ })).toHaveTextContent("1 (top left)");
   });
 
   it("save sends id_placement and id_cell", async () => {
@@ -79,8 +92,8 @@ describe("where the sheet code goes", () => {
       [`PATCH /api/v1/sheet-types/${T3490.key}`]: { ...T3490, id_placement: "cell", id_cell: 2 },
     });
     await show(T3490);
-    await userEvent.click(screen.getByRole("radio", { name: /Reserved cell/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Cell/ }));
+    await userEvent.click(other("A label cell"));
+    await userEvent.click(screen.getByRole("button", { name: / Cell$/ }));
     await userEvent.click(await screen.findByRole("option", { name: "2" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
@@ -88,19 +101,20 @@ describe("where the sheet code goes", () => {
     expect(body).toEqual({ id_placement: "cell", id_cell: 2, backing_design: ULTRAGRIP.key });
   });
 
-  it("keeps auto when the automatic option is saved, and offers the margin type its margin", async () => {
-    mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
+  it("a margin type shows the margin as chosen and offers the back and a cell", async () => {
+    mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP], [`GET /api/v1/sheet-types/${T_MARGIN.key}/id-placement`]: [] });
     await show(T_MARGIN);
-    expect(screen.getByRole("radio", { name: /Margin/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Margin/ })).toBeEnabled();
+    expect(chosen("In the margin")).toHaveTextContent("Prints the code in the free band around the labels.");
+    expect(other("Back of the liner")).toBeEnabled();
+    expect(other("A label cell")).toBeEnabled();
   });
 
   it("follows the server's automatic choice, not its own reading of the geometry (M7)", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     // The geometry alone has a 4.5 mm band; the server says the code still goes on the back.
     await show({ ...T3490, geometry: { ...T3490.geometry, margin_top: 20 } });
-    expect(screen.getByRole("radio", { name: /Back side/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Margin/ })).toBeDisabled();
+    expect(chosen("On the back of the liner")).toBeVisible();
+    expect(other("In the margin")).toBeDisabled();
   });
 
   it("an explicit choice can go back to automatic, which saves auto (M7)", async () => {
@@ -110,9 +124,9 @@ describe("where the sheet code goes", () => {
       [`PATCH /api/v1/sheet-types/${T3490.key}`]: { ...T3490 },
     });
     await show(explicit);
-    expect(screen.getByRole("radio", { name: /Reserved cell/ })).toBeChecked();
-    await userEvent.click(screen.getByRole("button", { name: "Choose automatically" }));
-    expect(screen.getByRole("radio", { name: /Back side/ })).toBeChecked();
+    expect(chosen("In a label cell")).toBeVisible();
+    await userEvent.click(other("Automatic"));
+    expect(chosen("On the back of the liner")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(JSON.parse(calls.find((c) => c.method === "PATCH")!.body!)).toEqual({ id_placement: "auto", backing_design: ULTRAGRIP.key });
@@ -121,23 +135,24 @@ describe("where the sheet code goes", () => {
   it("automatic is not offered while the setting is already automatic", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490);
-    expect(screen.queryByRole("button", { name: "Choose automatically" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Automatic" })).toBeNull();
   });
 
-  it("a read-only user sees the setting but no Save", async () => {
+  it("a read-only user sees the chosen place but no other choices and no Save", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490, false);
-    expect(screen.getByRole("radio", { name: /Back side/ })).toBeChecked();
+    expect(chosen("On the back of the liner")).toBeVisible();
+    expect(screen.queryByText("Other choices:")).toBeNull();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
-  it("de: options are German", async () => {
+  it("de: the card and the other choices are German", async () => {
     mockApi({ "GET /api/v1/backing-designs": [ULTRAGRIP] });
     await show(T3490, true, "de");
     expect(screen.getByRole("heading", { name: "Wo der Bogencode hinkommt" })).toBeVisible();
-    expect(screen.getByRole("radio", { name: /Rand/ })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: /Rückseite/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /Reservierte Zelle/ })).toBeVisible();
+    expect(chosen("Auf der Rückseite des Trägerpapiers")).toHaveTextContent("Gewählt");
+    expect(other("Im Rand")).toBeDisabled();
+    expect(other("Eine Etikettenzelle")).toBeVisible();
     expect(screen.getByText("Standard für diesen Bogen")).toBeVisible();
     await initI18n("en");
   });
@@ -197,6 +212,156 @@ describe("the sheet code in the margin", () => {
       id_margin_band: "bottom",
       id_margin_offset_mm: 12.5,
     });
+  });
+
+  it("save position shows the server's refusal and keeps the draft", async () => {
+    mockApi(
+      routes({
+        [`PATCH /api/v1/sheet-types/${POSITIONED.key}`]: respond(422, apiErrorBody("id_position_overlaps_cell", "The sheet code position covers a label cell.")),
+      }),
+    );
+    await show(POSITIONED);
+    await userEvent.click(screen.getByRole("radio", { name: "Left" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save position" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("At this position the sheet code would cover a label. Choose another band or offset.");
+    expect(screen.getByRole("radio", { name: "Left" })).toBeChecked();
+    expect(screen.queryByText("Saved.")).toBeNull();
+  });
+
+  it("save position on a lost connection says so and keeps the draft", async () => {
+    mockApi(
+      routes({
+        [`PATCH /api/v1/sheet-types/${POSITIONED.key}`]: () => {
+          throw new TypeError("offline");
+        },
+      }),
+    );
+    await show(POSITIONED);
+    const field = screen.getByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "12,5");
+    await userEvent.click(screen.getByRole("button", { name: "Save position" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The server cannot be reached.");
+    expect(field).toHaveValue("12,5");
+    expect(screen.getByRole("button", { name: "Save position" })).toBeEnabled();
+  });
+
+  it.each([
+    ["-1", "a negative offset"],
+    ["1000,5", "an offset over 1000 mm"],
+    ["", "an empty offset"],
+  ])("save position refuses %s (%s) without a request", async (text) => {
+    const { calls } = mockApi(routes({ [`PATCH /api/v1/sheet-types/${POSITIONED.key}`]: POSITIONED }));
+    await show(POSITIONED);
+    const field = screen.getByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    if (text) await userEvent.type(field, text);
+    expect(screen.getByRole("button", { name: "Save position" })).toBeDisabled();
+    expect(screen.getByText("The offset is a number of mm from 0 to 1000, for example 12.5.")).toBeVisible();
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+  });
+
+  it("the printer list says while it is checking, when it failed and when there is no page printer", async () => {
+    let answer: unknown = new Promise(() => {});
+    mockApi({ "GET /api/v1/backing-designs": [], [`GET /api/v1/sheet-types/${POSITIONED.key}/id-placement`]: () => answer });
+    const { unmount } = await showWith(POSITIONED);
+    expect(screen.getByText("Checking the printers…")).toBeVisible();
+    unmount();
+    answer = respond(500, apiErrorBody("internal", "boom"));
+    const second = await showWith(POSITIONED);
+    expect(await screen.findByText("The printers could not be checked.")).toBeVisible();
+    expect(screen.queryByRole("list", { name: "Printers" })).toBeNull();
+    second.unmount();
+    answer = [];
+    await showWith(POSITIONED);
+    expect(await screen.findByText("No enabled page printer.")).toBeVisible();
+    expect(screen.queryByText(/printers do not print the code/)).toBeNull();
+  });
+
+  it("the chosen place follows the printer picked there", async () => {
+    mockApi(routes());
+    await show(POSITIONED);
+    expect(await screen.findByText("Top band, 103.6 mm from the left")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: / Printer$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Desk inkjet" }));
+    expect(screen.getByText("This printer does not print the code in the margin.")).toBeVisible();
+    expect(screen.getByRole("img", { name: /^Sheet front/ }).querySelector("[data-id-rect]")).toBeNull();
+  });
+
+  it("a tray picked on a row re-checks that printer on that tray, and the chosen place follows", async () => {
+    const onTray2 = [
+      { ...ROWS[0]!, tray: "tray-2", offset_mm: 50, x_mm: 58.4, w_mm: 30, content: "qr_code" },
+      { ...ROWS[1]! },
+    ];
+    const { calls } = mockApi(
+      routes({
+        [`GET /api/v1/sheet-types/${POSITIONED.key}/id-placement`]: (_init: RequestInit, url: URL) =>
+          url.searchParams.get("tray") === "tray-2" ? onTray2 : ROWS,
+        [`GET /api/v1/printers/${OFFICE}/status`]: status(OFFICE, {
+          trays: [
+            { key: "tray-1", label: "Tray 1 (manual feed)", enabled: true, is_default: true, load_hint: null },
+            { key: "tray-2", label: "Tray 2", enabled: true, is_default: false, load_hint: null },
+            { key: "tray-3", label: "Tray 3", enabled: false, is_default: false, load_hint: null },
+          ],
+        }),
+      }),
+    );
+    await show(POSITIONED);
+    const office = within(await screen.findByRole("list", { name: "Printers" })).getAllByRole("listitem")[0]!;
+    await waitFor(() => expect(office).toHaveTextContent("Office laser · Tray 1 (manual feed)"));
+    await userEvent.click(within(office).getByRole("button", { name: / Check on tray$/ }));
+    // Only enabled trays are offered.
+    expect(screen.queryByRole("option", { name: "Tray 3" })).toBeNull();
+    await userEvent.click(await screen.findByRole("option", { name: "Tray 2" }));
+    expect(calls.some((c) => c.path.endsWith("/id-placement") && c.search === "?tray=tray-2")).toBe(true);
+    await waitFor(() => expect(within(office).getByText("QR + code")).toBeVisible());
+    expect(within(office).getByText("The type text does not fit beside the QR here.")).toBeVisible();
+    // The other printer keeps its own (default) row.
+    const inkjet = within(screen.getByRole("list", { name: "Printers" })).getAllByRole("listitem")[1]!;
+    expect(within(inkjet).getByText("Does not fit")).toBeVisible();
+    expect(screen.getByText("Top band, 58.4 mm from the left")).toBeVisible();
+  });
+
+  it("a tray the printer cannot use now is said, and its default tray is shown", async () => {
+    mockApi(
+      routes({
+        [`GET /api/v1/sheet-types/${POSITIONED.key}/id-placement`]: () => ROWS,
+        [`GET /api/v1/printers/${OFFICE}/status`]: status(OFFICE, {
+          trays: [
+            { key: "tray-1", label: "Tray 1", enabled: true, is_default: true, load_hint: null },
+            { key: "tray-2", label: "Tray 2", enabled: true, is_default: false, load_hint: null },
+          ],
+        }),
+      }),
+    );
+    await show(POSITIONED);
+    const office = within(await screen.findByRole("list", { name: "Printers" })).getAllByRole("listitem")[0]!;
+    await userEvent.click(await within(office).findByRole("button", { name: / Check on tray$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Tray 2" }));
+    expect(await within(office).findByText("This printer cannot use that tray now: shown on its default tray.")).toBeVisible();
+  });
+
+  it("a tray check on a lost connection says so and keeps the row", async () => {
+    mockApi(
+      routes({
+        [`GET /api/v1/sheet-types/${POSITIONED.key}/id-placement`]: (_init: RequestInit, url: URL) => {
+          if (url.searchParams.get("tray")) throw new TypeError("offline");
+          return ROWS;
+        },
+        [`GET /api/v1/printers/${OFFICE}/status`]: status(OFFICE, {
+          trays: [
+            { key: "tray-1", label: "Tray 1", enabled: true, is_default: true, load_hint: null },
+            { key: "tray-2", label: "Tray 2", enabled: true, is_default: false, load_hint: null },
+          ],
+        }),
+      }),
+    );
+    await show(POSITIONED);
+    const office = within(await screen.findByRole("list", { name: "Printers" })).getAllByRole("listitem")[0]!;
+    await userEvent.click(await within(office).findByRole("button", { name: / Check on tray$/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Tray 2" }));
+    expect(await within(office).findByText("This tray could not be checked.")).toBeVisible();
+    expect(within(office).getByText("Fits")).toBeVisible();
   });
 
   it("the position is not offered while the code goes on the back", async () => {

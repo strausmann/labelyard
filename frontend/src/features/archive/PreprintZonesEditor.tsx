@@ -20,6 +20,8 @@ export interface ZonesDraft {
 const NONE = "";
 const FOCUS = "data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 const ICON_BUTTON = `press flex size-11 shrink-0 items-center justify-center rounded-r2 transition-colors duration-150 data-[hovered]:bg-sunken data-[pressed]:bg-sunken ${FOCUS}`;
+/** The server's largest value of a zone length (`_MAX_MM`). */
+export const ZONE_MAX_MM = 1000;
 /** The server's limit for a zone note (`ZONE_NOTE_MAX`). */
 const NOTE_MAX = 120;
 
@@ -260,11 +262,22 @@ function ZoneDialog({
     if (parsed.some((v) => v === null || !Number.isFinite(v))) return setProblem(t`Enter each value as a number in mm, for example 12.5.`);
     if (values.x! < 0 || values.y! < 0) return setProblem(t`x and y start at the sheet's top-left corner: they cannot be negative.`);
     if (values.w! < 1 || values.h! < 1) return setProblem(t`An area is at least 1 mm wide and 1 mm high.`);
+    if ([values.x!, values.y!, values.w!, values.h!].some((v) => v > ZONE_MAX_MM)) {
+      return setProblem(t`Each value is at most ${ZONE_MAX_MM} mm.`);
+    }
+    if ([values.x!, values.y!, values.w!, values.h!].some((v) => Math.abs(v * 100 - Math.round(v * 100)) > 1e-6)) {
+      return setProblem(t`Each value has at most two decimals, for example 12.25.`);
+    }
     if (note.length > NOTE_MAX) return setProblem(t`The note is too long: at most ${NOTE_MAX} characters.`);
     const trimmed = note.trim();
     onSave({ x_mm: values.x!, y_mm: values.y!, w_mm: values.w!, h_mm: values.h!, ...(trimmed !== "" ? { note: trimmed } : { note: null }) });
   }
-  const field = (label: string, val: string, set: (v: string) => void): ReactNode => (
+  /** A value the save would refuse: no number, negative, beyond the server's limit, more than two decimals, or (a length) under 1 mm. */
+  const wrong = (val: string, length: boolean) => {
+    const v = parseDecimal(val);
+    return v === null || v < (length ? 1 : 0) || v > ZONE_MAX_MM || Math.abs(v * 100 - Math.round(v * 100)) > 1e-6;
+  };
+  const field = (label: string, val: string, set: (v: string) => void, length: boolean): ReactNode => (
     <TextInput
       label={label}
       value={val}
@@ -273,7 +286,7 @@ function ZoneDialog({
         setProblem(null);
       }}
       inputMode="decimal"
-      invalid={problem !== null && parseDecimal(val) === null}
+      invalid={problem !== null && wrong(val, length)}
       validationBehavior="aria"
     />
   );
@@ -295,10 +308,10 @@ function ZoneDialog({
         <TextInput label={t`Note`} value={note} onChange={setNote} maxLength={NOTE_MAX} />
         {/* Two columns on every width: with the keyboard open all four numbers stay in one screen (spec 12). */}
         <div className="grid grid-cols-2 gap-3">
-          {field(t({ message: "x", context: "zone left edge" }), x, setX)}
-          {field(t({ message: "y", context: "zone top edge" }), y, setY)}
-          {field(t`Width`, w, setW)}
-          {field(t`Height`, h, setH)}
+          {field(t({ message: "x", context: "zone left edge" }), x, setX, false)}
+          {field(t({ message: "y", context: "zone top edge" }), y, setY, false)}
+          {field(t`Width`, w, setW, true)}
+          {field(t`Height`, h, setH, true)}
         </div>
         {problem ? (
           <p role="alert" className="m-0 rounded-r2 border border-bad bg-bad/10 p-3 text-small font-bold text-ink">

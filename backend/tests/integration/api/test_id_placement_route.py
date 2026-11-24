@@ -16,10 +16,13 @@ from typing import Any
 import httpx
 import pytest
 from app.models.printer import Printer
+from app.models.printer_status_cache import PrinterStatusCache
+from app.models.printer_tray import PrinterTray
 from app.printer_backends.ipp.attributes import Margins
 from app.sheets import type_service as ts
 from app.sheets.geometry import Geometry
 from sqlalchemy import select
+from sqlmodel import col
 
 from tests.integration.api.test_sheet_print_api import Rig, _err, _printer, _type, running
 from tests.integration.api.test_sheet_types_api import _factory, _insert_key
@@ -196,3 +199,39 @@ async def test_margin_check_reports_the_rectangle() -> None:
         async with _factory()() as s:
             ids = list((await s.execute(select(Printer.slug))).scalars())
         assert "page-1" in ids
+
+
+async def test_id_placement_on_a_chosen_tray_and_without_a_read_status() -> None:
+    """The type page's tray picker asks for one tray: the row names it (#246 fix round 1).
+
+    Unknown or disabled trays fall back to the default (tested above). A printer whose status was
+    never read (no cached margins, the IPP query failed) still gets its row instead of failing the
+    list: the hub assumes its default edge, as the print path does.
+    """
+    async with running() as rig:
+        async with _factory()() as s:
+            page_1 = (
+                await s.execute(select(Printer).where(col(Printer.slug) == "page-1"))
+            ).scalar_one()
+            s.add(PrinterTray(printer_id=page_1.id, tray_key="manual", label="Manual feed"))
+            await s.commit()
+        silent = await _printer("page-silent")
+        async with _factory()() as s:
+            cached = (
+                await s.execute(
+                    select(PrinterStatusCache).where(col(PrinterStatusCache.printer_id) == silent)
+                )
+            ).scalar_one()
+            await s.delete(cached)
+            await s.commit()
+
+        default = await _rows(rig)
+        manual = await _rows(rig, params={"tray": "manual"})
+
+        assert default.status_code == 200, default.text
+        assert manual.status_code == 200, manual.text
+        by_name = {r["printer_name"]: r for r in manual.json()}
+        assert by_name["P page-1"]["tray"] == "manual" and by_name["P page-1"]["fits"] is True
+        # page-silent has no "manual" tray: its row is evaluated on its default tray.
+        assert by_name["P page-silent"]["tray"] == "auto"
+        assert {r["printer_name"] for r in default.json()} == {"P page-1", "P page-silent"}

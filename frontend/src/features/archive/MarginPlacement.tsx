@@ -3,13 +3,14 @@
 
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
+import { useQueries } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Button } from "react-aria-components";
-import { useTrayLabel } from "../jobs/useJobTitle";
+import { usePrinterStatus } from "../printers/api";
 import { SelectField } from "../settings/controls";
 import { SheetFrontDiagram, SheetFrontLegend } from "../sheets/GeometryDiagram";
 import { PANEL, PRIMARY_BUTTON } from "../ui";
-import { useIdPlacement, usePatchType, type IdPlacementRow, type SheetTypeDetail, type SheetTypePatch } from "./api";
+import { idPlacementQuery, useIdPlacement, usePatchType, type IdPlacementRow, type SheetTypeDetail, type SheetTypePatch } from "./api";
 import { useArchiveErrorText } from "./errors";
 import { IdPositionControls, positionOf, type PositionDraft } from "./IdPositionControls";
 import { allZones, formatTenth } from "./preprint";
@@ -59,6 +60,28 @@ function usePlaceText(type: SheetTypeDetail): (row: IdPlacementRow) => string | 
     if (horizontal) return fromEnd ? t`${band}, ${mm} mm from the right` : t`${band}, ${mm} mm from the left`;
     return fromEnd ? t`${band}, ${mm} mm from the bottom` : t`${band}, ${mm} mm from the top`;
   };
+}
+
+/** The tray picked per printer on the type page; a printer without an entry is shown on its default tray. */
+export type TrayChoice = Record<string, string>;
+
+/**
+ * The per-printer rows, each on its picked tray (#246, "Pick another tray on a row to check it"). The endpoint takes one
+ * `tray` for every printer, so each picked tray is one more request; its row for that printer replaces the default one.
+ */
+export function usePlacementRows(key: string, trays: TrayChoice) {
+  const base = useIdPlacement(key);
+  const picked = [...new Set(Object.values(trays))];
+  const extra = useQueries({ queries: picked.map((tray) => idPlacementQuery(key, tray)) });
+  const byTray = new Map(picked.map((tray, i) => [tray, extra[i]!]));
+  const rows = (base.data ?? []).map((row) => {
+    const tray = trays[row.printer_id];
+    if (tray === undefined) return { row, requested: null, checking: false, failed: false };
+    const answer = byTray.get(tray);
+    const fresh = answer?.data?.find((r) => r.printer_id === row.printer_id);
+    return { row: fresh ?? row, requested: tray, checking: !!answer?.isPending, failed: !!answer?.isError };
+  });
+  return { base, rows };
 }
 
 /** "Position in the margin" of the type page (mockup M2): the same controls as Edit details, saved on their own. */
@@ -123,16 +146,32 @@ function Badge({ tone, children }: { tone: "ok" | "bad" | "info" | "plain"; chil
   return <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-small font-bold whitespace-nowrap ${cls}`}>{children}</span>;
 }
 
-function PrinterRow({ row, place }: { row: IdPlacementRow; place: string | null }) {
+function PrinterRow({
+  row,
+  place,
+  requested,
+  checking,
+  failed,
+  onTray,
+}: {
+  row: IdPlacementRow;
+  place: string | null;
+  requested: string | null;
+  checking: boolean;
+  failed: boolean;
+  onTray: (tray: string) => void;
+}) {
   const { t } = useLingui();
   const words = useWords();
-  const tray = useTrayLabel(row.printer_id, row.tray) ?? row.tray;
+  const status = usePrinterStatus(row.printer_id);
+  const trays = (status.data?.trays ?? []).filter((tray) => tray.enabled);
+  const label = (key: string) => trays.find((tray) => tray.key === key)?.label ?? key;
   const note = row.fits ? (row.content ? words.contentNote(row.content) : null) : row.reason ? words.reason(row.reason) : null;
   return (
-    <li className="flex flex-col gap-1 border-line px-4 py-3 not-first:border-t">
+    <li className="flex flex-col gap-2 border-line px-4 py-3 not-first:border-t">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-bold [overflow-wrap:anywhere]">
-          {row.printer_name} <span className="font-normal text-ink-2">· {tray}</span>
+          {row.printer_name} <span className="font-normal text-ink-2">· {label(row.tray)}</span>
         </span>
         <span className="flex flex-wrap gap-2">
           {row.fits ? (
@@ -169,31 +208,57 @@ function PrinterRow({ row, place }: { row: IdPlacementRow; place: string | null 
           ) : null}
         </p>
       ) : null}
+      {trays.length > 1 ? (
+        <div className="flex max-w-xs flex-col gap-1">
+          <SelectField
+            label={t`Check on tray`}
+            value={requested ?? row.tray}
+            options={trays.map((tray) => ({ id: tray.key, label: tray.label }))}
+            onChange={onTray}
+          />
+          <span role="status" className="text-small text-ink-2">
+            {checking
+              ? t`Checking this tray…`
+              : failed
+                ? t`This tray could not be checked.`
+                : requested !== null && requested !== row.tray
+                  ? t`This printer cannot use that tray now: shown on its default tray.`
+                  : null}
+          </span>
+        </div>
+      ) : null}
     </li>
   );
 }
 
 /** "On your printers" (mockup M2, spec 5.3): per enabled page printer on its tray, fits or why not. */
-export function OnYourPrinters({ type }: { type: SheetTypeDetail }) {
+export function OnYourPrinters({ type, trays, onTray }: { type: SheetTypeDetail; trays: TrayChoice; onTray: (printerId: string, tray: string) => void }) {
   const { t } = useLingui();
-  const rows = useIdPlacement(type.key);
+  const { base, rows } = usePlacementRows(type.key, trays);
   const placeText = usePlaceText(type);
-  const list = rows.data ?? [];
-  const missing = list.filter((r) => !r.fits).length;
-  const total = list.length;
+  const missing = rows.filter((r) => !r.row.fits).length;
+  const total = rows.length;
   return (
     <section aria-labelledby="printers-h" className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h3 id="printers-h" className="text-section font-bold">{t`On your printers`}</h3>
-        <p className="m-0 text-ink-2">{t`One row per enabled page printer, with the tray its sheets use.`}</p>
+        <p className="m-0 text-ink-2">{t`One row per enabled page printer, with the tray its sheets use. Pick another tray on a row to check it.`}</p>
       </div>
-      {rows.isPending ? <p className="m-0 text-small text-ink-2">{t`Checking the printers…`}</p> : null}
-      {rows.isError ? <p className="m-0 text-small text-ink-2">{t`The printers could not be checked.`}</p> : null}
-      {rows.isSuccess && total === 0 ? <p className="m-0 text-small text-ink-2">{t`No enabled page printer.`}</p> : null}
+      {base.isPending ? <p className="m-0 text-small text-ink-2">{t`Checking the printers…`}</p> : null}
+      {base.isError ? <p className="m-0 text-small text-ink-2">{t`The printers could not be checked.`}</p> : null}
+      {base.isSuccess && total === 0 ? <p className="m-0 text-small text-ink-2">{t`No enabled page printer.`}</p> : null}
       {total > 0 ? (
         <ul aria-label={t`Printers`} className="m-0 flex list-none flex-col overflow-hidden rounded-r3 border border-line bg-surface p-0">
-          {list.map((row) => (
-            <PrinterRow key={`${row.printer_id}-${row.tray}`} row={row} place={placeText(row)} />
+          {rows.map(({ row, requested, checking, failed }) => (
+            <PrinterRow
+              key={row.printer_id}
+              row={row}
+              place={placeText(row)}
+              requested={requested}
+              checking={checking}
+              failed={failed}
+              onTray={(tray) => onTray(row.printer_id, tray)}
+            />
           ))}
         </ul>
       ) : null}
@@ -215,13 +280,12 @@ export function OnYourPrinters({ type }: { type: SheetTypeDetail }) {
 }
 
 /** "Chosen place" (mockup M2): the sheet front with the code where one printer puts it, and the numbers in words. */
-export function ChosenPlace({ type }: { type: SheetTypeDetail }) {
+export function ChosenPlace({ type, trays }: { type: SheetTypeDetail; trays: TrayChoice }) {
   const { t, i18n } = useLingui();
   const words = useWords();
-  const rows = useIdPlacement(type.key);
-  const list = rows.data ?? [];
+  const list = usePlacementRows(type.key, trays).rows.map((r) => r.row);
   const [chosen, setChosen] = useState<string | null>(null);
-  const row = list.find((r) => `${r.printer_id}|${r.tray}` === chosen) ?? list[0];
+  const row = list.find((r) => r.printer_id === chosen) ?? list[0];
   const rect = rectOf(row);
   const g = type.geometry;
   const zones = allZones(type.preprint_zones ?? [], type.preprint_preset?.zones);
@@ -241,8 +305,8 @@ export function ChosenPlace({ type }: { type: SheetTypeDetail }) {
       {list.length > 1 ? (
         <SelectField
           label={t`Printer`}
-          value={row ? `${row.printer_id}|${row.tray}` : ""}
-          options={list.map((r) => ({ id: `${r.printer_id}|${r.tray}`, label: r.printer_name }))}
+          value={row ? row.printer_id : ""}
+          options={list.map((r) => ({ id: r.printer_id, label: r.printer_name }))}
           onChange={setChosen}
         />
       ) : row ? (

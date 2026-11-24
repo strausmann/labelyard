@@ -90,6 +90,26 @@ describe("preprinted areas editor", () => {
     expect(box.getByText("Covers label 1 (row 1, column 1). Move it above 21.5 mm or shrink it so it stays out of the labels.")).toBeVisible();
   });
 
+  it.each([
+    [{ x: "-1", y: "6", w: "30", h: "6" }, "x and y start at the sheet's top-left corner: they cannot be negative.", "x"],
+    [{ x: "10", y: "6", w: "0,5", h: "6" }, "An area is at least 1 mm wide and 1 mm high.", "Width"],
+    [{ x: "10", y: "6", w: "30", h: "0,9" }, "An area is at least 1 mm wide and 1 mm high.", "Height"],
+    [{ x: "10", y: "1001", w: "30", h: "6" }, "Each value is at most 1000 mm.", "y"],
+    [{ x: "10,125", y: "6", w: "30", h: "6" }, "Each value has at most two decimals, for example 12.25.", "x"],
+  ])("the dialog refuses %o locally and marks the field", async (v, message, marked) => {
+    const seen = await show({ preset: null, zones: [] });
+    await userEvent.click(screen.getByRole("button", { name: "Add area" }));
+    const box = within(await screen.findByRole("dialog"));
+    await userEvent.type(box.getByRole("textbox", { name: "x" }), v.x);
+    await userEvent.type(box.getByRole("textbox", { name: "y" }), v.y);
+    await userEvent.type(box.getByRole("textbox", { name: "Width" }), v.w);
+    await userEvent.type(box.getByRole("textbox", { name: "Height" }), v.h);
+    await userEvent.click(box.getByRole("button", { name: "Save area" }));
+    expect(box.getByRole("alert")).toHaveTextContent(message);
+    expect(box.getByRole("textbox", { name: marked })).toHaveAttribute("aria-invalid", "true");
+    expect(seen).toHaveLength(0);
+  });
+
   it("preset picker adds its zones above the own list", async () => {
     const seen = await show({ preset: null, zones: [BOTTOM] });
     expect(rows()).toHaveLength(1);

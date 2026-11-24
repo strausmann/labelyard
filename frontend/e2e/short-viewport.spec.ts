@@ -491,7 +491,7 @@ test.describe("short viewport (on-screen keyboard)", () => {
       test("ID offset stepper stays in view", async () => {
         await prepare(mode);
         await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
-        await page.getByRole("tab", { name: "Where the code goes" }).click();
+        await page.getByRole("tab", { name: "Sheet code" }).click();
         const field = page.getByRole("textbox", { name: "Offset from that end" });
         await field.click();
         await keyboard(mode);
@@ -504,6 +504,43 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await expectInSight(page, page.getByRole("button", { name: "Increase the offset by 0.5 mm" }), "the + button");
         await expectInSight(page, page.getByRole("button", { name: "Decrease the offset by 0.5 mm" }), "the − button");
         await expect(field).toBeFocused();
+        // Save position can be brought into sight, except where the stand-in keyboard covers a tablet page: there the
+        // button sits in the last 51 px of the layout viewport at the page's maximum scroll, and only a real browser's
+        // panning of the visual viewport reaches it (the stand-in cannot pan; review of #441, finding 4).
+        if (!(mode.visible && mode.width >= 1024)) {
+          const save = page.getByRole("button", { name: "Save position" });
+          await save.scrollIntoViewIfNeeded();
+          await expectInSight(page, save, "the Save position button");
+        }
+      });
+
+      test("Sheet code: the chosen card, the other choices and a row's tray picker stay reachable", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
+        await page.getByRole("tab", { name: "Sheet code" }).click();
+        const field = page.getByRole("textbox", { name: "Offset from that end" });
+        await field.click();
+        await keyboard(mode);
+        const card = page.getByRole("group", { name: "In the margin" });
+        await card.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expectInSight(page, card, "the chosen card");
+        const back = page.getByRole("button", { name: "Back of the liner" });
+        await back.evaluate((el) => el.scrollIntoView({ block: "start" }));
+        await expectInSight(page, back, "the Back of the liner choice");
+        await expectInSight(page, page.getByRole("button", { name: "A label cell" }), "the A label cell choice");
+        // The first printer row's tray picker: its trigger, and then its first tray, in sight. Not in the covered tablet
+        // mode: the printer list ends the page, and at the page's maximum scroll the stand-in keyboard (which cannot pan
+        // the visual viewport the way a real browser does) still covers the picker's last pixels (as finding 4 of the
+        // #441 review for Save position).
+        if (!(mode.visible && mode.width >= 1024)) {
+          const row = page.getByRole("list", { name: "Printers" }).getByRole("listitem").first();
+          const picker = row.getByRole("button", { name: / Check on tray$/ });
+          await picker.evaluate((el) => el.scrollIntoView({ block: "start" }));
+          await expectInSight(page, picker, "the tray picker");
+          await picker.click();
+          await expectInSightOnceSettled(page, page.locator('[role="option"]').first(), "the first tray");
+          await page.keyboard.press("Escape");
+        }
       });
 
       /** #350: the add dialog with the 3490 type (its code goes on the back), handed over to the activation steps. */

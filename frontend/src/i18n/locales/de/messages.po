@@ -655,10 +655,6 @@ msgstr "1 (oben links)"
 msgid "1 = cell number (not printed)"
 msgstr "1 = Zellennummer (wird nicht gedruckt)"
 
-#: src/features/archive/TypeForm.tsx
-msgid "1 area was not saved"
-msgstr "1 Bereich wurde nicht gespeichert"
-
 #: src/features/archive/MarginPlacement.tsx
 msgid "1 preset"
 msgstr "1 Herstellervorgabe"
@@ -682,6 +678,10 @@ msgstr "Für dieses Fach ist eine Korrektur gespeichert. Die Kalibrierseite wird
 #: src/features/settings/AccessKeys.tsx
 msgid "A key opens the API and the browser sign-in. read looks, print also prints, admin also changes settings."
 msgstr "Ein Schlüssel öffnet die API und die Anmeldung im Browser. read schaut nur, print druckt auch, admin ändert auch die Einstellungen."
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "A label cell"
+msgstr "Eine Etikettenzelle"
 
 #: src/features/sheets/errors.ts
 msgid "A marked cell is outside the sheet."
@@ -1136,6 +1136,11 @@ msgctxt "margin band"
 msgid "Automatic"
 msgstr "Automatisch"
 
+#: src/features/archive/IdPlacementSection.tsx
+msgctxt "placement"
+msgid "Automatic"
+msgstr "Automatisch"
+
 #: src/features/archive/IdPositionControls.tsx
 msgid "Automatic chooses the largest free band. A band you choose is a rule: if it has no room on a printer, the code is not printed there."
 msgstr "Automatisch wählt den größten freien Randstreifen. Ein gewählter Randstreifen ist eine Regel: Hat er auf einem Drucker keinen Platz, wird der Code dort nicht gedruckt."
@@ -1143,6 +1148,10 @@ msgstr "Automatisch wählt den größten freien Randstreifen. Ein gewählter Ran
 #: src/features/archive/ImportDialog.tsx
 msgid "Back"
 msgstr "Zurück"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "Back of the liner"
+msgstr "Rückseite des Trägerpapiers"
 
 #: src/features/sheets/backSide/LinerPreview.tsx
 msgid "Back of the liner with the sheet code strip"
@@ -1159,10 +1168,6 @@ msgstr "Rückseite des Trägerpapiers: kein freier Streifen nimmt den Bogencode 
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Back of the liner. The code goes in the marked strip."
 msgstr "Rückseite des Trägerpapiers. Der Code kommt in den markierten Streifen."
-
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Back side"
-msgstr "Rückseite"
 
 #: src/features/sheets/SheetsPage.tsx
 msgid "Back side missing"
@@ -1458,6 +1463,10 @@ msgstr "Ladezyklen"
 msgid "Check Jobs and the hub log, then save the printer again."
 msgstr "Sieh unter Aufträge und im Protokoll des Hubs nach, dann speichere den Drucker erneut."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Check on tray"
+msgstr "Prüfen mit Fach"
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Check page"
 msgstr "Kontrollseite"
@@ -1489,6 +1498,10 @@ msgstr "Prüfen, was gelöscht würde"
 #: src/features/archive/MarginPlacement.tsx
 msgid "Checking the printers…"
 msgstr "Prüfe die Drucker …"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Checking this tray…"
+msgstr "Prüfe dieses Fach …"
 
 #: src/shell/SessionStatus.tsx
 msgid "Checking your session…"
@@ -1531,10 +1544,6 @@ msgstr "Wähle einen Bogentyp, um seine Maße und Versionen zu sehen."
 msgid "Choose any cell. It is left out of planning."
 msgstr "Wähle eine beliebige Zelle. Die Planung lässt sie aus."
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Choose automatically"
-msgstr "Automatisch wählen"
-
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Choose cells"
 msgstr "Zellen wählen"
@@ -1546,6 +1555,11 @@ msgstr "Wähle ein Fach als Standard."
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Chore"
 msgstr "Hausarbeit"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgctxt "placement"
+msgid "Chosen"
+msgstr "Gewählt"
 
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Chosen automatically from the usable margin. You can change it."
@@ -1940,7 +1954,6 @@ msgstr "Beschreibe, was sich geändert hat."
 msgid "Description"
 msgstr "Beschreibung"
 
-#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Details"
 msgstr "Details"
@@ -2100,6 +2113,10 @@ msgstr "PDF herunterladen"
 msgid "Download settings"
 msgstr "Einstellungen herunterladen"
 
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Draft areas, saved code position"
+msgstr "Bereiche im Entwurf, Code-Lage gespeichert"
+
 #: src/features/lookup/CartPage.tsx
 #: src/features/lookup/LabelPreview.tsx
 msgid "Drawing the label…"
@@ -2124,6 +2141,14 @@ msgstr "Feld Trocknungstemperatur"
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Drying time field"
 msgstr "Feld Trocknungsdauer"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Each value has at most two decimals, for example 12.25."
+msgstr "Jeder Wert hat höchstens zwei Nachkommastellen, zum Beispiel 12,25."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Each value is at most {ZONE_MAX_MM} mm."
+msgstr "Jeder Wert ist höchstens {ZONE_MAX_MM} mm."
 
 #: src/features/sheets/print/SheetPreview.tsx
 msgid "Earlier prints of {item}"
@@ -2610,6 +2635,10 @@ msgctxt "sheet code placement"
 msgid "In a cell"
 msgstr "In einer Zelle"
 
+#: src/features/archive/IdPlacementSection.tsx
+msgid "In a label cell"
+msgstr "In einer Etikettenzelle"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "In a reserved cell"
 msgstr "In einer reservierten Zelle"
@@ -2622,6 +2651,7 @@ msgstr "In Grocys config.php"
 msgid "In the first free cell"
 msgstr "Im ersten freien Feld"
 
+#: src/features/archive/IdPlacementSection.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "In the margin"
 msgstr "Im Rand"
@@ -2630,6 +2660,10 @@ msgstr "Im Rand"
 msgctxt "sheet code placement"
 msgid "In the margin"
 msgstr "Im Rand"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "In the margin is not available for this sheet: no margin is wide enough for the code (the widest is {widest})."
+msgstr "Im Rand geht bei diesem Bogen nicht: Kein Rand ist breit genug für den Code (der breiteste hat {widest})."
 
 #: src/features/sheets/cellState.ts
 msgid "in the printer's unprintable margin"
@@ -3147,10 +3181,6 @@ msgstr "Hersteller und Modell"
 msgid "margin"
 msgstr "Rand"
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Margin"
-msgstr "Rand"
-
 #: src/features/notifications/NotificationCentre.tsx
 msgid "Mark all as read"
 msgstr "Alle als gelesen markieren"
@@ -3594,10 +3624,6 @@ msgstr "Keine gemeldet, nur die automatische Wahl"
 msgid "not accepting jobs"
 msgstr "nimmt keine Aufträge an"
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Not available for this sheet: no margin is wide enough for the code (the widest is {widest})."
-msgstr "Für diesen Bogen nicht verfügbar: Kein Rand ist breit genug für den Code (der breiteste hat {widest})."
-
 #: src/features/printers/PrinterDetail.tsx
 msgid "Not calibrated"
 msgstr "Nicht kalibriert"
@@ -3783,6 +3809,10 @@ msgstr "Nichts Neues."
 msgid "Nothing opened yet."
 msgstr "Noch nichts geöffnet."
 
+#: src/features/archive/TypeForm.tsx
+msgid "Nothing was saved"
+msgstr "Nichts wurde gespeichert"
+
 #: src/features/notifications/NotificationCentre.tsx
 msgid "Notifications"
 msgstr "Benachrichtigungen"
@@ -3891,6 +3921,7 @@ msgstr "An"
 msgid "on {printerName}"
 msgstr "auf {printerName}"
 
+#: src/features/archive/IdPlacementSection.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "On the back of the liner"
 msgstr "Auf der Rückseite des Trägerpapiers"
@@ -3925,8 +3956,8 @@ msgid "One of those cells is already in use. The sheet shows the current state."
 msgstr "Eine dieser Zellen ist schon belegt. Der Bogen zeigt den aktuellen Stand."
 
 #: src/features/archive/MarginPlacement.tsx
-msgid "One row per enabled page printer, with the tray its sheets use."
-msgstr "Eine Zeile je aktiviertem Seitendrucker, mit dem Fach, das seine Bögen nutzen."
+msgid "One row per enabled page printer, with the tray its sheets use. Pick another tray on a row to check it."
+msgstr "Eine Zeile je aktiviertem Seitendrucker, mit dem Fach, das seine Bögen nutzen. Wähl in einer Zeile ein anderes Fach, um es zu prüfen."
 
 #: src/features/sheets/errors.ts
 msgid "Only cells that were marked by hand can be un-marked."
@@ -4045,6 +4076,10 @@ msgstr "Oder die Werte direkt eingeben"
 #: src/features/settings/Integrations.tsx
 msgid "Other apps that print through this hub. They are recognised by the name of their API key."
 msgstr "Andere Apps, die über diesen Hub drucken. Sie werden am Namen ihres API-Schlüssels erkannt."
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "Other choices:"
+msgstr "Andere Möglichkeiten:"
 
 #: src/features/archive/errors.ts
 msgid "Other types use the same backing design and cannot take the catalog's change: {types}. Nothing was changed."
@@ -4227,10 +4262,6 @@ msgstr "Vorschau"
 #: src/features/lookup/CartPage.tsx
 msgid "Preview of {name}"
 msgstr "Vorschau von {name}"
-
-#: src/features/archive/SheetFrontPanel.tsx
-msgid "Preview of the saved rules"
-msgstr "Vorschau der gespeicherten Regeln"
 
 #: src/features/integrations/IntegrationPage.tsx
 #: src/features/lookup/CartPage.tsx
@@ -4770,10 +4801,6 @@ msgctxt "sheet cell state"
 msgid "reserved"
 msgstr "reserviert"
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Reserved cell"
-msgstr "Reservierte Zelle"
-
 #: src/features/printers/IdentityMismatchBanner.tsx
 msgid "Reset calibration and accept"
 msgstr "Kalibrierung zurücksetzen und übernehmen"
@@ -5190,6 +5217,7 @@ msgstr "Bogenarchiv"
 msgid "sheet code"
 msgstr "Bogencode"
 
+#: src/features/archive/TypeDetail.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "Sheet code"
@@ -5869,6 +5897,10 @@ msgstr "Die App dieses Eintrags ist nicht bekannt."
 msgid "The app of this item is not set up."
 msgstr "Die App dieses Eintrags ist nicht eingerichtet."
 
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "The areas are the ones in this form, not saved yet. The sheet code is drawn where the saved rules put it on the first page printer; saving can move it."
+msgstr "Die Bereiche sind die aus diesem Formular, noch nicht gespeichert. Der Bogencode steht dort, wo ihn die gespeicherten Regeln auf dem ersten Seitendrucker hinsetzen; Speichern kann ihn verschieben."
+
 #: src/features/archive/errors.ts
 msgid "The backing design of this type was changed here and differs from the catalog's. Nothing was changed."
 msgstr "Das Trägerdesign dieses Typs wurde hier geändert und weicht vom Katalog ab. Nichts wurde geändert."
@@ -6398,6 +6430,10 @@ msgstr "Die Zahlen auf der Skala sind der Wert, den du eingibst, wenn die Mitte 
 msgid "The offset is a number of mm from 0 to 1000, for example 12.5."
 msgstr "Der Abstand ist eine Zahl in mm von 0 bis 1000, zum Beispiel 12,5."
 
+#: src/features/archive/TypeForm.tsx
+msgid "The other changes in this form were not stored either. They are still here: fix the area and save again."
+msgstr "Auch die anderen Änderungen in diesem Formular wurden nicht gespeichert. Die Werte stehen noch da: Korrigier den Bereich und speichere erneut."
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "The page could not be queued."
 msgstr "Die Seite konnte nicht eingereiht werden."
@@ -6730,10 +6766,6 @@ msgstr "Der Bogencode kommt auf die Rückseite dieses Bogens."
 #: src/features/archive/IdPlacementSection.tsx
 msgid "The sheet code identifies a sheet when you scan it. Choose where the hub prints it."
 msgstr "Der Bogencode erkennt einen Bogen, wenn du ihn scannst. Wähle, wo der Hub ihn druckt."
-
-#: src/features/archive/SheetFrontPanel.tsx
-msgid "The sheet code is drawn where the saved rules put it on the first page printer. Saving moves it."
-msgstr "Der Bogencode steht dort, wo ihn die gespeicherten Regeln auf dem ersten Seitendrucker hinsetzen. Speichern verschiebt ihn."
 
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "The sheet code is in the print queue."
@@ -7075,6 +7107,10 @@ msgstr "Dieser Drucker kann kein PDF drucken, der Hub kann ihn deshalb nicht fü
 msgid "This printer cannot print PDF, which the hub needs for sheets."
 msgstr "Dieser Drucker kann kein PDF drucken, das der Hub für Bögen braucht."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "This printer cannot use that tray now: shown on its default tray."
+msgstr "Dieser Drucker kann das Fach gerade nicht nutzen: Gezeigt wird sein Standardfach."
+
 #: src/features/printers/PrinterDetail.tsx
 msgid "This printer does not exist."
 msgstr "Diesen Drucker gibt es nicht."
@@ -7139,6 +7175,10 @@ msgstr "Dieser Bogentyp ist archiviert. Er bietet keine neuen Bögen an, die vor
 #: src/features/printers/printErrorText.ts
 msgid "This tape width cannot print this label. Load another tape."
 msgstr "Diese Bandbreite kann dieses Etikett nicht drucken. Lege ein anderes Band ein."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "This tray could not be checked."
+msgstr "Dieses Fach konnte nicht geprüft werden."
 
 #: src/features/archive/errors.ts
 msgid "This type cannot be deleted. Archive it instead."
@@ -7650,10 +7690,6 @@ msgstr "Wo die Seite eines Eintrags für Leute liegt, zum Beispiel auf deiner ei
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Where gap line {s} and gap line {z} cross, read the small scales against the middle of the physical gap, in millimetres."
 msgstr "Wo sich die Lückenlinien {s} und {z} kreuzen, lies die kleinen Skalen gegen die Mitte der echten Lücke ab, in Millimetern."
-
-#: src/features/archive/TypeDetail.tsx
-msgid "Where the code goes"
-msgstr "Wo der Code hinkommt"
 
 #: src/features/archive/TypeForm.tsx
 msgid "Where the margin sheet code is printed. Checked against every page printer on the type page."

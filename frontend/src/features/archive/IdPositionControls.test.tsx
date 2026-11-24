@@ -55,6 +55,21 @@ describe("sheet code position controls", () => {
     expect(field).toHaveValue("0,5");
   });
 
+  it("the step buttons do not replace a text that is no number", async () => {
+    const seen: PositionDraft[] = [];
+    await show({ band: "top", align: "start", offset: "5.0" }, "en", (v) => seen.push(v));
+    const field = screen.getByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "abc");
+    const more = screen.getByRole("button", { name: "Increase the offset by 0.5 mm" });
+    const less = screen.getByRole("button", { name: "Decrease the offset by 0.5 mm" });
+    expect(more).toBeDisabled();
+    expect(less).toBeDisabled();
+    await userEvent.click(more);
+    expect(field).toHaveValue("abc");
+    expect(seen.at(-1)).toEqual({ band: "top", align: "start", offset: "abc" });
+  });
+
   it("band and start are radio groups that report the choice", async () => {
     const seen: PositionDraft[] = [];
     await show({ band: "auto", align: "start", offset: "0.0" }, "en", (v) => seen.push(v));

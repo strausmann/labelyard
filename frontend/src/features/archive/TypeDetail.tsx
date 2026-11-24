@@ -309,79 +309,86 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
       {editing ? (
         <TypeForm mode={{ kind: editing, type }} onDone={() => setEditing(null)} />
       ) : (
+        <>
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
+              {admin ? (
+                <>
+                  <Button onPress={() => setEditing("geometry")} className={PRIMARY_BUTTON}>{t`Edit geometry`}</Button>
+                  <Button onPress={() => setEditing("details")} className={SECONDARY_BUTTON}>{t`Edit details`}</Button>
+                </>
+              ) : null}
+              <a href={exportTypeUrl(type.key)} download className={`${SECONDARY_BUTTON} no-underline`}>
+                {t`Export`}
+              </a>
+              {admin ? (
+                <Button
+                  isDisabled={archive.isPending}
+                  onPress={() => archive.mutate({ key: type.key, unarchive: archived })}
+                  className={SECONDARY_BUTTON}
+                >
+                  {archived ? t`Unarchive` : t`Archive`}
+                </Button>
+              ) : null}
+              {admin ? (
+                <Button isDisabled={hasSheets} onPress={() => setConfirmDelete(true)} className={`${SECONDARY_BUTTON} text-bad`}>
+                  {t`Delete type`}
+                </Button>
+              ) : null}
+            </div>
+            {admin && hasSheets ? (
+              <p className="m-0 text-small text-ink-2">
+                {plural(type.sheets_total, {
+                  one: "Delete is only possible while no sheet uses the type. This type has # sheet: archive it instead, or discard and purge it first.",
+                  other: "Delete is only possible while no sheet uses the type. This type has # sheets: archive it instead, or discard and purge them first.",
+                })}
+              </p>
+            ) : null}
+            {actionError ? <p role="alert">{errorText(actionError)}</p> : null}
+          </div>
         <Tabs className="flex min-w-0 flex-col gap-6">
-          {/* The two tabs wrap on a narrow screen instead of scrolling. A panel without a control is a tab stop
-              (WAI-ARIA tabs) and shows the ring; no `outline-none` next to the ring, it would win and hide it. */}
+          {/* The tabs of mockup M2 (#246). They wrap on a narrow screen instead of scrolling. A panel without a control is a
+              tab stop (WAI-ARIA tabs) and shows the ring; no `outline-none` next to the ring, it would win and hide it. */}
           <TabList aria-label={t`Sheet type`} className="flex flex-wrap gap-1 border-b border-line">
-            <Tab id="details" className={TAB}>{t`Details`}</Tab>
-            <Tab id="placement" className={TAB}>{t`Where the code goes`}</Tab>
+            <Tab id="measurements" className={TAB}>{t`Measurements`}</Tab>
+            <Tab id="sheet-code" className={TAB}>{t`Sheet code`}</Tab>
+            <Tab id="versions" className={TAB}>{t`Versions`}</Tab>
+            <Tab id="sheets" className={TAB}>
+              {t`Sheets`}
+              <span className="ml-1.5 text-small font-normal text-ink-2 tabular-nums">{type.sheets_total}</span>
+            </Tab>
           </TabList>
-          <TabPanel id="placement" className="rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
+          <TabPanel id="measurements" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
+            <CatalogUpdatePanel type={type} admin={admin} />
+            <section aria-labelledby="geometry-heading" className="flex flex-col gap-3">
+              <h3 id="geometry-heading" className={SECTION_HEADING}>{t`Measurements`}</h3>
+              <GeometryDiagram geometry={g} hints={type.hints} />
+              <p className="text-ink-2">{type.allow_qr ? t`QR codes on labels: allowed` : t`QR codes on labels: not allowed`}</p>
+            </section>
+            {type.source_name || type.source_url || type.notes ? (
+              <section aria-labelledby="source-heading" className="flex flex-col gap-3">
+                <h3 id="source-heading" className={SECTION_HEADING}>{t`Where the numbers come from`}</h3>
+                <Source type={type} />
+                {type.notes ? <p className="whitespace-pre-wrap text-ink-2 [overflow-wrap:anywhere]">{type.notes}</p> : null}
+              </section>
+            ) : null}
+            <FeedbackLinks type={type} admin={admin} />
+          </TabPanel>
+          <TabPanel id="sheet-code" className="rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
             <IdPlacementSection key={type.key} type={type} admin={admin} />
           </TabPanel>
-          <TabPanel id="details" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
-          <div className="flex flex-wrap gap-3">
-            {admin ? (
-              <>
-                <Button onPress={() => setEditing("geometry")} className={PRIMARY_BUTTON}>{t`Edit geometry`}</Button>
-                <Button onPress={() => setEditing("details")} className={SECONDARY_BUTTON}>{t`Edit details`}</Button>
-              </>
-            ) : null}
-            <a href={exportTypeUrl(type.key)} download className={`${SECONDARY_BUTTON} no-underline`}>
-              {t`Export`}
-            </a>
-            {admin ? (
-              <Button
-                isDisabled={archive.isPending}
-                onPress={() => archive.mutate({ key: type.key, unarchive: archived })}
-                className={SECONDARY_BUTTON}
-              >
-                {archived ? t`Unarchive` : t`Archive`}
-              </Button>
-            ) : null}
-            {admin ? (
-              <Button isDisabled={hasSheets} onPress={() => setConfirmDelete(true)} className={`${SECONDARY_BUTTON} text-bad`}>
-                {t`Delete type`}
-              </Button>
-            ) : null}
-          </div>
-          {admin && hasSheets ? (
-            <p className="m-0 text-small text-ink-2">
-              {plural(type.sheets_total, {
-                one: "Delete is only possible while no sheet uses the type. This type has # sheet: archive it instead, or discard and purge it first.",
-                other: "Delete is only possible while no sheet uses the type. This type has # sheets: archive it instead, or discard and purge them first.",
-              })}
-            </p>
-          ) : null}
-          {actionError ? <p role="alert">{errorText(actionError)}</p> : null}
-
-          <UsageTiles type={type} />
-          <CatalogUpdatePanel type={type} admin={admin} />
-
-          <section aria-labelledby="geometry-heading" className="flex flex-col gap-3">
-            <h3 id="geometry-heading" className={SECTION_HEADING}>{t`Measurements`}</h3>
-            <GeometryDiagram geometry={g} hints={type.hints} />
-            <p className="text-ink-2">{type.allow_qr ? t`QR codes on labels: allowed` : t`QR codes on labels: not allowed`}</p>
-          </section>
-
-          <section aria-labelledby="versions-heading" className="flex flex-col gap-3">
-            <h3 id="versions-heading" className={SECTION_HEADING}>{t`Versions`}</h3>
-            <Versions type={type} />
-          </section>
-
-          {type.source_name || type.source_url || type.notes ? (
-            <section aria-labelledby="source-heading" className="flex flex-col gap-3">
-              <h3 id="source-heading" className={SECTION_HEADING}>{t`Where the numbers come from`}</h3>
-              <Source type={type} />
-              {type.notes ? <p className="whitespace-pre-wrap text-ink-2 [overflow-wrap:anywhere]">{type.notes}</p> : null}
+          <TabPanel id="versions" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
+            <section aria-labelledby="versions-heading" className="flex flex-col gap-3">
+              <h3 id="versions-heading" className={SECTION_HEADING}>{t`Versions`}</h3>
+              <Versions type={type} />
             </section>
-          ) : null}
-
-          <TypeSheetsList typeKey={type.key} />
-
-          <FeedbackLinks type={type} admin={admin} />
+          </TabPanel>
+          <TabPanel id="sheets" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
+            <UsageTiles type={type} />
+            <TypeSheetsList typeKey={type.key} />
           </TabPanel>
         </Tabs>
+        </>
       )}
 
       <ModalDialog title={t`Delete this type?`} isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} alert>

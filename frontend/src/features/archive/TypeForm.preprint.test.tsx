@@ -56,8 +56,10 @@ describe("edit details: preprinted areas and the sheet code position", () => {
       preprint_zones: [BOTTOM, { x_mm: 12, y_mm: 22, w_mm: 30, h_mm: 6, note: "Dust cover" }],
     });
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("1 area was not saved");
+    expect(alert).toHaveTextContent("Nothing was saved");
     expect(alert).toHaveTextContent("Area 2 covers label 1 (row 1, column 1).");
+    // The whole save was refused: the banner says the rest was not stored either.
+    expect(alert).toHaveTextContent("The other changes in this form were not stored either.");
     const refused = within(screen.getByRole("list", { name: "Preprinted areas" })).getAllByRole("listitem")[1]!;
     expect(within(refused).getByText("preprint_zone_overlaps_cell")).toBeVisible();
     // The diagram draws the refused zone dashed.
@@ -81,6 +83,63 @@ describe("edit details: preprinted areas and the sheet code position", () => {
       vendor: "Other vendor",
       preprint_zones: [BOTTOM, { x_mm: 10, y_mm: 6, w_mm: 30, h_mm: 8, note: "Logo" }],
     });
+  });
+
+  it("a refused area of the linked preset is marked as that preset area, not as an own one", async () => {
+    const preset = {
+      key: "example-front",
+      name: "Example front print",
+      page_size: "A4" as const,
+      origin: "custom" as const,
+      types_in_use: 0,
+      zones: [{ x_mm: 12, y_mm: 22, w_mm: 30, h_mm: 6, note: "Wide logo" }],
+    };
+    mockApi({
+      "GET /api/v1/preprint-presets": [preset],
+      [`PATCH ${PATH}`]: respond(422, apiErrorBody("preprint_zone_overlaps_cell", "A preprinted area covers a label cell.", { field: "preprint_preset.0" })),
+    });
+    await show();
+    await userEvent.click(screen.getByRole("button", { name: /Vendor preset/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Example front print" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Area 1 covers label 1 (row 1, column 1).");
+    const [first, second] = within(screen.getByRole("list", { name: "Preprinted areas" })).getAllByRole("listitem");
+    expect(first).toHaveTextContent(/^1Wide logo/);
+    expect(within(first!).getByText("preprint_zone_overlaps_cell")).toBeVisible();
+    expect(within(second!).queryByText("preprint_zone_overlaps_cell")).toBeNull();
+  });
+
+  it("a lost connection keeps the form open with the areas and the position, and says so", async () => {
+    mockApi({
+      "GET /api/v1/preprint-presets": [],
+      [`PATCH ${PATH}`]: () => {
+        throw new TypeError("offline");
+      },
+    });
+    const done = await show();
+    await userEvent.click(screen.getByRole("radio", { name: "Bottom" }));
+    await addZone({ note: "Logo", x: "10", y: "6", w: "30", h: "8" });
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByText("The server cannot be reached.")).toBeVisible();
+    expect(done).not.toHaveBeenCalled();
+    expect(screen.getByRole("radio", { name: "Bottom" })).toBeChecked();
+    expect(within(screen.getByRole("list", { name: "Preprinted areas" })).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it.each([
+    ["-0,5", "a negative offset"],
+    ["1001", "an offset over 1000 mm"],
+    ["", "an empty offset"],
+  ])("refuses %s (%s) without a request", async (text) => {
+    const { calls } = mockApi({ "GET /api/v1/preprint-presets": [], [`PATCH ${PATH}`]: TYPE });
+    await show();
+    const field = screen.getByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    if (text) await userEvent.type(field, text);
+    await userEvent.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByText("The offset is a number of mm from 0 to 1000, for example 12.5.")).toBeVisible();
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
   });
 
   it("saves the code position with the details", async () => {

@@ -3,7 +3,7 @@
 
 import { useLingui } from "@lingui/react/macro";
 import { useState } from "react";
-import { Button, Radio, RadioGroup } from "react-aria-components";
+import { Button } from "react-aria-components";
 import { HINT, SelectField } from "../settings/controls";
 import { formatMm, pageSizeMm } from "../sheets/cellState";
 import { LinerPreview } from "../sheets/backSide/LinerPreview";
@@ -11,7 +11,7 @@ import { placeStrip, widestMargin } from "../sheets/backSide/strip";
 import { PANEL, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../ui";
 import { useBackingDesigns, usePatchType, type SheetTypeDetail } from "./api";
 import { useArchiveErrorText } from "./errors";
-import { ChosenPlace, MarginPosition, OnYourPrinters } from "./MarginPlacement";
+import { ChosenPlace, MarginPosition, OnYourPrinters, type TrayChoice } from "./MarginPlacement";
 
 type Choice = "margin" | "back_side" | "cell";
 const PLAIN = "";
@@ -21,14 +21,27 @@ export function cellOptions(total: number, firstWord: string): { id: string; lab
   return Array.from({ length: total }, (_, i) => ({ id: String(i + 1), label: i === 0 ? firstWord : String(i + 1) }));
 }
 
-const OPTION =
-  "group flex min-h-11 cursor-pointer flex-col gap-1 rounded-r3 border border-line bg-surface p-4 transition-colors duration-150 data-[selected]:border-accent data-[selected]:bg-accent-soft/40 data-[disabled]:cursor-not-allowed data-[disabled]:border-dashed data-[disabled]:bg-sunken data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
+const OTHER =
+  "inline-flex min-h-11 cursor-pointer items-center rounded-r1 px-1 font-bold text-link underline underline-offset-2 data-[disabled]:cursor-not-allowed data-[disabled]:text-ink-3 data-[disabled]:no-underline data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 
-function Dot() {
+/** The chosen place as one card (mockup M2): its name, "Chosen", and what it means for printing. */
+function ChosenCard({ choice, automatic }: { choice: Choice; automatic: Choice }) {
+  const { t } = useLingui();
+  const title = { margin: t`In the margin`, back_side: t`On the back of the liner`, cell: t`In a label cell` }[choice];
+  const text = {
+    margin: t`Prints the code in the free band around the labels. No extra pass through the printer.`,
+    back_side: t`When you activate a new sheet, the hub asks you to turn it over and prints the code on the back of the liner. One extra pass through the printer.`,
+    cell: t`No second pass. One cell holds the code and cannot take a label.`,
+  }[choice];
   return (
-    <span aria-hidden="true" className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-line-strong bg-sunken group-data-[selected]:border-accent">
-      <span className="size-2.5 scale-0 rounded-full bg-accent transition-transform duration-150 ease-out group-data-[selected]:scale-100" />
-    </span>
+    <div role="group" aria-labelledby="chosen-placement" className="flex flex-col gap-1.5 rounded-r3 border-2 border-accent bg-surface p-4">
+      <span className="flex flex-wrap items-center gap-2">
+        <span id="chosen-placement" className="font-bold">{title}</span>
+        <span className="rounded-full bg-info-soft px-2 py-0.5 text-small font-bold text-ink">{t({ message: "Chosen", context: "placement" })}</span>
+        {automatic === choice ? <DefaultBadge /> : null}
+      </span>
+      <span className="text-ink-2">{text}</span>
+    </div>
   );
 }
 
@@ -54,6 +67,8 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
   const [cell, setCell] = useState(String(type.id_cell ?? 1));
   const [design, setDesign] = useState(type.backing_design?.key ?? PLAIN);
   const [saved, setSaved] = useState(false);
+  /** The tray picked on a printer row; the chosen place follows it. */
+  const [trays, setTrays] = useState<TrayChoice>({});
 
   const sameSize = (designs.data ?? []).filter((d) => d.page_size === g.page_size);
   const chosenDesign = sameSize.find((d) => d.key === design) ?? (design === type.backing_design?.key ? type.backing_design : null);
@@ -88,6 +103,30 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
     setDesign(type.backing_design?.key ?? PLAIN);
   }
 
+  const pick = (next: Choice) => {
+    setChoice(next);
+    setBackToAuto(false);
+    setSaved(false);
+  };
+  const others: { id: string; label: string; disabled?: boolean; choose: () => void }[] = [
+    ...(autoNow
+      ? []
+      : [
+          {
+            id: "auto",
+            label: t({ message: "Automatic", context: "placement" }),
+            choose: () => {
+              setChoice(automatic);
+              setBackToAuto(true);
+              setSaved(false);
+            },
+          },
+        ]),
+    ...(choice !== "margin" ? [{ id: "margin", label: t`In the margin`, disabled: !marginOk, choose: () => pick("margin") }] : []),
+    ...(choice !== "back_side" ? [{ id: "back_side", label: t`Back of the liner`, choose: () => pick("back_side") }] : []),
+    ...(choice !== "cell" ? [{ id: "cell", label: t`A label cell`, choose: () => pick("cell") }] : []),
+  ];
+
   return (
     <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
       <section aria-labelledby="placement-h" className="flex min-w-0 flex-col gap-4">
@@ -95,80 +134,40 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
           <h3 id="placement-h" className="text-section font-bold">{t`Where the sheet code goes`}</h3>
           <p className="text-ink-2">{t`The sheet code identifies a sheet when you scan it. Choose where the hub prints it.`}</p>
         </div>
-        <RadioGroup
-          aria-labelledby="placement-h"
-          value={choice}
-          onChange={(v) => {
-            setChoice(v as Choice);
-            setBackToAuto(false);
-            setSaved(false);
-          }}
-          isReadOnly={!admin}
-          className="flex flex-col gap-3"
-        >
-          <Radio value="margin" isDisabled={!marginOk} className={OPTION}>
-            <span className="flex items-start gap-3">
-              <Dot />
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2 font-bold">
-                  {t`Margin`}
-                  {automatic === "margin" ? <DefaultBadge /> : null}
+        <ChosenCard choice={choice} automatic={automatic} />
+        {admin ? (
+          <div className="flex flex-col gap-1">
+            <p className="m-0 flex flex-wrap items-center gap-x-1 text-small text-ink-2">
+              <span id="other-choices">{t`Other choices:`}</span>
+              {others.map((o, i) => (
+                <span key={o.id} className="inline-flex items-center gap-x-1">
+                  {i > 0 ? <span aria-hidden="true">·</span> : null}
+                  <Button
+                    aria-describedby="other-choices"
+                    isDisabled={o.disabled}
+                    onPress={o.choose}
+                    className={OTHER}
+                  >
+                    {o.label}
+                  </Button>
                 </span>
-                <span className="text-ink-2">{t`Prints the code in the free band around the labels. No extra pass through the printer.`}</span>
-                {!marginOk ? (
-                  <span className="rounded-r2 bg-sunken p-2 text-small text-warn">
-                    {t`Not available for this sheet: no margin is wide enough for the code (the widest is ${widest}).`}
-                  </span>
-                ) : null}
-              </span>
-            </span>
-          </Radio>
-          <Radio value="back_side" className={OPTION}>
-            <span className="flex items-start gap-3">
-              <Dot />
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="flex flex-wrap items-center gap-2 font-bold">
-                  {t`Back side`}
-                  {automatic === "back_side" ? <DefaultBadge /> : null}
-                </span>
-                <span className="text-ink-2">
-                  {t`When you activate a new sheet, the hub asks you to turn it over and prints the code on the back of the liner. One extra pass through the printer.`}
-                </span>
-              </span>
-            </span>
-          </Radio>
-          <Radio value="cell" className={OPTION}>
-            <span className="flex items-start gap-3">
-              <Dot />
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="font-bold">{t`Reserved cell`}</span>
-                <span className="text-ink-2">
-                  {t`No second pass. One cell holds the code and cannot take a label.`}
-                </span>
-              </span>
-            </span>
-          </Radio>
-        </RadioGroup>
+              ))}
+            </p>
+            {!marginOk && choice !== "margin" ? (
+              <p className="m-0 text-small text-ink-2">
+                {t`In the margin is not available for this sheet: no margin is wide enough for the code (the widest is ${widest}).`}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {choice === "cell" ? (
           <div className="flex max-w-xs flex-col gap-1">
             <SelectField label={t`Cell`} value={cell} options={cellOptions(total, t`1 (top left)`)} onChange={setCell} isDisabled={!admin} />
             <p className={HINT}>{t`Choose any cell. It is left out of planning.`}</p>
           </div>
         ) : null}
-        {autoNow ? (
-          <p className="text-small text-ink-2">{t`Chosen automatically from the usable margin. You can change it.`}</p>
-        ) : admin ? (
-          <Button
-            onPress={() => {
-              setChoice(automatic);
-              setBackToAuto(true);
-              setSaved(false);
-            }}
-            className="self-start text-small font-bold text-link underline underline-offset-2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link"
-          >
-            {t`Choose automatically`}
-          </Button>
-        ) : null}
+        {autoNow ? <p className="m-0 text-small text-ink-2">{t`Chosen automatically from the usable margin. You can change it.`}</p> : null}
+        {choice === "back_side" ? (
         <div className="flex max-w-sm flex-col gap-1">
           <SelectField
             label={t`Print on the back of the liner`}
@@ -182,6 +181,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
           />
           <p className={HINT}>{t`The free strips of the print decide where the code goes on the back.`}</p>
         </div>
+        ) : null}
         {admin ? (
           <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
             <Button onPress={save} isDisabled={!dirty || patch.isPending} className={PRIMARY_BUTTON}>
@@ -199,12 +199,12 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
         {choice === "margin" ? (
           <>
             <MarginPosition type={type} admin={admin} />
-            <OnYourPrinters type={type} />
+            <OnYourPrinters type={type} trays={trays} onTray={(printer, tray) => setTrays((prev) => ({ ...prev, [printer]: tray }))} />
           </>
         ) : null}
       </section>
       {choice === "margin" ? (
-        <ChosenPlace type={type} />
+        <ChosenPlace type={type} trays={trays} />
       ) : (
       <aside aria-labelledby="liner-h" className={`${PANEL} flex h-fit flex-col gap-3`}>
         <h4 id="liner-h" className="font-bold">{t`Preview`}</h4>

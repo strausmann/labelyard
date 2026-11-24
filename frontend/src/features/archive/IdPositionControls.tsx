@@ -49,12 +49,13 @@ export function IdPositionControls({
     { id: "left", label: t({ message: "Left", context: "margin band" }) },
     { id: "right", label: t({ message: "Right", context: "margin band" }) },
   ];
+  const current = parseDecimal(value.offset);
   const step = (direction: 1 | -1) => {
-    const current = parseDecimal(value.offset) ?? 0;
+    // Never over a text that is no number: the field keeps its invalid state until the person corrects it.
+    if (current === null) return;
     const next = Math.max(0, Math.round((current + direction * OFFSET_STEP_MM) * 100) / 100);
     onChange({ ...value, offset: formatTenth(next, i18n.locale) });
   };
-  const current = parseDecimal(value.offset);
 
   return (
     <div className="flex flex-col gap-4">
@@ -104,7 +105,7 @@ export function IdPositionControls({
             <Button
               aria-label={t`Decrease the offset by 0.5 mm`}
               onPress={() => step(-1)}
-              isDisabled={isDisabled || (current !== null && current <= 0)}
+              isDisabled={isDisabled || current === null || current <= 0}
               className={`${STEP} border-r border-line-strong`}
             >
               <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" className="fill-none stroke-current stroke-2 [stroke-linecap:round]">
@@ -121,7 +122,7 @@ export function IdPositionControls({
               />
               <span aria-hidden="true" className="text-small text-ink-2">mm</span>
             </span>
-            <Button aria-label={t`Increase the offset by 0.5 mm`} onPress={() => step(1)} isDisabled={isDisabled} className={`${STEP} border-l border-line-strong`}>
+            <Button aria-label={t`Increase the offset by 0.5 mm`} onPress={() => step(1)} isDisabled={isDisabled || current === null} className={`${STEP} border-l border-line-strong`}>
               <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" className="fill-none stroke-current stroke-2 [stroke-linecap:round]">
                 <path d="M3.5 8h9M8 3.5v9" />
               </svg>

@@ -98,7 +98,7 @@ test.describe.serial("preprinted areas", () => {
     await expect(dialog.getByText(/^Covers label 1 \(row 1, column 1\)\./)).toBeVisible();
     await dialog.getByRole("button", { name: "Save area" }).click();
     await page.getByRole("button", { name: "Save details" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "1 area was not saved" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Nothing was saved" })).toBeVisible();
     await expect(page.getByRole("list", { name: "Preprinted areas" }).getByText("preprint_zone_overlaps_cell")).toBeVisible();
     await expect(page.getByRole("img", { name: /^Sheet front with/ }).locator('[data-zone="refused"]')).toHaveCount(1);
     const shots = process.env.E2E_SHOTS_DIR;
@@ -122,7 +122,7 @@ test.describe.serial("preprinted areas", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     expect((await clearZones(page)).ok()).toBe(true);
     await page.goto(`/sheets/archive?type=${TYPE}`);
-    await page.getByRole("tab", { name: "Where the code goes" }).click();
+    await page.getByRole("tab", { name: "Sheet code" }).click();
     await expect(page.getByRole("heading", { name: "Position in the margin" })).toBeVisible();
     const printers = page.getByRole("list", { name: "Printers" });
     await expect(printers.getByRole("listitem").first()).toContainText("Office page printer");

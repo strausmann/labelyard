@@ -109,9 +109,12 @@ test.describe.serial("sheet archive", () => {
 
         await page.goto(`/sheets/archive?type=${SEED}`);
         await expect(page.getByRole("article", { name: SEED })).toBeVisible();
-        await expect(page.getByRole("table")).toBeVisible();
         expect(await noSideScroll(page)).toBe(true);
         await shot("detail");
+        // The versions table sits on its own tab (mockup M2 tabs).
+        await page.getByRole("tab", { name: lang === "de" ? "Versionen" : "Versions" }).click();
+        await expect(page.getByRole("table")).toBeVisible();
+        expect(await noSideScroll(page)).toBe(true);
 
         // The form with the most fields.
         await page.getByRole("button", { name: lang === "de" ? "Maße bearbeiten" : "Edit geometry" }).click();

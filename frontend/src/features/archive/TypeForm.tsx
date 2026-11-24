@@ -408,7 +408,7 @@ export function TypeForm({ mode, onDone }: { mode: FormMode; onDone: (createdKey
   );
 }
 
-/** "1 area was not saved": the zone the server refused, in words, above the form (mockup M1). */
+/** "Nothing was saved": the zone the server refused, in words, above the form (mockup M1). */
 function ZoneRefusalNote({ geometry, zone, number, code }: { geometry: SheetTypeDetail["geometry"]; zone: Zone | undefined; number: number; code: string }) {
   const { t } = useLingui();
   const cells = zone ? coveredCells(geometry, zone) : [];
@@ -433,8 +433,9 @@ function ZoneRefusalNote({ geometry, zone, number, code }: { geometry: SheetType
         <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM9 9l6 6M15 9l-6 6" />
       </svg>
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="m-0 font-bold">{t`1 area was not saved`}</p>
+        <p className="m-0 font-bold">{t`Nothing was saved`}</p>
         <p className="m-0 text-small">{text}</p>
+        <p className="m-0 text-small">{t`The other changes in this form were not stored either. They are still here: fix the area and save again.`}</p>
       </div>
     </div>
   );

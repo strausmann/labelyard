@@ -267,7 +267,7 @@ const VIEWS: View[] = [
     site: false,
     open: async (page) => {
       await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
-      await page.getByRole("tab", { name: "Where the code goes" }).click();
+      await page.getByRole("tab", { name: "Sheet code" }).click();
       await expect(page.getByRole("list", { name: "Printers" }).getByRole("listitem").first()).toBeVisible();
       await expect(page.getByRole("img", { name: /^Sheet front with/ }).locator("[data-id-rect]")).toHaveCount(1);
       // The new part in the frame: the position, the printers and (sticky beside them) the chosen place.

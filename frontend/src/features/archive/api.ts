@@ -147,12 +147,12 @@ export const usePreprintPresets = (enabled = true) =>
  * Per page printer, whether and where the margin sheet code of a type fits (#246). Lives under the type's key: a write
  * to the type (its position, its zones) refreshes it.
  */
-export const useIdPlacement = (key: string, enabled = true) =>
-  useQuery({
-    queryKey: [...typeKey(key), "id-placement"] as const,
-    queryFn: () => apiFetch<IdPlacementRow[]>(`${typePath(key)}/id-placement`),
-    enabled,
-  });
+export const idPlacementQuery = (key: string, tray: string | null = null) => ({
+  queryKey: [...typeKey(key), "id-placement", tray] as const,
+  queryFn: () => apiFetch<IdPlacementRow[]>(`${typePath(key)}/id-placement${queryString({ tray: tray ?? undefined })}`),
+});
+
+export const useIdPlacement = (key: string, enabled = true) => useQuery({ ...idPlacementQuery(key), enabled });
 
 export type BackingDesignRead = Schemas["BackingDesignRead"];
 

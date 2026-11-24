@@ -32,6 +32,8 @@ describe("the sheets of a type", () => {
   it("type detail lists its sheets in use first and hides discarded behind a toggle", async () => {
     const { calls } = mockApi(routes());
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    // The sheets of a type sit on its Sheets tab (mockup M2 tabs).
+    await userEvent.click(await screen.findByRole("tab", { name: /^Sheets/ }));
     const list = await screen.findByRole("list", { name: "Its sheets" });
     const codes = () => within(list).getAllByRole("link").map((a) => a.textContent);
     await waitFor(() => expect(codes()).toEqual(["L4736-0002", "L4736-0001", "L4736-0003"]));
@@ -47,6 +49,7 @@ describe("the sheets of a type", () => {
   it("type detail links to /sheets?type=<key>", async () => {
     mockApi(routes());
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await userEvent.click(await screen.findByRole("tab", { name: /^Sheets/ }));
     const link = await screen.findByRole("link", { name: "Show in the sheets list" });
     expect(link).toHaveAttribute("href", "/sheets?type=L4736REV");
   });
@@ -54,6 +57,7 @@ describe("the sheets of a type", () => {
   it("shows the usage numbers and keeps delete disabled while the type has sheets", async () => {
     mockApi(routes({ "GET /api/v1/sheet-types/L4736REV": { ...DETAIL, sheets_with_free_cells: 2, free_labels: 66, sheets_total: 4 } }));
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await userEvent.click(await screen.findByRole("tab", { name: /^Sheets/ }));
     expect(await screen.findByText("Sheets with free cells")).toBeVisible();
     expect(screen.getByText("66")).toBeVisible();
     expect(screen.getByRole("button", { name: "Delete type" })).toBeDisabled();

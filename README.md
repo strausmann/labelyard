@@ -152,7 +152,7 @@ The catalogue of sheet types: search by product code, filter by page size, vendo
 
 ### Sheet code in the margin
 
-A sheet type says where in the margin its sheet code goes: the band, the end it starts from and the offset, in steps of 0.5 mm. Areas the vendor printed on the front of the sheet, a logo or a product line, are entered in **Edit details** or taken from a vendor preset; the hub keeps the code, its QR code and the feed mark out of them. The type page shows, per page printer, whether the code fits and why not.
+A sheet type says where in the margin its sheet code goes: the band, the end it starts from and the offset, in steps of 0.5 mm. Areas the vendor printed on the front of the sheet, a logo or a product line, are entered in **Edit details** or taken from a vendor preset; the hub keeps the code, its QR code and the feed mark out of them. The type page shows, per page printer, whether the code fits and why not, and checks it again on another tray of that printer.
 
 <p>
   <picture>
