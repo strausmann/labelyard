@@ -80,6 +80,7 @@ __all__ = [
     "margin_id_payload",
     "margin_rect_of",
     "printed_margin_rect",
+    "printed_mark_rect",
     "render_preview_png",
     "render_sheet_page",
 ]
@@ -234,6 +235,24 @@ def printed_margin_rect(detail: Any) -> dict[str, int] | None:
         Geometry(**page.geometry), m.band, m.usable_hmm, text_end_hmm=m.text_end_hmm
     )
     return {"x": box.x, "y": box.y, "w": box.w, "h": box.h}
+
+
+def printed_mark_rect(detail: Any) -> dict[str, int] | None:
+    """Where the feed mark of a stored ``sheet_page`` detail sits (#246): from its ``x_hmm`` (the
+    stored decision, whichever end it took) the text's width, over the top band down to 1 mm
+    before the grid. ``None`` when the page carries no mark or is not readable."""
+    if not isinstance(detail, dict) or not detail.get("feed_mark"):
+        return None
+    try:
+        page = SheetPageDetail.model_validate(detail)
+    except ValueError:
+        return None
+    if page.feed_mark is None:
+        return None
+    f = page.feed_mark
+    width = round(text_width_mm(f.text, f.size_pt) * 100)
+    top = int(page.geometry["margin_top"]) - SAFETY_HMM
+    return {"x": f.x_hmm, "y": 0, "w": width, "h": max(top, 0)}
 
 
 def feed_mark_payload(p: FeedMarkPlacement) -> FeedMarkPayload:

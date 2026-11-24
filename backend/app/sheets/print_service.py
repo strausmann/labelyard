@@ -2312,15 +2312,19 @@ async def print_margin_id(
                 sheet_type = await session.get(SheetType, sheet.type_id)
                 assert sheet_type is not None  # the foreign key holds it
                 rule = (await margin_rules(session, [sheet_type]))[sheet_type.id]
-                # A feed mark already on the sheet keeps its box: 1.7.x put it at the top
-                # band's right end before the code, so that box is reserved (review round 3).
-                printed_mark = (
-                    choose_feed_mark(
+                # A feed mark already on the sheet keeps its box (review rounds 3 and 4): the
+                # one its printing page stored (either end), else, for a mark printed by 1.7.x,
+                # the top band's right end, where 1.7.x put it before the code.
+                printed_mark = None
+                mark_box: Rect | None = _stored_rect(sheet.feed_mark_rect)
+                if sheet.feed_mark_printed and mark_box is None:
+                    printed_mark = choose_feed_mark(
                         geometry, hw=facts.margins_hmm, dev=deviation, text=feed_mark_text(language)
                     )[0]
-                    if sheet.feed_mark_printed
-                    else None
-                )
+                    if printed_mark is not None:
+                        mark_box = _mark_box(geometry, printed_mark, facts.margins_hmm, deviation)
+                if not sheet.feed_mark_printed:
+                    mark_box = None
                 placement = _place_id(
                     geometry,
                     rule,
@@ -2329,9 +2333,7 @@ async def print_margin_id(
                     scan,
                     sheet.code,
                     info.label,
-                    taken=()
-                    if printed_mark is None
-                    else (_mark_box(geometry, printed_mark, facts.margins_hmm, deviation),),
+                    taken=() if mark_box is None else (mark_box,),
                 )
                 margin = _margin_payload(
                     code=sheet.code,
@@ -2405,6 +2407,14 @@ class MarginCheck:
 
 
 NO_MARGIN_BAND_REASON: Final = "no margin band is 4 mm deep on this printer"
+
+
+def _stored_rect(stored: Any) -> Rect | None:
+    """A rectangle recorded on a sheet (``{"x", "y", "w", "h"}``); unreadable counts as none."""
+    try:
+        return Rect(int(stored["x"]), int(stored["y"]), int(stored["w"]), int(stored["h"]))
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def _mark_box(g: Geometry, mark: FeedMarkPlacement, hw: Margins | None, dev: Deviation) -> Rect:

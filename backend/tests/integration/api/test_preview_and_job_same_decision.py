@@ -165,3 +165,39 @@ async def test_margin_reprint_keeps_a_printed_feed_mark_free() -> None:
         drawn = Rect(rect["x_hmm"], rect["y_hmm"], rect["w_hmm"], rect["h_hmm"])
         mark_box = Rect(mark.x_hmm, 423, mark.width_hmm, 2130 - 100 - 423)
         assert not drawn.overlaps(mark_box.grown(MARGIN_TEXT_GAP_HMM, MARGIN_TEXT_GAP_HMM))
+
+
+async def test_reprint_of_an_end_aligned_code_keeps_its_place_and_the_printed_mark() -> None:
+    """Review round 4 (Codex on #439): the code at the top band's right end (``align end``) and the
+    mark at its left end, printed by 1.8.0. The reprint reads the mark's stored box (not a
+    right-end mark rebuilt from scratch), so it fits again at the original place."""
+    from app.sheets.free_rects import Rect
+
+    margins = Margins(top=423, left=423, bottom=423, right=423)
+    async with running(margins=margins) as rig:
+        async with _factory()() as s:
+            await ts.patch_type(
+                s, "acme-t1", {"id_margin_band": "top", "id_margin_align": "end"}, actor="t"
+            )
+        code = await _sheet(placement="margin")
+        resp = await rig.print(_body(code, 1))
+        assert resp.status_code == 202, resp.text
+        first = (await rig.job_payload(resp.json()["pages"][0]["job_id"]))["detail"]
+        assert first["feed_mark_end"] == "top_left"
+        await rig.until_sheet(code, lambda s: s["id_printed"] and s["feed_mark_printed"])
+        row = await _sheet_row(code)
+        assert (
+            row.feed_mark_rect is not None
+            and row.feed_mark_rect["x"] == first["feed_mark"]["x_hmm"]
+        )
+
+        again = await rig.client.post(
+            f"/api/v1/sheets/{code}/margin-id", json={"printer": "page-1"}, headers=rig.key
+        )
+
+        assert again.status_code in (200, 201, 202), again.text
+        rect = (await rig.job_payload(again.json()["job_id"]))["detail"]["margin_id_rect"]
+        assert rect == first["margin_id_rect"]  # the original place
+        m = row.feed_mark_rect
+        drawn = Rect(rect["x_hmm"], rect["y_hmm"], rect["w_hmm"], rect["h_hmm"])
+        assert not drawn.overlaps(Rect(m["x"], m["y"], m["w"], m["h"]))

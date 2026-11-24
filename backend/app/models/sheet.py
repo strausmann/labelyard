@@ -196,6 +196,11 @@ class Sheet(SQLModel, table=True):
     margin_id_rect: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
+    # Likewise the printed feed mark's box (``{"x", "y", "w", "h"}``), with
+    # ``feed_mark_printed``; ``None`` for a mark printed by 1.7.x (at the top band's right end).
+    feed_mark_rect: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     created_at: datetime = Field(default_factory=_now, sa_column=_dt())
     created_by: str | None = Field(default=None, sa_column=Column(String, nullable=True))
     last_used_at: datetime | None = Field(default=None, sa_column=_dt(nullable=True))

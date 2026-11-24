@@ -542,6 +542,11 @@ async def _settle_unconfirmed(
         # carries the mark too, and its hub cell must set both flags.
         if row.job_id is not None and repo.feed_mark_sheet(margin_jobs.get(row.job_id)):
             before.sheet.feed_mark_printed = True
+            from app.sheets.sheet_page import printed_mark_rect  # deferred: heavy renderer
+
+            mark_rect = printed_mark_rect((margin_jobs[row.job_id].payload or {}).get("detail"))
+            if mark_rect is not None:  # where it sits, for a code reprinted later (#246)
+                before.sheet.feed_mark_rect = mark_rect
     await session.flush()
     return await _detail(session, before.sheet)
 

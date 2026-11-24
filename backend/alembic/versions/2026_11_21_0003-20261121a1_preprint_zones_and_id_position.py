@@ -11,8 +11,9 @@ Create Date: 2026-11-21 00:03:00.000000
 ``backing_designs``) and five columns on ``sheet_types``: ``id_margin_band`` (``auto``),
 ``id_margin_align`` (``start``), ``id_margin_offset_hmm`` (0), ``preprint_zones`` (``[]``) and
 ``preprint_preset_id``. Every existing type gets the defaults, which place the margin code as
-1.7.x did. ``sheets.margin_id_rect`` records where a printed margin code sits, so a feed mark
-printed later keeps it free (``NULL`` for codes printed before).
+1.7.x did. ``sheets.margin_id_rect`` and ``sheets.feed_mark_rect`` record where a printed
+margin code and feed mark sit, so what is printed later keeps them free (``NULL`` for prints
+made before).
 
 The downgrade drops the columns and the table; a 1.7.x hub then places the margin code by its
 band rule again. Stored page jobs keep their ``margin_id_rect``/``feed_mark_end`` keys, which
@@ -75,11 +76,13 @@ def upgrade() -> None:
         )
     with op.batch_alter_table("sheets") as batch:
         batch.add_column(sa.Column("margin_id_rect", sa.JSON, nullable=True))
+        batch.add_column(sa.Column("feed_mark_rect", sa.JSON, nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     with op.batch_alter_table("sheets") as batch:
+        batch.drop_column("feed_mark_rect")
         batch.drop_column("margin_id_rect")
     with op.batch_alter_table("sheet_types") as batch:
         batch.drop_constraint("ck_sheet_types_id_margin_offset", type_="check")

@@ -45,7 +45,7 @@ from app.services.event_bus import EventBus
 from app.services.page_jobs import PagePayload
 from app.sheets.events import SheetTouched, publish_touched
 from app.sheets.geometry import cell_count
-from app.sheets.sheet_page import SheetPageDetail, printed_margin_rect
+from app.sheets.sheet_page import SheetPageDetail, printed_margin_rect, printed_mark_rect
 from app.sheets.sheet_service import HUB_SOURCE
 from app.sheets.text import log_value
 from app.sheets.type_service import version_geometry
@@ -105,6 +105,7 @@ async def _settle_locked(
     used_at: dict[UUID, datetime] = {}
     id_printed_on: set[UUID] = set()
     margin_rects: dict[UUID, dict[str, int]] = {}
+    mark_rects: dict[UUID, dict[str, int]] = {}
     feed_mark_on: set[UUID] = set()
     for row, outcome in decisions:
         changed.setdefault(row.sheet_id, []).append(row.cell_no)
@@ -129,6 +130,11 @@ async def _settle_locked(
                 margin_rects[row.sheet_id] = rect
         if repo.feed_mark_sheet(job):  # its own check: the ID-cell job carries both
             feed_mark_on.add(row.sheet_id)  # the orientation mark is on the sheet now
+            mark_rect = (
+                None if job is None else printed_mark_rect((job.payload or {}).get("detail"))
+            )
+            if mark_rect is not None:  # where it sits, for a code reprinted later (#246)
+                mark_rects[row.sheet_id] = mark_rect
     await session.flush()
     touched: list[SheetTouched] = []
     for sheet_id in sorted(changed, key=str):
@@ -145,6 +151,8 @@ async def _settle_locked(
             sheet.margin_id_rect = margin_rects[sheet_id]
         if sheet_id in feed_mark_on:
             sheet.feed_mark_printed = True
+            if sheet_id in mark_rects:
+                sheet.feed_mark_rect = mark_rects[sheet_id]
         await session.flush()
         touched.append(await _summary(session, sheet, sorted(changed[sheet_id])))
     return touched

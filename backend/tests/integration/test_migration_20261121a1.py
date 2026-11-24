@@ -59,7 +59,7 @@ async def test_a1_downgrade_on_a_populated_db(tmp_path: Path) -> None:
     await migrate(db, _REV)
 
     assert _columns(db) >= _COLUMNS
-    assert "margin_id_rect" in _sheet_columns(db)
+    assert {"margin_id_rect", "feed_mark_rect"} <= _sheet_columns(db)
     # every existing type gets the defaults that place the code as 1.7.x did
     assert _one(
         db,
@@ -98,7 +98,7 @@ async def test_a1_downgrade_on_a_populated_db(tmp_path: Path) -> None:
     await migrate(db, f"-{_PREV}")
 
     assert not _columns(db) & _COLUMNS and "preprint_presets" not in _tables(db)
-    assert "margin_id_rect" not in _sheet_columns(db)
+    assert not {"margin_id_rect", "feed_mark_rect"} & _sheet_columns(db)
     assert _one(db, "SELECT count(*) FROM sheet_types") == types
     assert _one(db, "SELECT count(*) FROM sheets") == sheets
 
