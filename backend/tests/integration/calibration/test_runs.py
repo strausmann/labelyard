@@ -374,6 +374,76 @@ async def test_failed_submit_after_the_job_row_keeps_the_run(
     assert listed.submitted is True
 
 
+async def test_a_failing_prune_does_not_fail_the_submit(
+    async_session_factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review I1: the page is queued when retention runs; a failing retention (a transient
+    ``database is locked``) must not turn the answer into an error and invite a second print."""
+    pid = await _printer(async_session_factory)
+
+    async def locked(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(runs, "_drop_old_runs", locked)
+    run = await _submitted(async_session_factory, pid)
+    [listed] = await _listed(async_session_factory, pid)
+    assert listed.id == run.id and listed.submitted is True
+
+
+async def test_a_failing_compensation_keeps_the_submit_error(
+    async_session_factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review I1: when the compensation itself fails, the caller still sees the submit's error;
+    the run stays and is listed as not submitted."""
+    pid = await _printer(async_session_factory)
+
+    async with async_session_factory() as s:
+
+        async def boom(*args: object, **kwargs: object) -> None:
+            del args, kwargs
+            raise OSError("disk I/O error")
+
+        async def failing(payload: PagePayload, job_id: UUID) -> UUID:
+            del payload, job_id
+            monkeypatch.setattr(s, "execute", boom)  # the compensation's delete fails
+            raise ValueError("queue full")
+
+        with pytest.raises(ValueError, match="queue full"):
+            await runs.submit_with_run(
+                s, _payload(), printer_id=pid, kind="calibration_page", type_version_id=uuid4(),
+                actor="user:admin", submit=failing,
+            )  # fmt: skip
+    [listed] = await _listed(async_session_factory, pid)
+    assert listed.run_no == 1 and listed.submitted is False
+
+
+async def test_the_counter_is_read_fresh_in_a_long_lived_session(
+    async_session_factory: Factory,
+) -> None:
+    """Review M2: a session that holds the counter keeps it in its identity map
+    (``expire_on_commit=False``); another session allocates in between. The next allocation of
+    the first session must read the current counter, not its stale copy."""
+    pid = await _printer(async_session_factory)
+    async with async_session_factory() as long_lived:
+
+        async def alloc(s: AsyncSession) -> int:
+            run = await runs.allocate_run(
+                s, printer_id=pid, tray="tray-1", kind="check_page", job_id=uuid4(),
+                type_version_id=uuid4(), correction=None, actor="user:admin",
+            )  # fmt: skip
+            return run.run_no
+
+        assert await alloc(long_lived) == 1
+        # The session holds the counter (as a caller that reads it would): it stays in the map.
+        held = await long_lived.get(CalibrationRunCounter, (pid, "tray-1"))
+        assert held is not None and held.next_run == 2
+        await long_lived.commit()
+        async with async_session_factory() as other:
+            assert await alloc(other) == 2
+        assert await alloc(long_lived) == 3
+
+
 # ---------------------------------------------------------------------------- media source
 
 

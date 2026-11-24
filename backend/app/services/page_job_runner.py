@@ -28,8 +28,9 @@ at the printer). The sequence:
    ``MAX_CONSECUTIVE_POLL_ERRORS`` in a row, so a misbehaving printer cannot hold the queue
    forever. ``client-error-not-found``
    (the printer forgot the job) ends ``failed/interrupted`` with ``started`` as observed.
-7. After a final state, for a kind with a media-source listener that wants the payload (a
-   calibration run, #336): one more Get-Job-Attributes asks for ``media-col-actual``. The outcome
+7. After a final state of a job that started (completed, or cancelled/aborted after it
+   started), for a kind with a media-source listener that wants the payload (a calibration
+   run, #336): one more Get-Job-Attributes asks for ``media-col-actual``. The outcome
    is already stored and reported; a failed question is logged and never retried.
 
 Final states: 9 -> ``done``; 7 -> ``cancelled`` if never started, else ``failed/interrupted``;
@@ -460,14 +461,15 @@ class PageJobRunner:
             if info.state == _CANCELED:
                 if result["started"]:
                     await self._fail(page_job, result, "interrupted", started=True)
+                    await self._report_media_source(page_job, active)
                 else:
-                    await self._cancelled(page_job)
-                await self._report_media_source(page_job, active)
+                    await self._cancelled(page_job)  # nothing printed: no tray to ask about
                 return
             if info.state == _ABORTED:
                 code = "interrupted" if result["started"] else "ipp_aborted"
                 await self._fail(page_job, result, code, started=result["started"])
-                await self._report_media_source(page_job, active)
+                if result["started"]:
+                    await self._report_media_source(page_job, active)
                 return
             self._at_printer(job, _AT_PRINTER.get(info.state, "waiting"))
 

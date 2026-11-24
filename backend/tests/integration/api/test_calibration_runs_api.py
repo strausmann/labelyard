@@ -137,9 +137,13 @@ class _Timeouts(httpx.AsyncBaseTransport):
         self._inner = httpx.ASGITransport(app=fake)
         self.timed_out = 0
         self.enabled = False
+        self.asked = 0
+        """Get-Job-Attributes requests that asked for ``media-col-actual``."""
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         body = await request.aread()
+        if b"media-col-actual" in body:
+            self.asked += 1
         if self.enabled and b"media-col-actual" in body:
             self.timed_out += 1
             raise httpx.ReadTimeout("synthetic timeout", request=request)
@@ -335,6 +339,7 @@ async def test_actual_tray_reported_by_the_printer_is_stored(env: _Env) -> None:
 async def test_printer_without_media_source_end_to_end(env: _Env) -> None:
     job_id = await env.post_page()
     run = await env.settled(job_id)
+    assert env.transport.asked == 1  # the runner asked once, after the end (review M8)
     assert run.media_source_reported is False and run.actual_media_source is None
     [listed] = await env.runs()
     assert listed["media_source_reported"] is False
@@ -349,3 +354,26 @@ async def test_get_job_attributes_timeout_leaves_the_run_unreported(env: _Env) -
     assert run.media_source_reported is False and run.actual_media_source is None
     job = await env.queue.get(job_id)
     assert job.state.value == "completed"  # the question never changes the job's outcome
+
+
+async def test_a_job_cancelled_before_it_started_is_not_asked_for_its_tray(env: _Env) -> None:
+    """Review M4: nothing was printed, so the printer is not asked; a printer that would answer
+    with its default source must not mark the run as printed from it."""
+    env.fake.job_media_source = "tray-2"
+    env.fake.job_script = [3]  # stays pending at the printer until it is cancelled
+    async with env.client() as c:
+        r = await c.post(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1/page", json={"type": "cal-run"}
+        )
+    assert r.status_code == 202, r.text
+    job_id = r.json()["job_id"]
+    async with asyncio.timeout(10):
+        while not env.runner.is_tracking(UUID(job_id)):
+            await asyncio.sleep(0.01)
+    assert await env.queue.cancel(job_id)
+    async with asyncio.timeout(10):
+        await env.queue.wait_for_job(job_id, timeout_s=10)
+    run = await env.settled(job_id)
+    assert (await env.queue.get(job_id)).state.value == "cancelled"
+    assert env.transport.asked == 0
+    assert run.media_source_reported is False and run.actual_media_source is None

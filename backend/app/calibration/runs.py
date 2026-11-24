@@ -111,7 +111,10 @@ async def allocate_run(
     the submit succeeded, so a failed submit never evicts a kept run.
     """
     async with write_transaction(session):
-        counter = await session.get(CalibrationRunCounter, (printer_id, tray))
+        # Read fresh under the lock: a long-lived session may hold a stale copy (review M2).
+        counter = await session.get(
+            CalibrationRunCounter, (printer_id, tray), populate_existing=True
+        )
         if counter is None:
             run_no = 1
             session.add(CalibrationRunCounter(printer_id=printer_id, tray=tray, next_run=2))
@@ -220,6 +223,9 @@ async def submit_with_run(
         actor=actor,
         check_sheet=check_sheet,
     )
+    # A failing retention or compensation rolls the session back, which would expire the run
+    # and break every later read of it; the caller keeps a detached, fully loaded copy.
+    session.expunge(run)
     try:
         submitted = await submit(stamp(payload, run), job_id)
     except Exception:
