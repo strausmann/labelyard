@@ -150,6 +150,17 @@ The catalogue of sheet types: search by product code, filter by page size, vendo
   </picture>
 </p>
 
+### Sheet code in the margin
+
+A sheet type says where in the margin its sheet code goes: the band, the end it starts from and the offset, in steps of 0.5 mm. Areas the vendor printed on the front of the sheet, a logo or a product line, are entered in **Edit details** or taken from a vendor preset; the hub keeps the code, its QR code and the feed mark out of them. The type page shows, per page printer, whether the code fits and why not.
+
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/sheet-code-dark.png">
+    <img src="docs/screenshots/sheet-code-light.png" alt="The sheet code of a type: band, start and offset, a list of the page printers with fits or does not fit, and the sheet front with the code outlined.">
+  </picture>
+</p>
+
 ### Sheet code on the back
 
 Where the sheet code goes is a setting of the sheet type: the margin, a reserved cell, or the back of the liner. A sheet without a usable margin, such as Avery Zweckform 3490, gets its code on the back: the hub asks you to turn the sheet over, prints the code into a free strip of the vendor print and asks you to check it before the code counts as printed.

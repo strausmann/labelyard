@@ -41,7 +41,7 @@ export function SheetFrontPanel({
   const depth = topBandView(g);
   const half = page.w / 2;
   return (
-    <aside aria-labelledby="front-h" className={`${PANEL} flex min-w-0 flex-col gap-4 xl:sticky xl:top-4`}>
+    <aside aria-labelledby="front-h" className={`${PANEL} flex min-w-0 flex-col gap-4 xl:sticky xl:top-20`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id="front-h" className="text-section font-bold">{t`Sheet front`}</h3>
         <span className="rounded-full border border-line-strong px-2 py-0.5 text-small font-bold text-ink-2">{t`Preview of the saved rules`}</span>

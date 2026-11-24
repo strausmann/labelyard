@@ -236,7 +236,7 @@ export function ChosenPlace({ type }: { type: SheetTypeDetail }) {
     ? [Math.max(0, rect.x_mm - 20), Math.max(0, rect.y_mm - 6), rect.w_mm + 40, rect.h_mm + 12]
     : undefined;
   return (
-    <aside aria-labelledby="chosen-h" className={`${PANEL} flex min-w-0 flex-col gap-4 lg:sticky lg:top-4`}>
+    <aside aria-labelledby="chosen-h" className={`${PANEL} flex min-w-0 flex-col gap-4 lg:sticky lg:top-20`}>
       <h3 id="chosen-h" className="text-section font-bold">{t`Chosen place`}</h3>
       {list.length > 1 ? (
         <SelectField

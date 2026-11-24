@@ -23,6 +23,7 @@ import { signInWith } from "./fixtures";
  *   phone-menu      (phone only, no website shot) the menu open as admin
  *   phone-search    (phone only, no website shot) the search dialog with a sheet code typed
  *   sheet-archive   sheet-archive
+ *   sheet-code      (desktop only, no website shot) a type's sheet code: its position in the margin and where it fits per printer (#246)
  *   calibration     calibration
  *   calibration-guide  (phone only) the reading guide of step 2, opened
  *   print-dialog    print-dialog
@@ -257,6 +258,20 @@ const VIEWS: View[] = [
     open: async (page) => {
       await page.goto("/sheets/archive");
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    },
+  },
+  {
+    name: "sheet-code",
+    phone: false,
+    only: "desktop",
+    site: false,
+    open: async (page) => {
+      await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
+      await page.getByRole("tab", { name: "Where the code goes" }).click();
+      await expect(page.getByRole("list", { name: "Printers" }).getByRole("listitem").first()).toBeVisible();
+      await expect(page.getByRole("img", { name: /^Sheet front with/ }).locator("[data-id-rect]")).toHaveCount(1);
+      // The new part in the frame: the position, the printers and (sticky beside them) the chosen place.
+      await page.getByRole("heading", { name: "Position in the margin" }).evaluate((el) => el.scrollIntoView({ block: "start" }));
     },
   },
   {
