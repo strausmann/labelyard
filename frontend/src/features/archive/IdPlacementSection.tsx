@@ -68,8 +68,15 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
   const [cell, setCell] = useState(String(type.id_cell ?? 1));
   const [design, setDesign] = useState(type.backing_design?.key ?? PLAIN);
   const [saved, setSaved] = useState(false);
-  /** The margin position being edited: kept here so a switch to another choice and back does not drop it. */
-  const [position, setPosition] = useState<PositionDraft>(() => positionOf(type, i18n.locale));
+  /**
+   * The margin position being edited, kept here so a switch to another choice and back does not drop it. `null` (untouched)
+   * follows the saved position; an edit remembers the saved values it was made against and is dropped as soon as they
+   * change (Edit details or another session saved a new position), so a stale draft can never overwrite them.
+   */
+  const [positionEdit, setPositionEdit] = useState<{ base: string; draft: PositionDraft } | null>(null);
+  const savedPosition = `${type.id_margin_band}|${type.id_margin_align}|${type.id_margin_offset_mm}`;
+  const position = positionEdit !== null && positionEdit.base === savedPosition ? positionEdit.draft : positionOf(type, i18n.locale);
+  const setPosition = (draft: PositionDraft) => setPositionEdit({ base: savedPosition, draft });
   /** The tray picked on a printer row; the chosen place follows it. */
   const [trays, setTrays] = useState<TrayChoice>({});
 
@@ -101,6 +108,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
     );
   }
   function reset() {
+    setPositionEdit(null);
     setChoice(stored);
     setBackToAuto(false);
     setCell(String(type.id_cell ?? 1));
@@ -191,7 +199,7 @@ export function IdPlacementSection({ type, admin }: { type: SheetTypeDetail; adm
             <Button onPress={save} isDisabled={!dirty || patch.isPending} className={PRIMARY_BUTTON}>
               {t`Save`}
             </Button>
-            <Button onPress={reset} isDisabled={!dirty} className={SECONDARY_BUTTON}>
+            <Button onPress={reset} isDisabled={!dirty && positionEdit === null} className={SECONDARY_BUTTON}>
               {t`Cancel`}
             </Button>
             <span role="status" className="text-small text-ink-2">

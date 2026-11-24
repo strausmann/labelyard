@@ -39,16 +39,20 @@ async function show(type: SheetTypeDetail, admin = true, language: "en" | "de" =
   return showWith(type, admin, language);
 }
 
+let client = new QueryClient();
+/** The section in its providers; `rerender(wrap(next))` gives the mounted section a new type, as a refetch does. */
+const wrap = (type: SheetTypeDetail, admin = true) => (
+  <QueryClientProvider client={client}>
+    <I18nProvider i18n={i18n}>
+      <IdPlacementSection type={type} admin={admin} />
+    </I18nProvider>
+  </QueryClientProvider>
+);
+
 async function showWith(type: SheetTypeDetail, admin = true, language: "en" | "de" = "en") {
   await initI18n(language);
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <I18nProvider i18n={i18n}>
-        <IdPlacementSection type={type} admin={admin} />
-      </I18nProvider>
-    </QueryClientProvider>,
-  );
+  client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(wrap(type, admin));
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -347,6 +351,43 @@ describe("the sheet code in the margin", () => {
     await userEvent.click(other("In the margin"));
     expect(await screen.findByRole("textbox", { name: "Offset from that end" })).toHaveValue("12");
     expect(screen.getByRole("button", { name: "Save position" })).toBeEnabled();
+  });
+
+  it("a position saved elsewhere replaces an untouched draft, so Save position cannot write the old one back (re-review 2)", async () => {
+    mockApi(routes());
+    const view = await show(POSITIONED);
+    await screen.findByRole("textbox", { name: "Offset from that end" });
+    await userEvent.click(other("A label cell"));
+    // Edit details saved 33 mm while the section stays mounted.
+    view.rerender(wrap({ ...POSITIONED, id_margin_offset_mm: 33 }));
+    await userEvent.click(other("In the margin"));
+    expect(await screen.findByRole("textbox", { name: "Offset from that end" })).toHaveValue("33.0");
+    expect(screen.getByRole("button", { name: "Save position" })).toBeDisabled();
+  });
+
+  it("an edited draft is dropped when the saved position changes underneath it (re-review 2)", async () => {
+    mockApi(routes());
+    const view = await show(POSITIONED);
+    const field = await screen.findByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "12");
+    view.rerender(wrap({ ...POSITIONED, id_margin_offset_mm: 33 }));
+    expect(screen.getByRole("textbox", { name: "Offset from that end" })).toHaveValue("33.0");
+    expect(screen.getByRole("button", { name: "Save position" })).toBeDisabled();
+  });
+
+  it("Cancel of the section also drops the position draft (re-review 2)", async () => {
+    mockApi(routes());
+    await show(POSITIONED);
+    const field = await screen.findByRole("textbox", { name: "Offset from that end" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "12");
+    await userEvent.click(screen.getByRole("radio", { name: "Bottom" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("textbox", { name: "Offset from that end" })).toHaveValue("54.0");
+    expect(screen.getByRole("radio", { name: "Top" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Save position" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 
   it("a late answer for an older tray never overwrites the newer tray (re-review 1)", async () => {
