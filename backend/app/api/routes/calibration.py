@@ -21,7 +21,7 @@ from app.api.identity_hold import ensure_not_held
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin, require_print, require_read
-from app.calibration import page, scale, service
+from app.calibration import page, runs, scale, service
 from app.calibration.fit import Reading, fit
 from app.calibration.model import (
     CalibrationIn,
@@ -30,10 +30,15 @@ from app.calibration.model import (
     CalibrationScale,
     deviation_to_values,
 )
+from app.calibration.runs import CalibrationRunRead
 from app.db.session import get_session
+from app.repositories import printers as printers_repo
 from app.schemas.problem import ProblemDetail
 from app.services import render_slots
+from app.services.page_jobs import PagePayload
+from app.settings_store.registry import SETTINGS
 from app.sheets import type_service as ts
+from app.sheets.errors import PrinterNotFoundError
 from app.sheets.print_service import RenderTimeoutApiError, RenderUnavailableApiError
 
 router = APIRouter(prefix="/api/v1/printers", tags=["calibration"])
@@ -231,13 +236,68 @@ async def print_calibration_page(
         queue = getattr(request.app.state, "print_queue", None)
         if queue is None:
             raise _printer_unavailable(printer_id)
+        version = await ts.get_version(
+            session, payload.detail["type_key"], payload.detail["version"]
+        )
+
+        async def submit(stamped: PagePayload, job_id: UUID) -> UUID:
+            new_id: UUID = await queue.submit_page_job(
+                printer_id, stamped, api_key_id=auth.api_key_id, source_ip=auth.ip, job_id=job_id
+            )
+            return new_id
+
+        # #336: the run (and its number) is committed before the job; a failed submit deletes
+        # it again and leaves a gap in the numbers (ADR 0029).
         try:
-            job_id = await queue.submit_page_job(
-                printer_id, payload, api_key_id=auth.api_key_id, source_ip=auth.ip
+            _run, job_id = await runs.submit_with_run(
+                session,
+                payload,
+                printer_id=printer_id,
+                kind="check_page" if body.corrected else "calibration_page",
+                type_version_id=version.id,
+                actor=actor(auth),
+                submit=submit,
             )
         except KeyError:
             raise _printer_unavailable(printer_id) from None
     return PageJobAccepted(job_id=job_id)
+
+
+@router.get(
+    "/{printer_id}/calibration/{tray}/runs",
+    response_model=list[CalibrationRunRead],
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+        },
+        status.HTTP_404_NOT_FOUND: {"description": "No such printer (`printer_not_found`)."},
+    },
+    summary="Calibration, check and probe pages printed on a tray, newest first",
+)
+async def list_calibration_runs(
+    request: Request,
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    session: SessionDep,
+    auth: ReadDep,
+) -> list[CalibrationRunRead]:
+    """Every run of the tray (at most 1000 are kept) and every retry of a run's job.
+
+    The tray is not checked against the printer's current trays: a tray the printer renamed keeps
+    its runs under the old key. ``actual_media_source`` is the printer's own text, bounded.
+    """
+    check_printer_access(auth, printer_id)
+    if await printers_repo.get(session, printer_id) is None:
+        raise PrinterNotFoundError().to_http()
+    return await runs.list_runs(
+        session, printer_id, tray, retention_days=_job_retention_days(request)
+    )
+
+
+def _job_retention_days(request: Request) -> int:
+    store = getattr(request.app.state, "settings_store", None)
+    key = "jobs.retention_days"
+    return int(store.get(key) if store is not None else SETTINGS[key].default)
 
 
 @router.get(

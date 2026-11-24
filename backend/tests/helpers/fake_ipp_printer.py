@@ -138,6 +138,9 @@ class FakeIppPrinter:
     busy: bool = False
     """Answer ``server-error-busy`` to Print-Job and Validate-Job."""
     fail_get_job_with: int | None = None
+    job_media_source: str | None = None
+    """``media-source`` in the job's ``media-col-actual``, answered only when Get-Job-Attributes
+    asks for ``media-col-actual``; ``None``: the printer does not report it (#336)."""
     ignore_limit: bool = False
     """Return every job from Get-Jobs regardless of ``limit`` (a non-conforming printer)."""
     received: list[ReceivedOp] = field(default_factory=list)
@@ -368,6 +371,15 @@ class FakeIppPrinter:
         if job is None:
             return 0x0406, []
         attrs = self._job_attrs(job)
+        requested = ops.get("requested-attributes", [])
+        if self.job_media_source is not None and "media-col-actual" in requested:
+            attrs.append(
+                Attr(
+                    "media-col-actual",
+                    Tag.BEG_COLLECTION,
+                    [Collection({"media-source": [self.job_media_source]})],
+                )
+            )
         if job.final is not None and job.stopping > 0:
             job.stopping -= 1
         else:

@@ -58,13 +58,12 @@ Each ADR follows the [Nygard format](https://cognitect.com/blog/2011/11/15/docum
 | [0026](0026-rename-to-labelyard.md) | The project is called Labelyard | Accepted |
 | [0027](0027-url-token-for-the-grocy-label-webhook.md) | A print-scope key in the URL authenticates the Grocy label webhook | Accepted (amended 2026-11-21: own access log, D26) |
 | [0028](0028-sheet-type-catalog.md) | Sheet types ship as a catalog in the image instead of being seeded | Proposed |
+| [0029](0029-calibration-runs-and-history.md) | Every calibration print is a numbered run; a saved correction is history | Proposed |
 | [0030](0030-confirmed-tape-prints.md) | A tape print counts only when the printer confirms it | Accepted |
 | [0031](0031-licence-and-supply-chain.md) | The hub is AGPL-3.0-or-later and every image says what it contains and who built it | Accepted |
 | [0032](0032-integration-plugins-and-layout-engine.md) | Integrations are entry-point plugins; a label is a content type drawn by the layout engine | Accepted |
 | [0033](0033-server-computed-qr-payloads-and-internal-addresses.md) | Printed QR payloads are computed by the server; internal addresses stay with admins | Proposed |
 | [0034](0034-database-migrations-and-the-way-back.md) | Database migrations and the way back | Proposed |
-
-Number 0029 is reserved for an ADR planned in the approved design of milestone 1.8.0 (0028, 0033 and 0034 are written, `Proposed`); do not use it for another ADR.
 
 The [decision register](register.md) lists the short `D<n>` labels cited in code.
 

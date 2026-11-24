@@ -133,6 +133,7 @@ from app.auth.sessions import purge_expired as purge_expired_sessions
 from app.auth.sessions import warn_if_insecure as warn_if_insecure_cookies
 from app.build_info import PROJECT_LICENSE, public_repo_url
 from app.calibration.page import render_calibration_page
+from app.calibration.runs import RunMediaSource
 from app.config import get_settings
 from app.config_legacy import listen_port_warning, report_from_process, warn_legacy_env
 from app.db.engine import async_session, engine
@@ -159,9 +160,11 @@ from app.services.event_bus import EventBus
 from app.services.job_store_sqlite import SQLiteJobStore
 from app.services.layout_engine import LayoutEngine
 from app.services.page_jobs import (
+    register_media_source_listener,
     register_outcome_handler,
     register_page_renderer,
     register_recovery_check,
+    unregister_media_source_listener,
     unregister_outcome_handler,
     unregister_recovery_check,
 )
@@ -436,6 +439,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     register_outcome_handler("sheet_page", sheet_outcome)
     sheet_recovery = sheet_outcome.may_recover  # one bound method: unregister compares by identity
     register_recovery_check("sheet_page", sheet_recovery)
+    # #336: the tray a calibration page was really printed from goes to its run (ADR 0029).
+    run_media_source = RunMediaSource(async_session)
+    register_media_source_listener("calibration_page", run_media_source)
     # Persisted manual pauses must be in place before any worker task exists.
     async with async_session() as _pause_session:
         _initially_paused = await load_manual_pauses(_pause_session)
@@ -467,6 +473,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await cleanup_task.stop()
         unregister_outcome_handler("sheet_page", sheet_outcome)
         unregister_recovery_check("sheet_page", sheet_recovery)
+        unregister_media_source_listener("calibration_page", run_media_source)
         await engine.dispose()
         # Close shared HTTP clients held by integration plugins that support it.
         # Plugins that pre-date connection pooling may not have aclose(); skip them.

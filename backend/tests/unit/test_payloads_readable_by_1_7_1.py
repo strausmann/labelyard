@@ -117,6 +117,51 @@ async def test_payload_fixture_matches_1_7_1_calibration_page(
     v171.Geometry(**read.detail["geometry"])  # the renderer of 1.7.1 builds it from the detail
 
 
+async def test_calibration_payload_with_run_validates_with_the_1_7_1_models(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """#336 (ADR 0029): the run number, time and id go into ``detail`` only; 1.7.1 ignores them
+    and ``CalibrationSnapshot`` (``extra="forbid"``) is unchanged."""
+    from app.calibration import runs
+    from app.models.calibration_run import CalibrationRun
+
+    printer = await _ipp_printer(factory)
+    await _sheet_type(factory, "acme-48")
+    async with factory() as s:
+        s.add(
+            PrinterCalibration(
+                printer_id=printer.id,
+                tray_key="auto",
+                method="manual",
+                offset_x_hmm=12,
+                offset_y_hmm=-7,
+                scale_x_ppm=1_000_400,
+                scale_y_ppm=999_800,
+                rotation_udeg=150,
+            )
+        )
+        await s.commit()
+        payload = await calibration_page.build_payload(
+            s, printer.id, "auto", type_key="acme-48", version=None, corrected=True
+        )
+    run = CalibrationRun(
+        printer_id=printer.id,
+        tray="auto",
+        run_no=7,
+        kind="check_page",
+        job_id=uuid4(),
+        type_version_id=uuid4(),
+        requested_tray="auto",
+        created_at=datetime(2026, 11, 21, 14, 5, tzinfo=UTC),
+    )
+    raw = runs.stamp(payload, run).model_dump(mode="json")
+    assert raw["detail"]["run_no"] == 7 and raw["detail"]["run_id"] == str(run.id)
+    assert set(raw["calibration"]) == set(v171.CalibrationSnapshot.model_fields)
+    read = _read_by_1_7_1(raw)
+    assert read.kind == "calibration_page" and read.calibration is not None
+    v171.Geometry(**read.detail["geometry"])
+
+
 async def test_payload_fixture_matches_1_7_1_sheet_page() -> None:
     info = sps._TypeInfo(
         key="acme-48", label="ACME48", id_title="Acme ACME48", allow_qr=True, geometry=G48

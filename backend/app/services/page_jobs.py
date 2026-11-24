@@ -239,6 +239,42 @@ async def notify_ended(
         _log.exception("Page outcome handler on_ended failed for job %s", job_id)
 
 
+# ---------------------------------------------------------------------------- media source
+
+
+class MediaSourceListener(Protocol):
+    """Wants to hear which tray a finished IPP page job was printed from (#336).
+
+    ``wants`` decides, from the payload alone, whether the runner asks the printer at all (one
+    extra Get-Job-Attributes after the job ended). ``record`` gets the printer's answer: the
+    source it named (bounded printer text, never interpreted) or ``None`` when it named none. It
+    is not called when the question failed (unreachable, timeout, an unusable answer).
+    """
+
+    def wants(self, payload: PagePayload) -> bool: ...
+
+    async def record(
+        self, job_id: UUID, payload: PagePayload, media_source: str | None
+    ) -> None: ...
+
+
+_MEDIA_SOURCE_LISTENERS: dict[str, MediaSourceListener] = {}
+
+
+def register_media_source_listener(kind: PageKind, listener: MediaSourceListener) -> None:
+    _MEDIA_SOURCE_LISTENERS[kind] = listener
+
+
+def unregister_media_source_listener(kind: PageKind, listener: MediaSourceListener) -> None:
+    """Remove ``listener`` if it is still the one registered."""
+    if _MEDIA_SOURCE_LISTENERS.get(kind) is listener:
+        del _MEDIA_SOURCE_LISTENERS[kind]
+
+
+def media_source_listener(kind: str) -> MediaSourceListener | None:
+    return _MEDIA_SOURCE_LISTENERS.get(kind)
+
+
 # ---------------------------------------------------------------------------- jobs, printers
 
 

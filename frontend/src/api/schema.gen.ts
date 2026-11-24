@@ -871,6 +871,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Calibration, check and probe pages printed on a tray, newest first
+         * @description Every run of the tray (at most 1000 are kept) and every retry of a run's job.
+         *
+         *     The tray is not checked against the printer's current trays: a tray the printer renamed keeps
+         *     its runs under the old key. ``actual_media_source`` is the printer's own text, bounded.
+         */
+        get: operations["list_calibration_runs_api_v1_printers__printer_id__calibration__tray__runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/printers/{printer_id}/capabilities": {
         parameters: {
             query?: never;
@@ -2221,6 +2244,76 @@ export interface components {
             updated_at?: string | null;
             /** Updated By */
             updated_by?: string | null;
+        };
+        /**
+         * CalibrationRunRead
+         * @description One print of a run: the run itself, or a retry of its job (same number, ``retry``).
+         */
+        CalibrationRunRead: {
+            /**
+             * Actual Media Source
+             * @description The tray the printer reported, only when it differs from the request.
+             */
+            actual_media_source: string | null;
+            /** Check Sheet Id */
+            check_sheet_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the run was sent, or the retry.
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             * @description The run id; the reading form sends it with a fit and a save.
+             */
+            id: string;
+            /**
+             * Job Id
+             * Format: uuid
+             * @description The job; it may have been cleaned up since.
+             */
+            job_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "calibration_page" | "check_page" | "probe_page";
+            /**
+             * Media Source Reported
+             * @description False: the printer did not say which tray it took ("not reported").
+             */
+            media_source_reported: boolean;
+            /** Pass No */
+            pass_no: number | null;
+            /** Requested Tray */
+            requested_tray: string;
+            /**
+             * Retry
+             * @description A retry of the run's job: shown as `#7 (retry)`.
+             */
+            retry: boolean;
+            /**
+             * Run No
+             * @description Number per printer and tray, from 1, never reused.
+             */
+            run_no: number;
+            /**
+             * Submitted
+             * @description False when the run has no job row although jobs are still kept for it (`jobs.retention_days`): its submit failed or was interrupted.
+             */
+            submitted: boolean;
+            /**
+             * Type Key
+             * @description Null when the sheet type was deleted since.
+             */
+            type_key: string | null;
+            /**
+             * Version
+             * @description Null when the sheet type was deleted since.
+             */
+            version: number | null;
         };
         /**
          * CalibrationScale
@@ -8203,6 +8296,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_calibration_runs_api_v1_printers__printer_id__calibration__tray__runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationRunRead"][];
+                };
+            };
+            /** @description The key may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such printer (`printer_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

@@ -65,6 +65,7 @@ from app.printer_backends.ipp.codec import (
     OPERATIONS,
     STATUS_NAMES,
     Attr,
+    Collection,
     Group,
     Message,
     Tag,
@@ -116,6 +117,8 @@ JOB_ATTRIBUTES = (
     "job-name",
     "job-originating-user-name",
 )
+MEDIA_SOURCE_ATTRIBUTES = ("media-col-actual", "media-source")
+"""Asked for only after a job ended (#336): the tray the printer took the paper from."""
 MAX_JOB_TEXT_LENGTH = 255
 
 _SCHEMES = {"ipp": "http", "ipps": "https", "http": "http", "https": "https"}
@@ -197,6 +200,9 @@ class JobInfo:
     """``job-name`` as the printer reports it (bounded); the hub sends a unique one."""
     originating_user: str | None = field(default=None, compare=False)
     """``job-originating-user-name`` (bounded); the hub sends ``requesting-user-name``."""
+    media_source: str | None = field(default=None, compare=False)
+    """The ``media-source`` of ``media-col-actual`` (PWG 5100.7), else a plain ``media-source``
+    (bounded, printer input: never interpreted). Only when ``get_job`` asked for it."""
 
 
 def _int(values: list[Value] | None) -> int | None:
@@ -215,6 +221,15 @@ def _text(values: list[Value] | None) -> str | None:
     if values and isinstance(values[0], str):
         return values[0][:MAX_JOB_TEXT_LENGTH]
     return None
+
+
+def _media_source(attrs: dict[str, list[Value]]) -> str | None:
+    for col in attrs.get("media-col-actual") or []:
+        if isinstance(col, Collection):
+            source = _text(col.members.get("media-source"))
+            if source is not None:
+                return source
+    return _text(attrs.get("media-source"))
 
 
 def _first_wins(group: Group) -> dict[str, list[Value]]:
@@ -236,6 +251,7 @@ def _job_info(attrs: dict[str, list[Value]]) -> JobInfo | None:
         impressions_completed=_int(attrs.get("job-impressions-completed")),
         name=_text(attrs.get("job-name")),
         originating_user=_text(attrs.get("job-originating-user-name")),
+        media_source=_media_source(attrs),
     )
 
 
@@ -314,10 +330,16 @@ class IppClient:
         ops += self._job_operation_attributes([])
         await self._call("Validate-Job", ops, job_attrs)
 
-    async def get_job(self, job_id: int) -> JobInfo:
+    async def get_job(self, job_id: int, *, media_source: bool = False) -> JobInfo:
+        """Get-Job-Attributes. ``media_source`` also asks for the tray the job was printed from
+        (``MEDIA_SOURCE_ATTRIBUTES``); the polls leave it out to keep their answers small."""
         ops = self._target(job_id)
         ops.append(Attr("requesting-user-name", Tag.NAME, [USER_NAME]))
-        ops.append(Attr("requested-attributes", Tag.KEYWORD, list(JOB_ATTRIBUTES)))
+        requested: list[Value] = [
+            *JOB_ATTRIBUTES,
+            *(MEDIA_SOURCE_ATTRIBUTES if media_source else ()),
+        ]
+        ops.append(Attr("requested-attributes", Tag.KEYWORD, requested))
         msg = await self._call("Get-Job-Attributes", ops)
         info = _job_info(msg.attrs(Tag.JOB))
         if info is None:
