@@ -1579,6 +1579,7 @@ def _page_payload(
     tray: str,
     render_dpi: int,
     calibration: Any,
+    calibration_history_id: UUID | None = None,
     scan: Callable[[str], str],
 ) -> PagePayload:
     """The ``sheet_page`` payload of one reserved page: everything the runner draws from."""
@@ -1619,6 +1620,7 @@ def _page_payload(
         render_dpi=render_dpi,
         job_name=f"Sheet {page.sheet_code} · {len(cells)} labels",
         calibration=calibration,
+        calibration_history_id=calibration_history_id,
         detail=detail.model_dump(mode="json"),
     )
 
@@ -1768,6 +1770,7 @@ async def _queue_pages(
     bus: Any,
     stored: bool = False,
     retry_of: UUID | None = None,
+    calibration_history_id: UUID | None = None,
 ) -> tuple[UUID, list[PrintedPage]]:
     """Payloads, the batch and the page jobs of reserved pages; the part of a print that follows
     the reservation, shared by ``print_sheets`` and ``create_sheet_with_id_label``.
@@ -1775,6 +1778,7 @@ async def _queue_pages(
     ``stored``: each page's ``jobs`` row exists already (a Grocy label's deferred row, #281);
     the hand-off swaps its payload (``submit_stored_page_job``) instead of inserting a row.
     ``retry_of``: the id of the job a retried Grocy label repeats, kept in each page payload.
+    ``calibration_history_id``: the history entry ``snapshot`` stands for (#336, S7).
 
     Everything that can fail without touching the queue comes first, so that the queue is the
     only failure point left once the first page is submitted. A failure frees the reservations
@@ -1795,6 +1799,7 @@ async def _queue_pages(
                 tray=tray,
                 render_dpi=facts.render_dpi,
                 calibration=snapshot,
+                calibration_history_id=calibration_history_id,
                 scan=scan,
             )
             if retry_of is not None:
@@ -1885,7 +1890,9 @@ async def print_sheets(
     scan = scan_payload_builder(str(get_settings().public_url))
     async with session_factory() as session:
         tray = await calibration_service.resolve_tray(session, printer.id, request.tray)
-        snapshot = await calibration_service.snapshot(session, printer.id, tray)
+        snapshot, history_id = await calibration_service.snapshot_with_history(
+            session, printer.id, tray
+        )
         facts = await load_printer_facts(session, printer.id)
         margin = MarginContext(
             deviation=snapshot_to_deviation(snapshot),
@@ -1948,6 +1955,7 @@ async def print_sheets(
             tray=tray,
             facts=facts,
             snapshot=snapshot,
+            calibration_history_id=history_id,
             scan=scan,
             queue=queue,
             api_key_id=api_key_id,
@@ -1993,7 +2001,9 @@ async def create_sheet_with_id_label(
     scan = scan_payload_builder(str(get_settings().public_url))
     async with session_factory() as session:
         tray_key = await calibration_service.resolve_tray(session, printer.id, tray)
-        snapshot = await calibration_service.snapshot(session, printer.id, tray_key)
+        snapshot, history_id = await calibration_service.snapshot_with_history(
+            session, printer.id, tray_key
+        )
         facts = await load_printer_facts(session, printer.id)
         margin = MarginContext(
             deviation=snapshot_to_deviation(snapshot),
@@ -2047,6 +2057,7 @@ async def create_sheet_with_id_label(
                 tray=tray_key,
                 facts=facts,
                 snapshot=snapshot,
+                calibration_history_id=history_id,
                 scan=scan,
                 queue=queue,
                 api_key_id=api_key_id,
@@ -2297,7 +2308,9 @@ async def print_margin_id(
     scan = scan_payload_builder(str(get_settings().public_url))
     async with session_factory() as session:
         tray_key = await calibration_service.resolve_tray(session, printer.id, tray)
-        snapshot = await calibration_service.snapshot(session, printer.id, tray_key)
+        snapshot, history_id = await calibration_service.snapshot_with_history(
+            session, printer.id, tray_key
+        )
         facts = await load_printer_facts(session, printer.id)
         deviation = snapshot_to_deviation(snapshot)
         await session.commit()
@@ -2373,6 +2386,7 @@ async def print_margin_id(
                     render_dpi=facts.render_dpi,
                     job_name=f"Sheet {sheet.code} · margin code",
                     calibration=snapshot,
+                    calibration_history_id=history_id,
                     detail=detail.model_dump(mode="json"),
                 )
                 # The reprint has no cells, so no outcome settles it: its box is recorded here,
@@ -2688,7 +2702,9 @@ async def retry_sheet_page(
         unconfirmed = await repo.unconfirmed_cells_of_job(session, job.id)
         if unconfirmed:
             raise CellsUnconfirmedError(unconfirmed)
-        snapshot = await calibration_service.snapshot(session, job.printer_id, payload.tray)
+        snapshot, history_id = await calibration_service.snapshot_with_history(
+            session, job.printer_id, payload.tray
+        )
         facts = await load_printer_facts(session, job.printer_id)
         _check_retry_fits(detail, facts.render_dpi)  # 266-11: before anything is reserved
         margin = MarginContext(
@@ -2730,6 +2746,7 @@ async def retry_sheet_page(
                 update={
                     "render_dpi": facts.render_dpi,
                     "calibration": snapshot,
+                    "calibration_history_id": history_id,
                     "detail": new_detail.model_dump(mode="json"),
                     # model_copy(update=) skips validation: a UUID is what the field holds,
                     # and the payload is dumped with mode="json" (a str in the row).

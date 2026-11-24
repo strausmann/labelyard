@@ -526,6 +526,8 @@ async def test_openapi_lists_sheet_type_routes(api_client_with_seed):
         ("get", "/api/v1/sheet-types/{key}/versions/{n}"),
         ("get", "/api/v1/sheet-types/{key}/id-placement"),
         ("post", "/api/v1/sheet-types/{key}/versions"),
+        ("get", "/api/v1/sheet-types/{key}/versions"),
+        ("post", "/api/v1/sheet-types/{key}/versions/{n}/restore"),
         ("post", "/api/v1/sheet-types/{key}/archive"),
         ("post", "/api/v1/sheet-types/{key}/unarchive"),
         ("get", "/api/v1/sheet-types/{key}/export"),

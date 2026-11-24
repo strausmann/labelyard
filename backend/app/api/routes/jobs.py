@@ -57,6 +57,7 @@ from app.api.routes.sheet_common import actor
 from app.auth.dependencies import AuthContext
 from app.auth.ownership import may_see, owner_only
 from app.auth.scope_deps import require_print, require_read
+from app.calibration import history
 from app.db import engine as db_engine
 from app.db.session import get_session
 from app.models.job import Job, JobState, is_page_payload
@@ -111,6 +112,17 @@ OrderQuery = Annotated[
         description=(
             "Sort by creation time: ``oldest`` first (default) or ``newest`` first. With "
             "``newest`` and a ``limit`` the latest jobs come back, not the first ones."
+        )
+    ),
+]
+CalibrationQuery = Annotated[
+    UUID | None,
+    Query(
+        description=(
+            "Only the jobs printed with this calibration history entry "
+            "(`GET /api/v1/printers/{id}/calibration/{tray}/history`): those that name it in "
+            "`payload.calibration_history_id`, and jobs from before 1.8.0 whose calibration "
+            "snapshot has the entry's values and that were created before the tray's next entry."
         )
     ),
 ]
@@ -183,6 +195,7 @@ async def list_jobs(
     since: SinceQuery = None,
     limit: LimitQuery = 50,
     order: OrderQuery = "oldest",
+    calibration: CalibrationQuery = None,
 ) -> list[JobRead]:
     """Return jobs matching the given filters."""
     # Per-printer ACL: restrict to the caller's printers (empty list = all).
@@ -204,6 +217,7 @@ async def list_jobs(
         allowed_printer_ids=allowed,
         api_key_id=owner,
         order=order,
+        where=None if calibration is None else await history.jobs_filter(session, calibration),
     )
     return [job_read(r, _auth, request) for r in rows]
 

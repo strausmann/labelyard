@@ -64,6 +64,14 @@ class SheetTypeVersionNotFoundError(SheetApiError):
     message = "Sheet type version not found."
 
 
+class NewerVersionInUseError(SheetApiError):
+    """A version is restored only while no sheet is pinned to a newer one (#336 point 4)."""
+
+    status = 409
+    error_code = "newer_version_in_use"
+    message = "A sheet uses a newer version of this type; the version cannot be restored."
+
+
 class SheetTypeArchivedError(SheetApiError):
     status = 409
     error_code = "sheet_type_archived"

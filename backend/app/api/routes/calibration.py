@@ -10,7 +10,7 @@ key's printer restriction (``403 printer_not_allowed`` for another printer's cal
 from __future__ import annotations
 
 import re
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
@@ -18,16 +18,20 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.identity_hold import ensure_not_held
+from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin, require_print, require_read
-from app.calibration import page, runs, scale, service
+from app.calibration import history, page, runs, scale, service
 from app.calibration.fit import Reading, fit
+from app.calibration.history import CalibrationHistoryRead
 from app.calibration.model import (
+    READINGS_MAX,
     CalibrationIn,
     CalibrationPut,
     CalibrationRead,
     CalibrationScale,
+    ReadingIn,
     deviation_to_values,
 )
 from app.calibration.runs import CalibrationRunRead
@@ -51,21 +55,10 @@ PrinterPath = Annotated[UUID, Path(description="Printer id (a page printer).")]
 TrayPath = Annotated[str, Path(min_length=1, max_length=100, description="Tray key.")]
 
 
-class ReadingIn(BaseModel):
-    col_gap: int = Field(ge=1, le=1000, description="Vertical gap S1, S2, ... counted from 1.")
-    row_gap: int = Field(ge=1, le=1000, description="Horizontal gap Z1, Z2, ... counted from 1.")
-    across_mm: float = Field(
-        ge=-20, le=20, allow_inf_nan=False, description="Ink offset to the right, mm."
-    )
-    down_mm: float = Field(
-        ge=-20, le=20, allow_inf_nan=False, description="Ink offset downwards, mm."
-    )
-
-
 class FitRequest(BaseModel):
     type: str = Field(min_length=1, max_length=200, description="Sheet type key.")
     version: int | None = Field(default=None, ge=1, description="Defaults to the current version.")
-    readings: list[ReadingIn] = Field(min_length=3, max_length=200)
+    readings: list[ReadingIn] = Field(min_length=3, max_length=READINGS_MAX)
 
 
 class FitResponse(BaseModel):
@@ -109,7 +102,17 @@ async def get_calibration(
 @router.put(
     "/{printer_id}/calibration/{tray}",
     response_model=CalibrationRead,
-    summary="Set the manual calibration of a tray",
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": (
+                "A value is out of range (`calibration_out_of_range`), the tray is unknown "
+                "(`tray_unknown`), `run_id` names a run of another printer or tray "
+                "(`run_not_for_this_tray`), or `readings` came without `measured_on` "
+                "(`invalid_geometry`, `error_detail.field` is `measured_on`)."
+            )
+        }
+    },
+    summary="Set the calibration of a tray (a new history entry)",
 )
 async def put_calibration(
     printer_id: PrinterPath,
@@ -118,23 +121,38 @@ async def put_calibration(
     session: SessionDep,
     auth: AdminDep,
 ) -> CalibrationRead:
+    """Store the tray's calibration and add a history entry in the same transaction.
+
+    With `readings` the stored values are the hub's fit of them on `measured_on` (`source`
+    `fit`); a sent value further than 0.05 mm from the fit is replaced and named in
+    `ignored_fields`, with `client_values_ignored` in `notes`. Without readings the values are
+    stored as sent (`source` `manual`).
+    """
     check_printer_access(auth, printer_id)
     measured = (body.measured_on.type_key, body.measured_on.version) if body.measured_on else None
+    readings = (
+        None
+        if body.readings is None
+        else [Reading(r.col_gap, r.row_gap, r.across_mm, r.down_mm) for r in body.readings]
+    )
     with mapped():
         return await service.put(
             session,
             printer_id,
             tray,
-            CalibrationIn(**body.model_dump(exclude={"measured_on"})),
+            CalibrationIn(**body.model_dump(include=set(CalibrationIn.model_fields))),
             measured_on=measured,
             actor=actor(auth),
+            run_id=body.run_id,
+            readings=readings,
+            note=body.note,
         )
 
 
 @router.delete(
     "/{printer_id}/calibration/{tray}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Reset a tray to no calibration",
+    summary="Reset a tray to no calibration (a `reset` history entry)",
 )
 async def delete_calibration(
     printer_id: PrinterPath, tray: TrayPath, session: SessionDep, auth: AdminDep
@@ -295,6 +313,74 @@ async def list_calibration_runs(
     return await runs.list_runs(
         session, printer_id, tray, retention_days=_job_retention_days(request)
     )
+
+
+_HISTORY_ACCESS: dict[int | str, dict[str, Any]] = {
+    status.HTTP_403_FORBIDDEN: {
+        "description": "The key may not use this printer (`printer_not_allowed`)."
+    },
+    status.HTTP_404_NOT_FOUND: {"description": "No such printer (`printer_not_found`)."},
+}
+
+
+@router.get(
+    "/{printer_id}/calibration/{tray}/history",
+    response_model=list[CalibrationHistoryRead],
+    responses=_HISTORY_ACCESS,
+    summary="Saved calibrations of a tray, newest first",
+)
+async def list_calibration_history(
+    request: Request,
+    response: Response,
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    session: SessionDep,
+    auth: ReadDep,
+    limit: Annotated[int, Query(ge=1, le=history.LIST_LIMIT_MAX)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[CalibrationHistoryRead]:
+    """Every save, reset, revert and import of the tray (the newest 500 are kept), each with the
+    change to the values before it and the number of jobs printed with it. A `Link` header names
+    the next page. The tray is not checked against the printer's current trays."""
+    check_printer_access(auth, printer_id)
+    if await printers_repo.get(session, printer_id) is None:
+        raise PrinterNotFoundError().to_http()
+    entries, has_more = await history.list_entries(
+        session, printer_id, tray, limit=limit, offset=offset
+    )
+    response.headers.update(next_link(request, limit=limit, offset=offset, has_more=has_more))
+    return entries
+
+
+@router.post(
+    "/{printer_id}/calibration/{tray}/history/{entry_id}/restore",
+    response_model=CalibrationRead,
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": (
+                "No such printer, or no such entry on this printer and tray "
+                "(`calibration_history_not_found`)."
+            )
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": "The tray is not an enabled tray of the printer (`tray_unknown`)."
+        },
+    },
+    summary="Use an earlier calibration of the tray again (a `revert` history entry)",
+)
+async def restore_calibration(
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    entry_id: Annotated[UUID, Path(description="History entry id.")],
+    session: SessionDep,
+    auth: AdminDep,
+) -> CalibrationRead:
+    """Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry
+    clears the tray. When the entry's sheet type version was deleted since, the values are
+    restored without it and `notes` carries `measured_on_deleted`."""
+    check_printer_access(auth, printer_id)
+    with mapped():
+        return await history.restore(session, printer_id, tray, entry_id, actor=actor(auth))
 
 
 def _setting(request: Request, key: str) -> object:

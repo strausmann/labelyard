@@ -140,7 +140,7 @@ def test_json_responses_have_schemas(openapi_schema: dict[str, Any]) -> None:
 
 
 def test_endpoint_count_in_range(openapi_schema: dict[str, Any]) -> None:
-    """Operation count must be between 28 and 117 (sheet types, sheets, IPP probe, calibration).
+    """Operation count must be between 28 and 121 (sheet types, sheets, IPP probe, calibration).
 
     Expected breakdown:
       printers (7) + templates (1) + jobs (6) + lookup (1) + webhooks (2)
@@ -160,17 +160,18 @@ def test_endpoint_count_in_range(openapi_schema: dict[str, Any]) -> None:
       + 1.8.0 #335: sheet catalog list, entry, install, catalog update, delete-unused (5) -> 107
       + 1.8.0 #246: preprint presets (4), per-printer sheet code placement (1) -> 112
       + 1.8.0 #336: calibration runs of a tray (1) -> 113
+      + 1.8.0 #336: calibration history and restore, type versions and restore (4) -> 117
       Total = 29+
 
-    The range 28-117 is intentionally wide to tolerate minor additions
+    The range 28-121 is intentionally wide to tolerate minor additions
     (e.g. a future ``/healthz/db`` probe) without requiring this test to be
     updated.  It will still catch the case where an entire router is
     accidentally unregistered (count drops below 28) or a rogue batch of
-    undocumented endpoints lands (count exceeds 117).
+    undocumented endpoints lands (count exceeds 121).
     """
     count = sum(1 for _ in _iter_operations(openapi_schema))
-    assert 28 <= count <= 117, (
-        f"Operation count {count} is outside the expected 28-117 range.  "
+    assert 28 <= count <= 121, (
+        f"Operation count {count} is outside the expected 28-121 range.  "
         "If you intentionally added or removed endpoints, update this test."
     )
 

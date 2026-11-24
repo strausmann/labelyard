@@ -11,7 +11,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, delete, exists, func, literal_column, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    and_,
+    delete,
+    exists,
+    func,
+    literal_column,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
@@ -34,6 +44,7 @@ async def list_by_filter(
     allowed_printer_ids: list[UUID] | None = None,
     api_key_id: UUID | None = None,
     order: Literal["oldest", "newest"] = "oldest",
+    where: ColumnElement[bool] | None = None,
 ) -> list[Job]:
     """Return jobs matching the optional filters, ordered by creation time.
 
@@ -42,9 +53,12 @@ async def list_by_filter(
     restriction); it is applied in SQL so ``limit`` counts only visible jobs.
     ``api_key_id`` keeps only the jobs that key submitted (``None`` = no restriction).
     ``order`` is ``oldest`` (default: the first ``limit`` jobs) or ``newest`` (the latest
-    ``limit`` jobs, newest first); every filter above applies before the cut.
+    ``limit`` jobs, newest first); every filter above applies before the cut. ``where`` is one
+    more condition (the calibration history filter, #336).
     """
     stmt = select(Job)
+    if where is not None:
+        stmt = stmt.where(where)
     if state is not None:
         stmt = stmt.where(col(Job.state) == state)
     if printer_id is not None:

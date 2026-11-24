@@ -94,6 +94,11 @@ class PagePayload(BaseModel):
     render_dpi: int
     job_name: str
     calibration: CalibrationSnapshot | None = None
+    # The calibration history entry ``calibration`` stands for (#336, S7): here and not in the
+    # snapshot, whose ``extra="forbid"`` a 1.7.x hub enforces; 1.7.x ignores this key. Set by
+    # the code that copies ``snapshot()`` into a payload; no foreign key (retention drops old
+    # entries), so readers must tolerate an id that no longer resolves.
+    calibration_history_id: UUID | None = None
     detail: dict[str, Any] = {}
     # The job this one repeats (a retry); set by the retry route, never copied from the source.
     # No foreign key: the source job may have been cleaned up since, so readers must tolerate
