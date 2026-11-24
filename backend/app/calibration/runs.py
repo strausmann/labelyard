@@ -391,22 +391,23 @@ async def record_media_source(
 ) -> None:
     """Store what the printer said about the tray of the payload's run.
 
-    ``None`` (the printer named no source), or an answer that is empty after cleaning, leaves the
-    run "not reported". A named source marks it
-    reported and is stored only when it differs from the requested tray. A retry's answer
-    replaces the first one: it is the newer print of the same run.
+    The newest print's answer stands (a retry is the newer print of the same run). ``None`` (the
+    printer named no source) or an answer that is empty after cleaning leaves the run "not
+    reported", also when an earlier print of it had reported a tray. A named source marks it
+    reported and is stored only when it differs from the requested tray. A question that failed
+    never reaches this function, so it changes nothing.
     """
     run_id = _run_id(payload)
-    if run_id is None or reported is None:
+    if run_id is None:
         return
-    source = _bounded(reported)
-    if source is None:  # empty or unusable after cleaning: not an answer, still "not reported"
-        return
+    source = None if reported is None else _bounded(reported)
     async with write_transaction(session):
         run = await session.get(CalibrationRun, run_id)
         if run is not None:
-            run.media_source_reported = True
-            run.actual_media_source = source if source != run.requested_tray else None
+            run.media_source_reported = source is not None
+            run.actual_media_source = (
+                source if source is not None and source != run.requested_tray else None
+            )
         await session.commit()
 
 

@@ -508,6 +508,25 @@ async def test_an_unusable_media_source_stays_not_reported(
     assert listed.media_source_reported is False and listed.actual_media_source is None
 
 
+@pytest.mark.parametrize("retry_answer", [None, "  "])
+async def test_a_retry_without_a_source_clears_the_first_answer(
+    async_session_factory: Factory, retry_answer: str | None
+) -> None:
+    """Codex review on #440: the newest print's answer stands; a retry whose printer names no
+    usable source leaves the run "not reported" instead of keeping the first print's tray."""
+    pid = await _printer(async_session_factory)
+    run = await _alloc(async_session_factory, pid)
+    payload = runs.stamp(_payload(), run)
+    async with async_session_factory() as s:
+        await runs.record_media_source(s, payload, "tray-2")
+    async with async_session_factory() as s:
+        await runs.record_media_source(
+            s, payload.model_copy(update={"retry_of": uuid4()}), retry_answer
+        )
+    [listed] = await _listed(async_session_factory, pid)
+    assert listed.media_source_reported is False and listed.actual_media_source is None
+
+
 async def test_media_source_of_a_payload_without_a_run_is_ignored(
     async_session_factory: Factory,
 ) -> None:
