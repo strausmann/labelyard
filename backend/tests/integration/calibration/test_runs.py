@@ -167,6 +167,21 @@ async def test_retention_keeps_1000_runs(async_session_factory: Factory) -> None
     assert len(nos) == 1000 and min(nos) == 2 and max(nos) == 1001  # the oldest one went
 
 
+async def test_retention_counts_rows_not_numbers(async_session_factory: Factory) -> None:
+    """Codex review on #440: gaps from failed submits must not push a kept run out. One run, a
+    counter that 1500 failed submits moved on: the next run is 1502 and run 1 stays."""
+    pid = await _printer(async_session_factory)
+    first = await _alloc(async_session_factory, pid)
+    async with async_session_factory() as s:
+        counter = await s.get(CalibrationRunCounter, (pid, "tray-1"))
+        assert counter is not None
+        counter.next_run = 1502
+        await s.commit()
+    run = await _alloc(async_session_factory, pid)
+    assert run.run_no == 1502
+    assert [r.run_no for r in await _listed(async_session_factory, pid)] == [1502, first.run_no]
+
+
 # ---------------------------------------------------------------------------- submitted
 
 

@@ -107,7 +107,7 @@ async def allocate_run(
     """Take the next number of ``(printer_id, tray)``, insert the run and commit.
 
     One write transaction: the counter is read and raised under the sheet write lock, the run
-    (and its check sheet pass) inserted, and runs past ``RUN_RETENTION`` dropped.
+    (and its check sheet pass) inserted, and the oldest rows past ``RUN_RETENTION`` dropped.
     """
     async with write_transaction(session):
         counter = await session.get(CalibrationRunCounter, (printer_id, tray))
@@ -141,36 +141,35 @@ async def allocate_run(
                     run_id=run.id,
                 )
             )
-        await _drop_old_runs(session, printer_id, tray, keep_from=run_no - RUN_RETENTION + 1)
+        await _drop_old_runs(session, printer_id, tray)
         await session.commit()
     return run
 
 
-async def _drop_old_runs(
-    session: AsyncSession, printer_id: UUID, tray: str, *, keep_from: int
-) -> None:
-    if keep_from <= 1:
-        return
-    old = (
-        select(col(CalibrationRun.id))
-        .where(
-            col(CalibrationRun.printer_id) == printer_id,
-            col(CalibrationRun.tray) == tray,
-            col(CalibrationRun.run_no) < keep_from,
+async def _drop_old_runs(session: AsyncSession, printer_id: UUID, tray: str) -> None:
+    """Keep the newest ``RUN_RETENTION`` rows of the tray. Counted in rows, not numbers: a failed
+    submit leaves a gap in the numbers and must not push a kept run out."""
+    old_ids = (
+        (
+            await session.execute(
+                select(col(CalibrationRun.id))
+                .where(
+                    col(CalibrationRun.printer_id) == printer_id, col(CalibrationRun.tray) == tray
+                )
+                .order_by(col(CalibrationRun.run_no).desc())
+                .offset(RUN_RETENTION)
+            )
         )
-        .scalar_subquery()
+        .scalars()
+        .all()
     )
+    if not old_ids:
+        return
     # The pass rows go explicitly too: the cascade only acts where foreign keys are on.
     await session.execute(
-        delete(CalibrationCheckSheetPass).where(col(CalibrationCheckSheetPass.run_id).in_(old))
+        delete(CalibrationCheckSheetPass).where(col(CalibrationCheckSheetPass.run_id).in_(old_ids))
     )
-    await session.execute(
-        delete(CalibrationRun).where(
-            col(CalibrationRun.printer_id) == printer_id,
-            col(CalibrationRun.tray) == tray,
-            col(CalibrationRun.run_no) < keep_from,
-        )
-    )
+    await session.execute(delete(CalibrationRun).where(col(CalibrationRun.id).in_(old_ids)))
 
 
 def stamp(payload: PagePayload, run: CalibrationRun) -> PagePayload:
