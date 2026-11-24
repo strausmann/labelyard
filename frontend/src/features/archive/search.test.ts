@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "vitest";
-import { httpUrl, linkHost } from "./search";
+import { httpUrl, linkHost, parseDecimal } from "./search";
 
 describe("httpUrl", () => {
   it("httpUrl returns the normalised href", () => {
@@ -27,3 +27,19 @@ describe("linkHost (#204)", () => {
     expect(linkHost(null)).toBeNull();
   });
 });
+
+describe("parseDecimal", () => {
+  it.each([
+    ["12.5", 12.5],
+    ["12,5", 12.5],
+    [" 0,25 ", 0.25],
+    ["7", 7],
+    ["", null],
+    ["abc", null],
+    // Only the first comma becomes a point: a grouped number is no number (pinned; the zone editor relies on it).
+    ["1.234,5", null],
+  ])("%s → %s", (value, expected) => {
+    expect(parseDecimal(value)).toBe(expected);
+  });
+});
+

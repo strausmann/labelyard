@@ -98,6 +98,8 @@ test.describe.serial("sheet catalog", () => {
     await setLanguage(page, "en");
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`/sheets/archive?type=${SEEDED_TYPE}`);
+    // The sheets of a type sit on its Sheets tab.
+    await page.getByRole("tab", { name: /^Sheets/ }).click();
     const sheets = page.getByRole("list", { name: "Its sheets" });
     await expect(sheets.getByRole("link", { name: SEEDED_SHEET })).toBeVisible();
     await expect(page.getByRole("link", { name: "Show in the sheets list" })).toHaveAttribute("href", `/sheets?type=${SEEDED_TYPE}`);
@@ -113,6 +115,7 @@ test.describe.serial("sheet catalog", () => {
     await expect(page.getByRole("article", { name: SEEDED_TYPE })).toBeVisible();
 
     // Type → the sheets page filtered by it, and from a row back to the type.
+    await page.getByRole("tab", { name: /^Sheets/ }).click();
     await page.getByRole("link", { name: "Show in the sheets list" }).click();
     await expect(page).toHaveURL(new RegExp(`/sheets\\?type=${SEEDED_TYPE}$`));
     const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: SEEDED_SHEET }) });

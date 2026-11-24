@@ -156,6 +156,12 @@ msgstr "{0, plural, one {This type has no sheets. Nothing is selected: tick the 
 msgid "{0, plural, one {Un-mark # cell} other {Un-mark # cells}}"
 msgstr "{0, plural, one {Un-mark # cell} other {Un-mark # cells}}"
 
+#. placeholder {0}: n(rect.w_mm)
+#. placeholder {1}: n(rect.h_mm)
+#: src/features/archive/MarginPlacement.tsx
+msgid "{0} × {1} mm"
+msgstr "{0} × {1} mm"
+
 #. placeholder {0}: type.key
 #: src/features/archive/TypeDetail.tsx
 msgid "{0} has no sheets. Deleting it removes it and all its versions for good."
@@ -174,6 +180,11 @@ msgstr "{0} of {1} packages"
 msgid "{0} of {1} used · {2} free"
 msgstr "{0} of {1} used · {2} free"
 
+#. placeholder {0}: own.length
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "{0} of {MAX_ZONES} areas"
+msgstr "{0} of {MAX_ZONES} areas"
+
 #. placeholder {0}: list.data.items.length
 #: src/features/archive/CatalogTab.tsx
 msgid "{0} of {total} entries"
@@ -187,6 +198,34 @@ msgstr "{ahead, plural, one {# job from another computer ahead} other {# jobs fr
 #: src/features/integrations/IntegrationPage.tsx
 msgid "{appName} is not set up yet, so there is nothing to look up."
 msgstr "{appName} is not set up yet, so there is nothing to look up."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{areas, plural, one {# area} other {# areas}}"
+msgstr "{areas, plural, one {# area} other {# areas}}"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{band}, {along} mm from the left"
+msgstr "{band}, {along} mm from the left"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{band}, {along} mm from the top"
+msgstr "{band}, {along} mm from the top"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{band}, {mm} mm from the bottom"
+msgstr "{band}, {mm} mm from the bottom"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{band}, {mm} mm from the left"
+msgstr "{band}, {mm} mm from the left"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{band}, {mm} mm from the right"
+msgstr "{band}, {mm} mm from the right"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{band}, {mm} mm from the top"
+msgstr "{band}, {mm} mm from the top"
 
 #: src/features/notifications/useEntryText.ts
 msgid "{cells} on sheet {code}"
@@ -364,6 +403,10 @@ msgstr "{list}: open a printer to see why."
 #: src/features/overview/OverviewPage.tsx
 msgid "{lowCount, plural, one {# printer is running low} other {# printers are running low}}"
 msgstr "{lowCount, plural, one {# printer is running low} other {# printers are running low}}"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "{missing} of {total} printers do not print the code in the margin"
+msgstr "{missing} of {total} printers do not print the code in the margin"
 
 #: src/features/jobs/RunControls.tsx
 msgid "{n} (all of {unknownFrom} to {unknownTo} printed)"
@@ -612,6 +655,10 @@ msgstr "1 (top left)"
 msgid "1 = cell number (not printed)"
 msgstr "1 = cell number (not printed)"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "1 preset"
+msgstr "1 preset"
+
 #: src/features/sheets/backSide/LoadingPicture.tsx
 msgid "1 Turn"
 msgstr "1 Turn"
@@ -632,6 +679,10 @@ msgstr "A correction is stored for this tray. The calibration page is printed wi
 msgid "A key opens the API and the browser sign-in. read looks, print also prints, admin also changes settings."
 msgstr "A key opens the API and the browser sign-in. read looks, print also prints, admin also changes settings."
 
+#: src/features/archive/IdPlacementSection.tsx
+msgid "A label cell"
+msgstr "A label cell"
+
 #: src/features/sheets/errors.ts
 msgid "A marked cell is outside the sheet."
 msgstr "A marked cell is outside the sheet."
@@ -647,6 +698,14 @@ msgstr "A new hub starts with no sheet types. Add the ones you use from the cata
 #: src/features/sheets/print/SheetSection.tsx
 msgid "a new sheet"
 msgstr "a new sheet"
+
+#: src/features/archive/errors.ts
+msgid "A preprinted area covers a label. Move it out of the labels or remove it."
+msgstr "A preprinted area covers a label. Move it out of the labels or remove it."
+
+#: src/features/archive/errors.ts
+msgid "A preprinted area reaches outside the page."
+msgstr "A preprinted area reaches outside the page."
 
 #: src/features/calibration/CalibrationPage.tsx
 msgid "A print is already on its way."
@@ -782,6 +841,10 @@ msgstr "Add a sheet"
 msgid "Add and print ID label"
 msgstr "Add and print ID label"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Add area"
+msgstr "Add area"
+
 #: src/features/archive/ImportDialog.tsx
 msgid "Add as new version"
 msgstr "Add as new version"
@@ -891,6 +954,10 @@ msgstr "Along"
 msgid "Also updated: {0}"
 msgstr "Also updated: {0}"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "An area is at least 1 mm wide and 1 mm high."
+msgstr "An area is at least 1 mm wide and 1 mm high."
+
 #: src/features/settings/sections.tsx
 msgid "An IANA name such as Europe/Berlin."
 msgstr "An IANA name such as Europe/Berlin."
@@ -979,6 +1046,30 @@ msgstr "archived"
 msgid "Are these numbers right?"
 msgstr "Are these numbers right?"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Area {number}"
+msgstr "Area {number}"
+
+#: src/features/archive/TypeForm.tsx
+msgid "Area {number} covers a label. Preprint sits in the margins, so a label there would be printed on top of it. Move the area out of the labels or remove it."
+msgstr "Area {number} covers a label. Preprint sits in the margins, so a label there would be printed on top of it. Move the area out of the labels or remove it."
+
+#: src/features/archive/TypeForm.tsx
+msgid "Area {number} covers label {first} (row {row}, column {col}). Preprint sits in the margins, so a label there would be printed on top of it. Move the area out of the labels or remove it."
+msgstr "Area {number} covers label {first} (row {row}, column {col}). Preprint sits in the margins, so a label there would be printed on top of it. Move the area out of the labels or remove it."
+
+#: src/features/archive/TypeForm.tsx
+msgid "Area {number} reaches outside the page. Move it onto the sheet or remove it."
+msgstr "Area {number} reaches outside the page. Move it onto the sheet or remove it."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Areas of the preset and your own areas are all kept free."
+msgstr "Areas of the preset and your own areas are all kept free."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Areas of the preset and your own areas are all kept free. A copy would be more than {MAX_ZONES} areas: remove some of your own first."
+msgstr "Areas of the preset and your own areas are all kept free. A copy would be more than {MAX_ZONES} areas: remove some of your own first."
+
 #: src/features/layout/LayoutPicker.tsx
 msgid "Arrangement"
 msgstr "Arrangement"
@@ -1032,9 +1123,35 @@ msgstr "At most {0} product codes."
 msgid "At the printer"
 msgstr "At the printer"
 
+#: src/features/archive/errors.ts
+msgid "At this position the sheet code would cover a label. Choose another band or offset."
+msgstr "At this position the sheet code would cover a label. Choose another band or offset."
+
+#: src/features/archive/errors.ts
+msgid "At this position the sheet code would leave the page. Make the offset smaller."
+msgstr "At this position the sheet code would leave the page. Make the offset smaller."
+
+#: src/features/archive/IdPositionControls.tsx
+msgctxt "margin band"
+msgid "Automatic"
+msgstr "Automatic"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgctxt "placement"
+msgid "Automatic"
+msgstr "Automatic"
+
+#: src/features/archive/IdPositionControls.tsx
+msgid "Automatic chooses the largest free band. A band you choose is a rule: if it has no room on a printer, the code is not printed there."
+msgstr "Automatic chooses the largest free band. A band you choose is a rule: if it has no room on a printer, the code is not printed there."
+
 #: src/features/archive/ImportDialog.tsx
 msgid "Back"
 msgstr "Back"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "Back of the liner"
+msgstr "Back of the liner"
 
 #: src/features/sheets/backSide/LinerPreview.tsx
 msgid "Back of the liner with the sheet code strip"
@@ -1051,10 +1168,6 @@ msgstr "Back of the liner: no free strip takes the sheet code"
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Back of the liner. The code goes in the marked strip."
 msgstr "Back of the liner. The code goes in the marked strip."
-
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Back side"
-msgstr "Back side"
 
 #: src/features/sheets/SheetsPage.tsx
 msgid "Back side missing"
@@ -1088,6 +1201,10 @@ msgstr "Back to the sheets"
 msgid "Backend"
 msgstr "Backend"
 
+#: src/features/archive/IdPositionControls.tsx
+msgid "Band"
+msgstr "Band"
+
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Bar shows"
 msgstr "Bar shows"
@@ -1103,6 +1220,15 @@ msgstr "Black"
 #: src/features/printers/model.ts
 msgid "Blue"
 msgstr "Blue"
+
+#: src/features/archive/IdPositionControls.tsx
+msgctxt "margin band"
+msgid "Bottom"
+msgstr "Bottom"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Bottom band"
+msgstr "Bottom band"
 
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "bottom margin"
@@ -1195,6 +1321,7 @@ msgstr "Can't be read with the current secret key — enter it again"
 #: src/features/archive/FeedbackLinks.tsx
 #: src/features/archive/IdPlacementSection.tsx
 #: src/features/archive/ImportDialog.tsx
+#: src/features/archive/PreprintZonesEditor.tsx
 #: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
@@ -1336,6 +1463,10 @@ msgstr "Charge cycles"
 msgid "Check Jobs and the hub log, then save the printer again."
 msgstr "Check Jobs and the hub log, then save the printer again."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Check on tray"
+msgstr "Check on tray"
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Check page"
 msgstr "Check page"
@@ -1363,6 +1494,14 @@ msgstr "check this reading"
 #: src/features/sheets/PurgeDialog.tsx
 msgid "Check what would go"
 msgstr "Check what would go"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Checking the printers…"
+msgstr "Checking the printers…"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Checking this tray…"
+msgstr "Checking this tray…"
 
 #: src/shell/SessionStatus.tsx
 msgid "Checking your session…"
@@ -1405,10 +1544,6 @@ msgstr "Choose a sheet type to see its measurements and versions."
 msgid "Choose any cell. It is left out of planning."
 msgstr "Choose any cell. It is left out of planning."
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Choose automatically"
-msgstr "Choose automatically"
-
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Choose cells"
 msgstr "Choose cells"
@@ -1422,8 +1557,17 @@ msgid "Chore"
 msgstr "Chore"
 
 #: src/features/archive/IdPlacementSection.tsx
-msgid "Chosen automatically from the usable margin. You can change it."
-msgstr "Chosen automatically from the usable margin. You can change it."
+msgctxt "placement"
+msgid "Chosen"
+msgstr "Chosen"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "Chosen automatically"
+msgstr "Chosen automatically"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Chosen place"
+msgstr "Chosen place"
 
 #: src/features/settings/Integrations.tsx
 msgctxt "public web address"
@@ -1486,6 +1630,10 @@ msgstr "Code"
 #: src/features/lookup/apps.ts
 msgid "Code and title, no QR code"
 msgstr "Code and title, no QR code"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Code and type text"
+msgstr "Code and type text"
 
 #: src/features/sheets/print/SheetPreview.tsx
 msgid "Code only on this sheet type"
@@ -1566,6 +1714,10 @@ msgstr "Connection"
 #: src/features/settings/Integrations.tsx
 msgid "Connection failed"
 msgstr "Connection failed"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Content"
+msgstr "Content"
 
 #: src/features/sheets/AddSheetDialog.tsx
 #: src/shell/BootstrapKeyCreated.tsx
@@ -1665,6 +1817,18 @@ msgstr "cover open"
 msgid "Cover open — close it to print"
 msgstr "Cover open — close it to print"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Covers {where}."
+msgstr "Covers {where}."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Covers {where}. Move it above {top} mm or shrink it so it stays out of the labels."
+msgstr "Covers {where}. Move it above {top} mm or shrink it so it stays out of the labels."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Covers {where}. Move it or shrink it so it stays out of the labels."
+msgstr "Covers {where}. Move it or shrink it so it stays out of the labels."
+
 #: src/shell/BootstrapKeyCreated.tsx
 msgid "Create admin key"
 msgstr "Create admin key"
@@ -1737,6 +1901,10 @@ msgstr "Dark theme"
 msgid "Date"
 msgstr "Date"
 
+#: src/features/archive/IdPositionControls.tsx
+msgid "Decrease the offset by 0.5 mm"
+msgstr "Decrease the offset by 0.5 mm"
+
 #: src/features/printers/PrinterDetail.tsx
 msgid "default"
 msgstr "default"
@@ -1786,7 +1954,6 @@ msgstr "Describe what changed."
 msgid "Description"
 msgstr "Description"
 
-#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 msgid "Details"
 msgstr "Details"
@@ -1911,6 +2078,10 @@ msgstr "Dismiss notification"
 msgid "Display name"
 msgstr "Display name"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Does not fit"
+msgstr "Does not fit"
+
 #: src/features/jobs/JobsPage.tsx
 #: src/features/jobs/liveText.ts
 #: src/features/printers/model.ts
@@ -1942,6 +2113,10 @@ msgstr "Download PDF"
 msgid "Download settings"
 msgstr "Download settings"
 
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Draft areas, saved code position"
+msgstr "Draft areas, saved code position"
+
 #: src/features/lookup/CartPage.tsx
 #: src/features/lookup/LabelPreview.tsx
 msgid "Drawing the label…"
@@ -1967,6 +2142,14 @@ msgstr "Drying temperature field"
 msgid "Drying time field"
 msgstr "Drying time field"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Each value has at most two decimals, for example 12.25."
+msgstr "Each value has at most two decimals, for example 12.25."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Each value is at most {ZONE_MAX_MM} mm."
+msgstr "Each value is at most {ZONE_MAX_MM} mm."
+
 #: src/features/sheets/print/SheetPreview.tsx
 msgid "Earlier prints of {item}"
 msgstr "Earlier prints of {item}"
@@ -1981,9 +2164,22 @@ msgstr "Edit"
 msgid "Edit {0}"
 msgstr "Edit {0}"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Edit {label}"
+msgstr "Edit {label}"
+
+#. placeholder {0}: presetZones.length + editing.index + 1
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Edit area {0}"
+msgstr "Edit area {0}"
+
 #: src/features/archive/TypeDetail.tsx
 msgid "Edit details"
 msgstr "Edit details"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Edit details also holds the preprinted areas ({areaWord}, {presetWord})."
+msgstr "Edit details also holds the preprinted areas ({areaWord}, {presetWord})."
 
 #. placeholder {0}: mode.type.key
 #: src/features/archive/TypeForm.tsx
@@ -2031,6 +2227,10 @@ msgstr "Enter a valid number."
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Enter at least three readings to fit."
 msgstr "Enter at least three readings to fit."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Enter each value as a number in mm, for example 12.5."
+msgstr "Enter each value as a number in mm, for example 12.5."
 
 #: src/features/settings/SettingField.tsx
 msgid "Enter it again"
@@ -2191,6 +2391,10 @@ msgstr "first version"
 msgid "Fit"
 msgstr "Fit"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Fits"
+msgstr "Fits"
+
 #: src/features/sheets/print/SheetPicker.tsx
 msgid "fits {needed}"
 msgstr "fits {needed}"
@@ -2223,6 +2427,10 @@ msgstr "Free labels"
 #: src/features/archive/TypeForm.tsx
 msgid "From the left edge of one label to the left edge of the next."
 msgstr "From the left edge of one label to the left edge of the next."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "From the sheet's top-left corner, in mm."
+msgstr "From the sheet's top-left corner, in mm."
 
 #: src/features/archive/TypeForm.tsx
 msgid "From the top edge of one label to the top edge of the next."
@@ -2301,6 +2509,10 @@ msgstr "Grocy labels"
 msgid "Half cut by default"
 msgstr "Half cut by default"
 
+#: src/features/sheets/print/SheetPreview.tsx
+msgid "Hatched: preprinted areas of the sheet. Nothing is printed there."
+msgstr "Hatched: preprinted areas of the sheet. Nothing is printed there."
+
 #: src/features/settings/System.tsx
 msgid "Health"
 msgstr "Health"
@@ -2312,6 +2524,10 @@ msgstr "Healthy"
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "Heavy solid line: the printed S line. Heavy dashed line: the printed Z line (dotted on a sheet without a gap between the rows, as in the drawing)."
 msgstr "Heavy solid line: the printed S line. Heavy dashed line: the printed Z line (dotted on a sheet without a gap between the rows, as in the drawing)."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Height"
+msgstr "Height"
 
 #: src/features/archive/CatalogTab.tsx
 msgid "Hide details"
@@ -2419,6 +2635,10 @@ msgctxt "sheet code placement"
 msgid "In a cell"
 msgstr "In a cell"
 
+#: src/features/archive/IdPlacementSection.tsx
+msgid "In a label cell"
+msgstr "In a label cell"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "In a reserved cell"
 msgstr "In a reserved cell"
@@ -2431,6 +2651,7 @@ msgstr "In Grocy's config.php"
 msgid "In the first free cell"
 msgstr "In the first free cell"
 
+#: src/features/archive/IdPlacementSection.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "In the margin"
 msgstr "In the margin"
@@ -2439,6 +2660,10 @@ msgstr "In the margin"
 msgctxt "sheet code placement"
 msgid "In the margin"
 msgstr "In the margin"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "In the margin is not available for this sheet: no margin is wide enough for the code (the widest is {widest})."
+msgstr "In the margin is not available for this sheet: no margin is wide enough for the code (the widest is {widest})."
 
 #: src/features/sheets/cellState.ts
 msgid "in the printer's unprintable margin"
@@ -2457,6 +2682,10 @@ msgstr "In use"
 #: src/features/sheets/SheetsPage.tsx
 msgid "In use by a running job"
 msgstr "In use by a running job"
+
+#: src/features/archive/IdPositionControls.tsx
+msgid "Increase the offset by 0.5 mm"
+msgstr "Increase the offset by 0.5 mm"
 
 #: src/features/notifications/NotificationCentre.tsx
 msgid "Information"
@@ -2522,6 +2751,10 @@ msgstr "Is the print on the side with the cross?"
 msgid "It is the paper feed: push the sheet against the guide and print a second one. Change the correction only if it repeats."
 msgstr "It is the paper feed: push the sheet against the guide and print a second one. Change the correction only if it repeats."
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "It reaches outside the page. Keep it inside the sheet."
+msgstr "It reaches outside the page. Keep it inside the sheet."
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "It will probably become <0>{hintCode}</0>."
 msgstr "It will probably become <0>{hintCode}</0>."
@@ -2586,9 +2819,18 @@ msgstr "Keys of the extra fields in your Spoolman."
 #: src/features/overview/OverviewPage.tsx
 #: src/features/printers/PrinterDetail.tsx
 #: src/features/settings/IppPrinterFields.tsx
+#: src/features/sheets/GeometryDiagram.tsx
 #: src/shell/PrintToasts.tsx
 msgid "Label"
 msgstr "Label"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "label {first} (R{row} C{col})"
+msgstr "label {first} (R{row} C{col})"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "label {first} (row {row}, column {col})"
+msgstr "label {first} (row {row}, column {col})"
 
 #: src/features/printers/printConfirmation.ts
 msgid "Label counter"
@@ -2640,6 +2882,14 @@ msgstr "Label width (mm)"
 #: src/features/jobs/PageJobInfo.tsx
 msgid "Labels"
 msgstr "Labels"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "labels {list}"
+msgstr "labels {list}"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "labels {list} and more"
+msgstr "labels {list} and more"
 
 #: src/features/jobs/RunControls.tsx
 msgid "Labels {unknownFrom} to {unknownTo} may or may not have printed. Count them on the tape, put in a new tape, then reprint from the first label that is missing."
@@ -2716,6 +2966,19 @@ msgstr "Leave empty to keep the prefix of the file."
 msgid "Leave out the part after “?” or “#”; the hub adds the item's path itself."
 msgstr "Leave out the part after “?” or “#”; the hub adds the item's path itself."
 
+#: src/features/archive/IdPositionControls.tsx
+msgctxt "margin band"
+msgid "Left"
+msgstr "Left"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Left band"
+msgstr "Left band"
+
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Left half of the top band, enlarged"
+msgstr "Left half of the top band, enlarged"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "left margin"
 msgstr "left margin"
@@ -2729,11 +2992,16 @@ msgstr "Left margin"
 msgid "Left margin (mm)"
 msgstr "Left margin (mm)"
 
+#: src/features/archive/IdPositionControls.tsx
+msgid "Left or top"
+msgstr "Left or top"
+
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Left over after the fit"
 msgstr "Left over after the fit"
 
 #: src/features/calibration/CalibrationSchematic.tsx
+#: src/features/sheets/GeometryDiagram.tsx
 msgid "Legend"
 msgstr "Legend"
 
@@ -2913,10 +3181,6 @@ msgstr "Make and model"
 msgid "margin"
 msgstr "margin"
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Margin"
-msgstr "Margin"
-
 #: src/features/notifications/NotificationCentre.tsx
 msgid "Mark all as read"
 msgstr "Mark all as read"
@@ -3079,6 +3343,11 @@ msgstr "New {typeLabel} sheet"
 msgid "New {typeLabel} sheet, becomes {newCode}"
 msgstr "New {typeLabel} sheet, becomes {newCode}"
 
+#. placeholder {0}: presetZones.length + own.length + 1
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "New area {0}"
+msgstr "New area {0}"
+
 #: src/features/archive/CatalogTab.tsx
 #: src/features/archive/ImportDialog.tsx
 msgid "New code prefix"
@@ -3187,6 +3456,10 @@ msgstr "No discarded sheet matches."
 msgid "No drawing slot became free in time; the page was not drawn. Try again later."
 msgstr "No drawing slot became free in time; the page was not drawn. Try again later."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "No enabled page printer."
+msgstr "No enabled page printer."
+
 #: src/features/archive/IdPlacementSection.tsx
 msgid "No free strip of this print takes the code."
 msgstr "No free strip of this print takes the code."
@@ -3223,10 +3496,26 @@ msgstr "No other sheet of this type has a free cell."
 msgid "No package matches the filter."
 msgstr "No package matches the filter."
 
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "No page printer has room for the sheet code in the margin by the saved rules."
+msgstr "No page printer has room for the sheet code in the margin by the saved rules."
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "No page printer is set up."
 msgstr "No page printer is set up."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "No preprinted areas. The whole margin is free for the sheet code."
+msgstr "No preprinted areas. The whole margin is free for the sheet code."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "no preset"
+msgstr "no preset"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "No preset"
+msgstr "No preset"
 
 #: src/features/lookup/CartPage.tsx
 msgid "No preview available."
@@ -3257,6 +3546,10 @@ msgstr "No public URL is set for this hub, so the address starts with <public-ur
 #: src/features/sheets/SheetDetail.tsx
 msgid "no purpose"
 msgstr "no purpose"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "No room for the QR here: the code is printed as text."
+msgstr "No room for the QR here: the code is printed as text."
 
 #: src/features/archive/IdPlacementSection.tsx
 msgid "No second pass. One cell holds the code and cannot take a label."
@@ -3331,10 +3624,6 @@ msgstr "None reported, only the automatic choice"
 msgid "not accepting jobs"
 msgstr "not accepting jobs"
 
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Not available for this sheet: no margin is wide enough for the code (the widest is {widest})."
-msgstr "Not available for this sheet: no margin is wide enough for the code (the widest is {widest})."
-
 #: src/features/printers/PrinterDetail.tsx
 msgid "Not calibrated"
 msgstr "Not calibrated"
@@ -3381,10 +3670,18 @@ msgstr "Not found in Grocy"
 msgid "Not monitored"
 msgstr "Not monitored"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Not printed"
+msgstr "Not printed"
+
 #: src/features/sheets/SheetDetail.tsx
 msgctxt "resolve an unconfirmed cell"
 msgid "Not printed"
 msgstr "Not printed"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Not printed in the margin"
+msgstr "Not printed in the margin"
 
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "not printed yet"
@@ -3454,6 +3751,7 @@ msgstr "Not wired: {reason}."
 msgid "Not yet validated"
 msgstr "Not yet validated"
 
+#: src/features/archive/PreprintZonesEditor.tsx
 #: src/features/sheets/SheetDetail.tsx
 msgid "Note"
 msgstr "Note"
@@ -3510,6 +3808,10 @@ msgstr "Nothing new."
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Nothing opened yet."
 msgstr "Nothing opened yet."
+
+#: src/features/archive/TypeForm.tsx
+msgid "Nothing was saved"
+msgstr "Nothing was saved"
 
 #: src/features/notifications/NotificationCentre.tsx
 msgid "Notifications"
@@ -3575,6 +3877,10 @@ msgstr "Offline"
 msgid "Offset {dx} / {dy} mm"
 msgstr "Offset {dx} / {dy} mm"
 
+#: src/features/archive/IdPositionControls.tsx
+msgid "Offset from that end"
+msgstr "Offset from that end"
+
 #: src/features/calibration/errors.ts
 msgid "Offset X"
 msgstr "Offset X"
@@ -3615,6 +3921,7 @@ msgstr "On"
 msgid "on {printerName}"
 msgstr "on {printerName}"
 
+#: src/features/archive/IdPlacementSection.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "On the back of the liner"
 msgstr "On the back of the liner"
@@ -3632,6 +3939,14 @@ msgstr "On this sheet all crossings lie on one line, so the readings cannot be f
 msgid "On this sheet all crossings lie on one line, so the readings cannot be fitted. Enter the values directly."
 msgstr "On this sheet all crossings lie on one line, so the readings cannot be fitted. Enter the values directly."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "On those printers a new sheet gets no sheet code in the margin: the print preview says so, and you add it by hand. Change the band, the offset or the preprinted areas if you want it there."
+msgstr "On those printers a new sheet gets no sheet code in the margin: the print preview says so, and you add it by hand. Change the band, the offset or the preprinted areas if you want it there."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "On your printers"
+msgstr "On your printers"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "One extra pass: turn the sheet over and the hub prints the code on the back. No label is used."
 msgstr "One extra pass: turn the sheet over and the hub prints the code on the back. No label is used."
@@ -3639,6 +3954,10 @@ msgstr "One extra pass: turn the sheet over and the hub prints the code on the b
 #: src/features/sheets/errors.ts
 msgid "One of those cells is already in use. The sheet shows the current state."
 msgstr "One of those cells is already in use. The sheet shows the current state."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "One row per enabled page printer, with the tray its sheets use. Pick another tray on a row to check it."
+msgstr "One row per enabled page printer, with the tray its sheets use. Pick another tray on a row to check it."
 
 #: src/features/sheets/errors.ts
 msgid "Only cells that were marked by hand can be un-marked."
@@ -3757,6 +4076,10 @@ msgstr "Or enter the values directly"
 #: src/features/settings/Integrations.tsx
 msgid "Other apps that print through this hub. They are recognised by the name of their API key."
 msgstr "Other apps that print through this hub. They are recognised by the name of their API key."
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "Other choices:"
+msgstr "Other choices:"
 
 #: src/features/archive/errors.ts
 msgid "Other types use the same backing design and cannot take the catalog's change: {types}. Nothing was changed."
@@ -3895,6 +4218,10 @@ msgstr "Per label type"
 msgid "Pitch"
 msgstr "Pitch"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Place"
+msgstr "Place"
+
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Plain liner"
 msgstr "Plain liner"
@@ -3903,6 +4230,23 @@ msgstr "Plain liner"
 #: src/features/settings/PrinterForm.tsx
 msgid "Port"
 msgstr "Port"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Position in the margin"
+msgstr "Position in the margin"
+
+#: src/features/sheets/GeometryDiagram.tsx
+msgid "Preprinted area"
+msgstr "Preprinted area"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+#: src/features/archive/TypeForm.tsx
+msgid "Preprinted areas"
+msgstr "Preprinted areas"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Preset"
+msgstr "Preset"
 
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Pressure advance field"
@@ -4042,6 +4386,7 @@ msgstr "Printed in black only: lines are told apart by number and line style, ne
 msgid "Printed, cell {n}"
 msgstr "Printed, cell {n}"
 
+#: src/features/archive/MarginPlacement.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/PageJobInfo.tsx
@@ -4095,6 +4440,7 @@ msgstr "Printer reports the job state (IPP)"
 msgid "Printer status unknown"
 msgstr "Printer status unknown"
 
+#: src/features/archive/MarginPlacement.tsx
 #: src/features/overview/OverviewPage.tsx
 #: src/features/printers/PrintersPage.tsx
 #: src/features/search/printersSource.ts
@@ -4211,6 +4557,14 @@ msgstr "Put the sheet back in the printer the way it went in the first time. Onl
 msgid "Put the sheet in the other way round"
 msgstr "Put the sheet in the other way round"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "QR + code"
+msgstr "QR + code"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "QR + code + type text"
+msgstr "QR + code + type text"
+
 #: src/features/lookup/apps.ts
 msgid "QR code and code"
 msgstr "QR code and code"
@@ -4257,6 +4611,10 @@ msgstr "Queue timeout (seconds)"
 #: src/features/printers/model.ts
 msgid "Queued"
 msgstr "Queued"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Reaches outside the page."
+msgstr "Reaches outside the page."
 
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "Read at least the four outer crossings and the one in the centre."
@@ -4349,6 +4707,14 @@ msgstr "Rectangle"
 msgid "Red"
 msgstr "Red"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Refused by the server."
+msgstr "Refused by the server."
+
+#: src/features/sheets/GeometryDiagram.tsx
+msgid "Refused or does not fit"
+msgstr "Refused or does not fit"
+
 #: src/shell/PullToRefresh.tsx
 msgid "Release to reload"
 msgstr "Release to reload"
@@ -4384,6 +4750,10 @@ msgstr "Remove"
 #: src/features/lookup/CartPage.tsx
 msgid "Remove {itemName}"
 msgstr "Remove {itemName}"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Remove {label}"
+msgstr "Remove {label}"
 
 #: src/shell/BootstrapKeyCreated.tsx
 msgid "Remove <0>{variableName}</0> from the container; it no longer works once this key exists."
@@ -4430,10 +4800,6 @@ msgstr "Reprint margin code"
 msgctxt "sheet cell state"
 msgid "reserved"
 msgstr "reserved"
-
-#: src/features/archive/IdPlacementSection.tsx
-msgid "Reserved cell"
-msgstr "Reserved cell"
 
 #: src/features/printers/IdentityMismatchBanner.tsx
 msgid "Reset calibration and accept"
@@ -4520,6 +4886,19 @@ msgstr "Revoke this key?"
 msgid "Revoked"
 msgstr "Revoked"
 
+#: src/features/archive/IdPositionControls.tsx
+msgctxt "margin band"
+msgid "Right"
+msgstr "Right"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Right band"
+msgstr "Right band"
+
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Right half of the top band, enlarged"
+msgstr "Right half of the top band, enlarged"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "right margin"
 msgstr "right margin"
@@ -4527,6 +4906,10 @@ msgstr "right margin"
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Right margin"
 msgstr "Right margin"
+
+#: src/features/archive/IdPositionControls.tsx
+msgid "Right or bottom"
+msgstr "Right or bottom"
 
 #: src/shell/RollToast.tsx
 msgid "Roll not supported"
@@ -4585,6 +4968,10 @@ msgstr "Same device"
 msgid "Save"
 msgstr "Save"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Save area"
+msgstr "Save area"
+
 #: src/features/archive/TypeForm.tsx
 msgid "Save details"
 msgstr "Save details"
@@ -4600,6 +4987,10 @@ msgstr "Save for this tray"
 #: src/features/archive/TypeForm.tsx
 msgid "Save new version"
 msgstr "Save new version"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Save position"
+msgstr "Save position"
 
 #: src/features/settings/PrinterForm.tsx
 msgid "Save printer"
@@ -4622,6 +5013,7 @@ msgid "Saved values exist, but this integration cannot be used yet. A secret may
 msgstr "Saved values exist, but this integration cannot be used yet. A secret may belong to another URL or may not be readable with the current secret key, or the URL is missing. Enter the secret again."
 
 #: src/features/archive/IdPlacementSection.tsx
+#: src/features/archive/MarginPlacement.tsx
 msgid "Saved."
 msgstr "Saved."
 
@@ -4632,6 +5024,10 @@ msgstr "Saved. New prints use this correction."
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Saves for: {label}"
 msgstr "Saves for: {label}"
+
+#: src/features/archive/TypeForm.tsx
+msgid "Saving checks the areas against the labels and refuses a bad one."
+msgstr "Saving checks the areas against the labels and refuses a bad one."
 
 #: src/features/archive/errors.ts
 #: src/features/settings/feedback.tsx
@@ -4821,6 +5217,8 @@ msgstr "Sheet archive"
 msgid "sheet code"
 msgstr "sheet code"
 
+#: src/features/archive/TypeDetail.tsx
+#: src/features/sheets/GeometryDiagram.tsx
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "Sheet code"
 msgstr "Sheet code"
@@ -4868,9 +5266,25 @@ msgstr "Sheet code on the back"
 msgid "Sheet code on the back · {code}"
 msgstr "Sheet code on the back · {code}"
 
+#: src/features/archive/TypeForm.tsx
+msgid "Sheet code position"
+msgstr "Sheet code position"
+
 #: src/features/archive/RemoveUnusedDialog.tsx
 msgid "Sheet codes are never issued twice: the counter of a prefix stays, so a type you add back continues its numbering. A linked backing design is kept."
 msgstr "Sheet codes are never issued twice: the counter of a prefix stays, so a type you add back continues its numbering. A linked backing design is kept."
+
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Sheet front"
+msgstr "Sheet front"
+
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Sheet front with the preprinted areas hatched and the planned sheet code outlined"
+msgstr "Sheet front with the preprinted areas hatched and the planned sheet code outlined"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Sheet front with the sheet code where this printer puts it"
+msgstr "Sheet front with the sheet code where this printer puts it"
 
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx
@@ -5025,6 +5439,10 @@ msgstr "Signing in with the new key failed."
 msgid "Single sign-on"
 msgstr "Single sign-on"
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "Size"
+msgstr "Size"
+
 #: src/features/printers/RollColourPrompt.tsx
 msgid "Skip"
 msgstr "Skip"
@@ -5126,6 +5544,10 @@ msgstr "Spoolman sends this key with its webhook. At least {MIN_WEBHOOK_KEY} cha
 msgid "Standard"
 msgstr "Standard"
 
+#: src/features/archive/IdPositionControls.tsx
+msgid "Start from"
+msgstr "Start from"
+
 #: src/features/scan/CameraScanner.tsx
 msgid "Starting the camera…"
 msgstr "Starting the camera…"
@@ -5168,6 +5590,10 @@ msgstr "Step 2: Enter the deviation"
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Steps"
 msgstr "Steps"
+
+#: src/features/archive/IdPositionControls.tsx
+msgid "Steps of 0.5 mm. Distance from the end of the label grid to where the code starts."
+msgstr "Steps of 0.5 mm. Distance from the end of the label grid to where the code starts."
 
 #: src/features/calibration/guide/StillOff.tsx
 msgid "Still off after the check print?"
@@ -5365,6 +5791,14 @@ msgid "That name is already used by another printer."
 msgstr "That name is already used by another printer."
 
 #: src/features/archive/errors.ts
+msgid "That preset is for another paper size."
+msgstr "That preset is for another paper size."
+
+#: src/features/archive/errors.ts
+msgid "That preset no longer exists."
+msgstr "That preset no longer exists."
+
+#: src/features/archive/errors.ts
 msgid "That printer cannot print sheets."
 msgstr "That printer cannot print sheets."
 
@@ -5463,9 +5897,17 @@ msgstr "The app of this item is not known."
 msgid "The app of this item is not set up."
 msgstr "The app of this item is not set up."
 
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "The areas are the ones in this form, not saved yet. The sheet code is drawn where the saved rules put it on the first page printer; saving can move it."
+msgstr "The areas are the ones in this form, not saved yet. The sheet code is drawn where the saved rules put it on the first page printer; saving can move it."
+
 #: src/features/archive/errors.ts
 msgid "The backing design of this type was changed here and differs from the catalog's. Nothing was changed."
 msgstr "The backing design of this type was changed here and differs from the catalog's. Nothing was changed."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "The band left on this printer is too shallow or too short for the code."
+msgstr "The band left on this printer is too shallow or too short for the code."
 
 #: src/shell/SignIn.tsx
 msgid "The bootstrap key no longer works because an admin key exists. Sign in with that key."
@@ -5700,6 +6142,10 @@ msgstr "the hub does not know this printer model"
 #: src/features/printers/wiring.tsx
 msgid "the hub is not connected to this printer"
 msgstr "the hub is not connected to this printer"
+
+#: src/features/archive/IdPlacementSection.tsx
+msgid "The hub picked this place from the usable margin. You can change it."
+msgstr "The hub picked this place from the usable margin. You can change it."
 
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub restarted while this label waited for the next part. Print it again."
@@ -5955,6 +6401,10 @@ msgstr "The note about the change"
 msgid "The note is too long: at most {0} characters."
 msgstr "The note is too long: at most {0} characters."
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "The note is too long: at most {NOTE_MAX} characters."
+msgstr "The note is too long: at most {NOTE_MAX} characters."
+
 #: src/features/archive/errors.ts
 msgid "The notes text"
 msgstr "The notes text"
@@ -5978,6 +6428,15 @@ msgstr "The numbers in the drawing follow this list. S counts the gaps between c
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The numbers on the scale are the value to enter when the middle of the gap (across) or the cut (down) falls there."
 msgstr "The numbers on the scale are the value to enter when the middle of the gap (across) or the cut (down) falls there."
+
+#: src/features/archive/MarginPlacement.tsx
+#: src/features/archive/TypeForm.tsx
+msgid "The offset is a number of mm from 0 to 1000, for example 12.5."
+msgstr "The offset is a number of mm from 0 to 1000, for example 12.5."
+
+#: src/features/archive/TypeForm.tsx
+msgid "The other changes in this form were not stored either. They are still here: fix the area and save again."
+msgstr "The other changes in this form were not stored either. They are still here: fix the area and save again."
 
 #: src/features/calibration/CalibrationPage.tsx
 msgid "The page could not be queued."
@@ -6003,9 +6462,17 @@ msgstr "The paper size"
 msgid "The port must be between 1 and 65535."
 msgstr "The port must be between 1 and 65535."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "The position lies outside what this printer can print."
+msgstr "The position lies outside what this printer can print."
+
 #: src/features/archive/TypeForm.tsx
 msgid "The prefix is fixed once sheets of this type exist."
 msgstr "The prefix is fixed once sheets of this type exist."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "The preprinted areas leave no room for the code on this printer."
+msgstr "The preprinted areas leave no room for the code on this printer."
 
 #: src/features/sheets/print/errors.ts
 msgid "The preview took too long. Try again later."
@@ -6189,6 +6656,10 @@ msgstr "The printer reports: {words}. Fix it on the printer and try again."
 msgid "The printer was busy and did not take the job."
 msgstr "The printer was busy and did not take the job."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "The printers could not be checked."
+msgstr "The printers could not be checked."
+
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/printers/PrinterGrid.tsx
 #: src/features/settings/Printers.tsx
@@ -6304,6 +6775,10 @@ msgstr "The sheet code identifies a sheet when you scan it. Choose where the hub
 msgid "The sheet code is in the print queue."
 msgstr "The sheet code is in the print queue."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "The sheet code, enlarged"
+msgstr "The sheet code, enlarged"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "The sheet could not be added."
 msgstr "The sheet could not be added."
@@ -6319,6 +6794,10 @@ msgstr "The sheet could not be loaded."
 #: src/features/archive/errors.ts
 msgid "The sheet has no free cell left for this."
 msgstr "The sheet has no free cell left for this."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "The sheet has no margin on that side."
+msgstr "The sheet has no margin on that side."
 
 #: src/features/jobs/PageJobInfo.tsx
 msgid "The sheet is discarded, so these cells cannot be settled any more."
@@ -6432,6 +6911,10 @@ msgstr "The tray you chose is not available: the printer reports no trays."
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The two edges of the gap between two columns: the sides of the labels."
 msgstr "The two edges of the gap between two columns: the sides of the labels."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "The type text does not fit beside the QR here."
+msgstr "The type text does not fit beside the QR here."
 
 #: src/features/sheets/errors.ts
 msgid "The unconfirmed cells changed. Check the list and try again."
@@ -6628,9 +7111,17 @@ msgstr "This printer cannot print PDF, so the hub cannot use it for sheets."
 msgid "This printer cannot print PDF, which the hub needs for sheets."
 msgstr "This printer cannot print PDF, which the hub needs for sheets."
 
+#: src/features/archive/MarginPlacement.tsx
+msgid "This printer cannot use that tray now: shown on its default tray."
+msgstr "This printer cannot use that tray now: shown on its default tray."
+
 #: src/features/printers/PrinterDetail.tsx
 msgid "This printer does not exist."
 msgstr "This printer does not exist."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "This printer does not print the code in the margin."
+msgstr "This printer does not print the code in the margin."
 
 #: src/features/calibration/CalibrationPage.tsx
 msgid "This printer has no tray to calibrate."
@@ -6688,6 +7179,10 @@ msgstr "This sheet type is archived. It offers no new sheets, but the sheets you
 #: src/features/printers/printErrorText.ts
 msgid "This tape width cannot print this label. Load another tape."
 msgstr "This tape width cannot print this label. Load another tape."
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "This tray could not be checked."
+msgstr "This tray could not be checked."
 
 #: src/features/archive/errors.ts
 msgid "This type cannot be deleted. Archive it instead."
@@ -6761,9 +7256,22 @@ msgstr "Too many previews right now. Try again in a moment."
 msgid "too small"
 msgstr "too small"
 
+#: src/features/archive/IdPositionControls.tsx
+msgctxt "margin band"
+msgid "Top"
+msgstr "Top"
+
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Top {top} mm, right {right} mm, bottom {bottom} mm, left {left} mm"
 msgstr "Top {top} mm, right {right} mm, bottom {bottom} mm, left {left} mm"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Top band"
+msgstr "Top band"
+
+#: src/features/archive/SheetFrontPanel.tsx
+msgid "Top band, enlarged in two halves"
+msgstr "Top band, enlarged in two halves"
 
 #: src/features/sheets/backSide/LoadingPicture.tsx
 msgid "Top edge first"
@@ -6803,6 +7311,10 @@ msgstr "Top-edge mark"
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "Tray"
 msgstr "Tray"
+
+#: src/features/archive/MarginPlacement.tsx
+msgid "Tray check needs the printer status, which could not be read."
+msgstr "Tray check needs the printer status, which could not be read."
 
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx
@@ -6897,6 +7409,14 @@ msgstr "Unknown code"
 #: src/features/overview/OverviewPage.tsx
 msgid "Unknown printer"
 msgstr "Unknown printer"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Unlink preset and keep a copy"
+msgstr "Unlink preset and keep a copy"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "unlink the preset to change it"
+msgstr "unlink the preset to change it"
 
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Unprintable margins"
@@ -7009,6 +7529,10 @@ msgstr "Usually public."
 #: src/features/archive/TypeForm.tsx
 msgid "Vendor"
 msgstr "Vendor"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Vendor preset"
+msgstr "Vendor preset"
 
 #: src/features/archive/ArchivePage.tsx
 msgid "Vendor, key, description or product code"
@@ -7175,9 +7699,9 @@ msgstr "Where an item's page lives for people, for example on your own domain. W
 msgid "Where gap line {s} and gap line {z} cross, read the small scales against the middle of the physical gap, in millimetres."
 msgstr "Where gap line {s} and gap line {z} cross, read the small scales against the middle of the physical gap, in millimetres."
 
-#: src/features/archive/TypeDetail.tsx
-msgid "Where the code goes"
-msgstr "Where the code goes"
+#: src/features/archive/TypeForm.tsx
+msgid "Where the margin sheet code is printed. Checked against every page printer on the type page."
+msgstr "Where the margin sheet code is printed. Checked against every page printer on the type page."
 
 #: src/features/archive/TypeDetail.tsx
 msgid "Where the numbers come from"
@@ -7187,6 +7711,10 @@ msgstr "Where the numbers come from"
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "Where the sheet code goes"
 msgstr "Where the sheet code goes"
+
+#: src/features/archive/TypeForm.tsx
+msgid "Where the vendor printed on the front of the sheet. The hub keeps the sheet code, its QR code and the feed mark out of these areas."
+msgstr "Where the vendor printed on the front of the sheet. The hub keeps the sheet code, its QR code and the feed mark out of these areas."
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "While this is off, the hub refuses labels from Grocy."
@@ -7200,6 +7728,10 @@ msgstr "White"
 msgid "Whole page"
 msgstr "Whole page"
 
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "Width"
+msgstr "Width"
+
 #: src/features/settings/SettingField.tsx
 msgid "Will be removed when you save"
 msgstr "Will be removed when you save"
@@ -7211,6 +7743,28 @@ msgstr "Works"
 #: src/features/printers/PauseReason.tsx
 msgid "Wrong tape loaded"
 msgstr "Wrong tape loaded"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgctxt "zone left edge"
+msgid "x"
+msgstr "x"
+
+#. placeholder {0}: n(r.zone.x_mm)
+#. placeholder {1}: n(r.zone.y_mm)
+#. placeholder {2}: n(r.zone.w_mm)
+#. placeholder {3}: n(r.zone.h_mm)
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "x {0} · y {1} · width {2} · height {3} mm"
+msgstr "x {0} · y {1} · width {2} · height {3} mm"
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgid "x and y start at the sheet's top-left corner: they cannot be negative."
+msgstr "x and y start at the sheet's top-left corner: they cannot be negative."
+
+#: src/features/archive/PreprintZonesEditor.tsx
+msgctxt "zone top edge"
+msgid "y"
+msgstr "y"
 
 #: src/features/printers/model.ts
 msgid "Yellow"

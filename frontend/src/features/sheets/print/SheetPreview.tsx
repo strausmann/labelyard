@@ -5,6 +5,7 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 import { Button } from "react-aria-components";
+import { useSheetType } from "../../archive/api";
 import { SECONDARY_BUTTON } from "../../ui";
 import type { SheetPreview as PreviewData } from "../api";
 import type { GridCell } from "../cellState";
@@ -148,6 +149,9 @@ function PageView({
 }: { page: Page; index: number; total: number; freeAfter: number | undefined } & Omit<SheetPreviewProps, "zoom"> & { zoom: 1 | 2 }) {
   const { t } = useLingui();
   const sheetIdBand = useSheetIdBand();
+  // The type's preprinted areas (#246): hatched over the page, so it is clear why nothing is printed there.
+  const type = useSheetType(page.type_key);
+  const zones = useMemo(() => [...(type.data?.preprint_preset?.zones ?? []), ...(type.data?.preprint_zones ?? [])], [type.data]);
   const number = index + 1;
   const code = page.sheet_code;
   const hint = page.new_code_hint ?? "";
@@ -208,9 +212,11 @@ function PageView({
         zoom={zoom}
         label={code ?? t`New sheet`}
         overlayPng={`data:image/png;base64,${page.png_base64}`}
+        zones={zones}
         {...(skippable ? { onToggle: onToggleSkip, selectable: (c: GridCell) => c.state === "new" || c.state === "skipped" } : {})}
       />
       <SheetLegend />
+      {zones.length > 0 && <p className="text-small text-ink-2">{t`Hatched: preprinted areas of the sheet. Nothing is printed there.`}</p>}
       {skippable && <p className="text-small text-ink-2">{t`Tap a planned cell to leave it out, for example a damaged label.`}</p>}
 
       <ul className="m-0 flex list-none flex-col gap-1 p-0 text-small">

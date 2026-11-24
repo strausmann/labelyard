@@ -156,10 +156,11 @@ describe("type detail", () => {
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
     expect(await screen.findByRole("heading", { name: "Example Labels L4736REV-25" })).toBeVisible();
     expect(screen.getByText("Label size")).toBeVisible();
+    expect(screen.getByText(/QR codes on labels: allowed/)).toBeVisible();
+    await userEvent.click(await screen.findByRole("tab", { name: "Versions" }));
     const versions = screen.getByRole("table", { name: "Versions" });
     expect(within(versions).getByText("Measured again")).toBeVisible();
     expect(within(versions).getByText("3")).toBeVisible();
-    expect(screen.getByText(/QR codes on labels: allowed/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Export" })).toHaveAttribute("href", "/api/v1/sheet-types/L4736REV/export");
   });
 
@@ -617,6 +618,7 @@ describe("a session that may only read and print", () => {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
     // Reading stays possible: the diagram, the versions and the export download.
+    await userEvent.click(await screen.findByRole("tab", { name: "Versions" }));
     expect(screen.getByRole("table", { name: "Versions" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Export" })).toBeVisible();
   });
@@ -763,6 +765,7 @@ describe("versions and imports that touch the open type", () => {
       },
     });
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await userEvent.click(await screen.findByRole("tab", { name: "Versions" }));
     const table = await screen.findByRole("table", { name: "Versions" });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.map((r) => within(r).getByRole("rowheader").textContent)).toEqual(["3current", "2", "1"]);
@@ -781,6 +784,7 @@ describe("versions and imports that touch the open type", () => {
       },
     });
     await renderApp({ path: "/sheets/archive?type=L4736REV" });
+    await userEvent.click(await screen.findByRole("tab", { name: "Versions" }));
     await screen.findByRole("table", { name: "Versions" });
     await userEvent.click(screen.getByRole("button", { name: "Import type" }));
     await userEvent.click(await screen.findByRole("textbox", { name: "Export file contents" }));
@@ -788,6 +792,7 @@ describe("versions and imports that touch the open type", () => {
     await userEvent.click(screen.getByRole("button", { name: "Import" }));
     await userEvent.click(await screen.findByRole("button", { name: "Add as new version" }));
     await userEvent.click(await screen.findByRole("button", { name: "Show the type" }));
+    if (!screen.queryByRole("table", { name: "Versions" })) await userEvent.click(await screen.findByRole("tab", { name: "Versions" }));
     expect(await screen.findByText("imported geometry")).toBeVisible();
   });
 

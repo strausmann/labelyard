@@ -189,6 +189,12 @@ class IdPlacementRow(BaseModel):
     offset_mm: float | None = Field(
         description="Distance of the code's start from the grid's start along its band."
     )
+    x_mm: float | None = Field(
+        default=None, description="Left edge of the code's rectangle, from the page's left."
+    )
+    y_mm: float | None = Field(
+        default=None, description="Top edge of the code's rectangle, from the page's top."
+    )
     w_mm: float | None = Field(description="Width of the code's rectangle on the page.")
     h_mm: float | None = Field(description="Height of the code's rectangle on the page.")
     content: Literal["qr_code_type", "qr_code", "code"] | None

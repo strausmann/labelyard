@@ -228,9 +228,9 @@ test.describe.serial("sheets", () => {
     await setLanguage(page, "en");
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`/sheets/archive?type=${type}`);
-    await page.getByRole("tab", { name: "Where the code goes" }).click();
-    await page.getByText("Reserved cell", { exact: true }).click();
-    await choose(page.getByRole("tabpanel", { name: "Where the code goes" }), / Cell$/, /^2$/);
+    await page.getByRole("tab", { name: "Sheet code" }).click();
+    await page.getByRole("button", { name: "A label cell" }).click();
+    await choose(page.getByRole("tabpanel", { name: "Sheet code" }), / Cell$/, /^2$/);
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
 

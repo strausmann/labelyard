@@ -390,3 +390,24 @@ describe("the reserved cell (#350)", () => {
     expect(plain.querySelector('[data-marker="hatch"]')).toBeNull();
   });
 });
+
+describe("preprinted areas over the page (#246)", () => {
+  it("draws each zone hatched at its place, outside the grid's rows and cells", () => {
+    const { container } = render(
+      <SheetGrid geometry={L4736} cells={[]} mode="view" label="Sheet" containerWidth={360} zones={[{ x_mm: 10, y_mm: 6.5, w_mm: 34, h_mm: 9 }]} />,
+    );
+    const zones = container.querySelectorAll("[data-zones] [data-zone]");
+    expect(zones).toHaveLength(1);
+    const zone = zones[0]!;
+    expect([zone.getAttribute("x"), zone.getAttribute("y"), zone.getAttribute("width"), zone.getAttribute("height")]).toEqual(["10", "6.5", "34", "9"]);
+    expect(zone.getAttribute("fill")).toMatch(/^url\(#.+-zone\)$/);
+    // Not part of the grid: the cells keep their 48 gridcells and the zones are hidden from assistive technology.
+    expect(screen.getAllByRole("gridcell")).toHaveLength(48);
+    expect(container.querySelector("[data-zones]")!.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("draws nothing extra without zones", () => {
+    const { container } = render(<SheetGrid geometry={L4736} cells={[]} mode="view" label="Sheet" containerWidth={360} />);
+    expect(container.querySelector("[data-zones]")).toBeNull();
+  });
+});

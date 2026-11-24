@@ -444,6 +444,8 @@ async def get_sheet_type_id_placement(
                 fits=placed is not None,
                 band=None if placed is None else placed.band,
                 offset_mm=None if r.offset_hmm is None else hmm_to_mm(r.offset_hmm),
+                x_mm=None if rect is None else hmm_to_mm(rect.x),
+                y_mm=None if rect is None else hmm_to_mm(rect.y),
                 w_mm=None if rect is None else hmm_to_mm(rect.w),
                 h_mm=None if rect is None else hmm_to_mm(rect.h),
                 content=None if placed is None else placed.content,
