@@ -57,29 +57,37 @@ from app.sheets.geometry import Geometry, cell_count, remaining_margins
 from app.sheets.planner import (
     _CAP_EM,
     MARGIN_TEXT_GAP_HMM,
+    MARGIN_TEXT_MAX_PT,
+    MARGIN_TEXT_MIN_PT,
     SAFETY_HMM,
     FeedMarkPlacement,
     MarginBand,
+    MarginContent,
     MarginCorner,
     MarginPlacement,
     margin_qr_allowed,
+    margin_text_start_pt,
 )
 
 __all__ = [
     "PREVIEW_DPI",
     "FeedMarkPayload",
     "MarginIdPayload",
+    "MarginRect",
     "SheetCellPayload",
     "SheetPageDetail",
     "feed_mark_payload",
     "margin_id_payload",
+    "margin_rect_of",
+    "printed_margin_rect",
+    "printed_mark_rect",
     "render_preview_png",
     "render_sheet_page",
 ]
 
 PREVIEW_DPI: Final = 150
-_MAX_PT: Final = 11.0
-_MIN_PT: Final = 6.0
+_MAX_PT: Final = MARGIN_TEXT_MAX_PT
+_MIN_PT: Final = MARGIN_TEXT_MIN_PT
 
 
 @lru_cache(maxsize=16)
@@ -181,6 +189,94 @@ class FeedMarkPayload(BaseModel):
     anchor: Literal["top_right"] = "top_right"
 
 
+class MarginRect(BaseModel):
+    """Where the margin ID was placed on the page (#246, spec S2), in hmm, page coordinates.
+
+    A top or bottom band's rectangle is the ID's length wide and its depth high; a side band's
+    is its depth wide. ``content`` is what is drawn: QR, code and type; QR and code; or the text
+    alone (``code``). Stored in ``SheetPageDetail.margin_id_rect``, never in ``MarginIdPayload``
+    (1.7.1 refuses unknown keys there, ADR 0034)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    x_hmm: int
+    y_hmm: int
+    w_hmm: int
+    h_hmm: int
+    content: MarginContent
+
+
+def margin_rect_of(placement: MarginPlacement) -> MarginRect:
+    r = placement.rect
+    return MarginRect(x_hmm=r.x, y_hmm=r.y, w_hmm=r.w, h_hmm=r.h, content=placement.content)
+
+
+def printed_margin_rect(detail: Any) -> dict[str, int] | None:
+    """Where the margin code of a stored ``sheet_page`` detail sits on the page (#246).
+
+    The stored ``margin_id_rect``; a page stored by 1.7.x has none, then the box of its band rule
+    (``legacy_margin_box``). ``None`` when the page carries no margin code or the parts are not
+    readable. Reads only ``margin_id``, ``margin_id_rect`` and ``geometry``, so the small
+    projection of in-flight pages (``repositories.sheets._carrier_rows``) answers as a full
+    detail does."""
+    from app.sheets.planner import legacy_margin_box
+
+    if not isinstance(detail, dict) or not detail.get("margin_id"):
+        return None
+    try:
+        m = MarginIdPayload.model_validate(detail["margin_id"])
+        stored = detail.get("margin_id_rect")
+        if stored is not None:
+            r = MarginRect.model_validate(stored)
+            return {"x": r.x_hmm, "y": r.y_hmm, "w": r.w_hmm, "h": r.h_hmm}
+        geometry = Geometry(**detail["geometry"])
+    except (ValueError, TypeError, KeyError):
+        return None
+    box = legacy_margin_box(geometry, m.band, m.usable_hmm, text_end_hmm=m.text_end_hmm)
+    return {"x": box.x, "y": box.y, "w": box.w, "h": box.h}
+
+
+def printed_mark_rect(detail: Any) -> dict[str, int] | None:
+    """Where the feed mark of a stored ``sheet_page`` detail sits (#246): from its ``x_hmm`` (the
+    stored decision, whichever end it took) the text's width, over the top band down to 1 mm
+    before the grid. ``None`` when the page carries no mark or the parts are not readable. Reads
+    only ``feed_mark`` and ``geometry`` (see ``printed_margin_rect``)."""
+    if not isinstance(detail, dict) or not detail.get("feed_mark"):
+        return None
+    try:
+        f = FeedMarkPayload.model_validate(detail["feed_mark"])
+        top = int(detail["geometry"]["margin_top"]) - SAFETY_HMM
+    except (ValueError, TypeError, KeyError):
+        return None
+    width = round(text_width_mm(f.text, f.size_pt) * 100)
+    return {"x": f.x_hmm, "y": 0, "w": width, "h": max(top, 0)}
+
+
+def merged_margin_rect(stored: Any, new: dict[str, int]) -> dict[str, Any]:
+    """``Sheet.margin_id_rect`` after a margin code printed at ``new`` (#246, review round 5).
+
+    A reprint adds a second code to the sheet, the first one stays printed: ``new`` becomes the
+    rectangle, every earlier one is kept under ``earlier`` (deduplicated, at most
+    ``MAX_EARLIER_RECTS``), so a later feed mark keeps clear of all of them. Calling it again
+    with the same ``new`` changes nothing."""
+    keys = ("x", "y", "w", "h")
+    earlier: list[dict[str, int]] = []
+    if isinstance(stored, dict):
+        for r in [*(stored.get("earlier") or []), {k: stored.get(k) for k in keys}]:
+            if isinstance(r, dict) and all(isinstance(r.get(k), int) for k in keys):
+                box = {k: int(r[k]) for k in keys}
+                if box != new and box not in earlier:
+                    earlier.append(box)
+    out: dict[str, Any] = dict(new)
+    if earlier:
+        out["earlier"] = earlier[-MAX_EARLIER_RECTS:]
+    return out
+
+
+MAX_EARLIER_RECTS: Final = 8
+"""How many earlier margin-code rectangles a sheet keeps (``merged_margin_rect``)."""
+
+
 def feed_mark_payload(p: FeedMarkPlacement) -> FeedMarkPayload:
     """The payload of the planner's decision; copies the text, nothing reads the language."""
     return FeedMarkPayload(
@@ -208,6 +304,12 @@ class SheetPageDetail(BaseModel):
     margin_id: MarginIdPayload | None = None
     feed_mark: FeedMarkPayload | None = None
     job_summary: dict[str, Any]
+    # #246, spec S2: the rectangle the plan chose for the margin ID; the renderers draw it when
+    # present, else the band rule of 1.7.x (a payload stored by 1.7.x renders as before).
+    margin_id_rect: MarginRect | None = None
+    # Spec S15: which end of the top band the feed mark took; absent means ``top_right``. The
+    # mark's payload itself is unchanged (``x_hmm`` carries the position).
+    feed_mark_end: Literal["top_right", "top_left"] | None = None
 
     @model_validator(mode="after")
     def _cells_valid(self) -> SheetPageDetail:
@@ -252,14 +354,42 @@ def _fit_margin_text(text: str, size_pt: float, room_mm: float) -> tuple[str, fl
     return text[:lo].rstrip() + "…", size
 
 
-def _margin_layout(g: Geometry, margin: MarginIdPayload, *, with_qr: bool) -> _MarginLayout:
-    """Where the margin ID goes, by the stored band (spec 10.2).
+def _rect_layout(margin: MarginIdPayload, rect: MarginRect, *, with_qr: bool) -> _MarginLayout:
+    """The margin ID inside its stored rectangle (#246): the QR at the rectangle's start, the
+    text after it up to the rectangle's end, centred across it."""
+    horizontal = margin.band in ("top", "bottom")
+    d = rect.h_hmm if horizontal else rect.w_hmm
+    lead = d + MARGIN_TEXT_GAP_HMM if with_qr else 0
+    start = margin_text_start_pt(d)
+    qr = BoxHmm(rect.x_hmm, rect.y_hmm, d, d) if with_qr else None
+    if horizontal:
+        text_x = rect.x_hmm + lead
+        text, size = _fit_margin_text(margin.text, start, (rect.x_hmm + rect.w_hmm - text_x) / 100)
+        em_hmm = size / PT_PER_MM * 100
+        return _MarginLayout(
+            qr, text, text_x, round(rect.y_hmm + d / 2 + _CAP_EM * em_hmm / 2), size
+        )
+    text_y = rect.y_hmm + lead
+    text, size = _fit_margin_text(margin.text, start, (rect.y_hmm + rect.h_hmm - text_y) / 100)
+    em_hmm = size / PT_PER_MM * 100
+    return _MarginLayout(
+        qr, text, round(rect.x_hmm + d / 2 - _CAP_EM * em_hmm / 2), text_y, size, 90
+    )
+
+
+def _margin_layout(
+    g: Geometry, margin: MarginIdPayload, *, with_qr: bool, rect: MarginRect | None = None
+) -> _MarginLayout:
+    """Where the margin ID goes: in its stored rectangle (#246), else by the stored band (spec
+    10.2, a payload of 1.7.x).
 
     The band starts ``SAFETY_HMM`` outside the grid and is ``usable_hmm`` deep. A QR is a square
     of that size at the grid's start of the band; the text follows it after a gap (or starts at
     the grid edge without a QR), centred across the band. Top and bottom text runs along the
     page; right and left text is turned a quarter turn clockwise and runs down the page.
     """
+    if rect is not None:
+        return _rect_layout(margin, rect, with_qr=with_qr)
     d = margin.usable_hmm
     right, bottom = remaining_margins(g)
     grid_right = g.page_w - right
@@ -322,7 +452,7 @@ def render_sheet_page(
         if m.qr_payload and m.draws_qr(payload.render_dpi):
             edge_mm = m.usable_hmm / 100
             qr_image = build_qr(m.qr_payload, qr_edge_px(edge_mm, edge_mm, payload.render_dpi))
-        lay = _margin_layout(g, m, with_qr=qr_image is not None)
+        lay = _margin_layout(g, m, with_qr=qr_image is not None, rect=d.margin_id_rect)
         if qr_image is not None and lay.qr is not None:
             images.append(PageImage(lay.qr.x, lay.qr.y, lay.qr.w, lay.qr.h, qr_image))
         if lay.text:  # empty: not even the ellipsis fits its room
@@ -400,6 +530,7 @@ def render_preview_png(
     *,
     render_dpi: int,
     feed_mark: FeedMarkPayload | None = None,
+    margin_rect: MarginRect | None = None,
 ) -> bytes:
     """1-bit PNG of the page at 150 dpi (spec 12): only the new content, at nominal positions.
 
@@ -425,7 +556,7 @@ def render_preview_png(
             if margin.qr_payload and margin.draws_qr(render_dpi)
             else None
         )
-        lay = _margin_layout(geometry, margin, with_qr=qr is not None)
+        lay = _margin_layout(geometry, margin, with_qr=qr is not None, rect=margin_rect)
         if qr is not None and lay.qr is not None:
             page.paste(qr, (px(lay.qr.x), px(lay.qr.y)))
         # A fractional pixel size, like the feed mark: a whole-pixel size made the preview's

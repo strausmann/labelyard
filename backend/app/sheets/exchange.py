@@ -37,6 +37,7 @@ from app.sheets.errors import (
     ImportTooLargeError,
     InvalidGeometryError,
     InvalidImportError,
+    PreprintPresetPageSizeMismatchError,
     TypeExistsError,
 )
 from app.sheets.geometry import (
@@ -105,6 +106,39 @@ class BackingDesignDoc(_Strict):
 # not the default, so an untouched type stays a version-1 document an older hub still imports.
 PLACEMENT_KEYS = ("id_placement", "id_cell", "backing_design")
 
+MAX_ZONES = 16
+ZONE_NOTE_MAX = 120
+
+
+class PreprintZoneMm(_Strict):
+    """A keep-out zone on the front of the sheet, in mm, page coordinates (#246)."""
+
+    x_mm: _Mm
+    y_mm: _Mm
+    w_mm: _Mm
+    h_mm: _Mm
+    note: Annotated[str, Field(max_length=ZONE_NOTE_MAX)] | None = None
+
+
+class PreprintPresetDoc(_Strict):
+    """A preprint preset inside a sheet type document (#246)."""
+
+    key: Annotated[str, Field(max_length=64, pattern=KEY_PATTERN.pattern)]
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    page_size: Literal["A4", "Letter"]
+    zones: Annotated[list[PreprintZoneMm], Field(max_length=MAX_ZONES)]
+
+
+# The keys a version-3 document adds to ``type`` (#246), with their defaults. Export writes them
+# only when they are not the default, so a type without them stays a version-1 or -2 document.
+POSITION_DEFAULTS: dict[str, Any] = {
+    "id_margin_band": "auto",
+    "id_margin_align": "start",
+    "id_margin_offset_mm": 0.0,
+    "preprint_zones": [],
+    "preprint_preset": None,
+}
+
 
 class TypeDoc(_Strict):
     key: Annotated[str, Field(max_length=64, pattern=KEY_PATTERN.pattern)]
@@ -122,6 +156,11 @@ class TypeDoc(_Strict):
     id_placement: Literal["auto", "margin", "back_side", "cell"] = "auto"
     id_cell: Annotated[int, Field(strict=True, ge=1, le=10000)] | None = None
     backing_design: BackingDesignDoc | None = None
+    id_margin_band: Literal["auto", "top", "bottom", "left", "right"] = "auto"
+    id_margin_align: Literal["start", "end"] = "start"
+    id_margin_offset_mm: _Mm = 0.0
+    preprint_zones: Annotated[list[PreprintZoneMm], Field(max_length=MAX_ZONES)] = []
+    preprint_preset: PreprintPresetDoc | None = None
 
     @field_validator("source_url")
     @classmethod
@@ -136,7 +175,7 @@ class VersionDoc(_Strict):
 
 class ExportDoc(_Strict):
     format: Literal["label-printer-hub.sheet-type"]
-    format_version: Literal[1, 2]
+    format_version: Literal[1, 2, 3]
     type: TypeDoc
     version: VersionDoc
     exported_at: datetime
@@ -147,12 +186,19 @@ class ExportDoc(_Strict):
         """A version-1 document carries none of the version-2 keys (R-350-8)."""
         if self.format_version == 1 and self.type.model_fields_set & set(PLACEMENT_KEYS):
             raise ValueError("format_version 1 does not know id_placement or backing_design")
+        if self.format_version < 3 and self.type.model_fields_set & set(POSITION_DEFAULTS):
+            raise ValueError("format_version 1 and 2 do not know the sheet code position")
         return self
 
     def to_json(self) -> dict[str, Any]:
         """The document as JSON: the version-2 keys only when they carry something."""
         data = self.model_dump(mode="json")
-        defaults = {"id_placement": "auto", "id_cell": None, "backing_design": None}
+        defaults = {
+            "id_placement": "auto",
+            "id_cell": None,
+            "backing_design": None,
+            **POSITION_DEFAULTS,
+        }
         for name, default in defaults.items():
             if data["type"].get(name) == default:
                 del data["type"][name]
@@ -246,10 +292,12 @@ async def export_type(session: AsyncSession, key: str, version: int | None) -> E
         design = await session.get(BackingDesign, t.backing_design_id)
         if design is not None and (placement or not _is_shipped_default(t, design)):
             placement["backing_design"] = to_doc(design)
+    position = await _position_keys(session, t)
     return ExportDoc(
         format="label-printer-hub.sheet-type",
-        # R-350-8: an untouched type stays a version-1 document an older hub still imports.
-        format_version=2 if placement else 1,
+        # R-350-8: an untouched type stays a version-1 document an older hub still imports; a
+        # type with a sheet code position or keep-out zones is version 3 (#246).
+        format_version=3 if position else 2 if placement else 1,
         type=TypeDoc(
             key=t.key,
             prefix=t.prefix,
@@ -262,11 +310,33 @@ async def export_type(session: AsyncSession, key: str, version: int | None) -> E
             source_url=t.source_url,
             notes=t.notes,
             **placement,
+            **position,
         ),
         version=VersionDoc(version=v.version, geometry=geometry_to_doc(ts.version_geometry(v))),
         exported_at=datetime.now(UTC),
         exported_by_hub=HUB_VERSION[:64],
     )
+
+
+async def _position_keys(session: AsyncSession, t: SheetType) -> dict[str, Any]:
+    """The version-3 keys of a type (#246), only those that are not the default."""
+    from app.models.preprint_preset import PreprintPreset
+    from app.sheets import preprint_service as pps
+
+    keys: dict[str, Any] = {}
+    if t.id_margin_band != "auto":
+        keys["id_margin_band"] = t.id_margin_band
+    if t.id_margin_align != "start":
+        keys["id_margin_align"] = t.id_margin_align
+    if t.id_margin_offset_hmm:
+        keys["id_margin_offset_mm"] = hmm_to_mm(t.id_margin_offset_hmm)
+    if t.preprint_zones:
+        keys["preprint_zones"] = pps.zones_to_mm(t.preprint_zones)
+    if t.preprint_preset_id is not None:
+        preset = await session.get(PreprintPreset, t.preprint_preset_id)
+        if preset is not None:
+            keys["preprint_preset"] = pps.to_doc(preset)
+    return keys
 
 
 def _refuse_constant(_name: str) -> Any:
@@ -322,12 +392,38 @@ def parse_import(raw: bytes) -> ExportDoc:
     return doc
 
 
+def _check_position(doc: ExportDoc, geometry: Geometry) -> None:
+    """The version-3 keys (#246) through the checks of a write: the zones and the preset's on the
+    page and off every cell, the sheet code's minimal box on the page and off every cell."""
+    from app.sheets import preprint_service as pps
+
+    t = doc.type
+    try:
+        offset = mm_to_hmm(t.id_margin_offset_mm, field="id_margin_offset_mm")
+        zones = pps.zones_from_mm(t.preprint_zones, field="preprint_zones")
+        preset = t.preprint_preset
+        preset_zones = [] if preset is None else pps.zones_from_mm(preset.zones, field="zones")
+    except InvalidGeometryError as exc:
+        field = (exc.detail or {}).get("field", "type")
+        prefix = "type.preprint_preset." if str(field).startswith("zones") else "type."
+        raise InvalidImportError([f"{prefix}{field}"]) from None
+    if preset is not None and preset.page_size != geometry.page_size:
+        raise PreprintPresetPageSizeMismatchError()
+    page = {"page_w": geometry.page_w, "page_h": geometry.page_h, "geometry": geometry}
+    pps.check_zones(zones, field="type.preprint_zones", **page)  # type: ignore[arg-type]
+    pps.check_zones(preset_zones, field="type.preprint_preset.zones", **page)  # type: ignore[arg-type]
+    pps.check_id_position(
+        geometry, band=t.id_margin_band, align=t.id_margin_align, offset_hmm=offset
+    )
+
+
 def _check_placement(doc: ExportDoc, geometry: Geometry) -> None:
     """The version-2 keys of a document: the ID cell on its grid, the design on its page."""
     t = doc.type
     total = geometry.cols * geometry.rows
     if t.id_cell is not None and t.id_cell > total:
         raise IdCellOutOfRangeError(t.id_cell, total)
+    _check_position(doc, geometry)
     design = t.backing_design
     if design is None:
         return
@@ -445,6 +541,7 @@ async def _apply_placement(session: AsyncSession, t: SheetType, doc: ExportDoc) 
 
     t.id_placement = doc.type.id_placement
     t.id_cell = doc.type.id_cell
+    await _apply_position(session, t, doc)
     wanted = doc.type.backing_design
     if wanted is None:
         await session.flush()
@@ -464,3 +561,41 @@ async def _apply_placement(session: AsyncSession, t: SheetType, doc: ExportDoc) 
         raise BackingDesignPageSizeMismatchError()
     t.backing_design_id = design.id
     await session.flush()
+
+
+async def _apply_position(session: AsyncSession, t: SheetType, doc: ExportDoc) -> None:
+    """The version-3 keys of a created type (#246); checked by ``parse_import`` already.
+
+    A preset key that exists here is linked as stored (the local zones win, like a backing
+    design); an unknown one is created with ``origin="imported"``.
+    """
+    from app.models.preprint_preset import PreprintPreset
+    from app.sheets import preprint_service as pps
+    from app.sheets.errors import PreprintPresetNotFoundError
+
+    d = doc.type
+    t.id_margin_band = d.id_margin_band
+    t.id_margin_align = d.id_margin_align
+    t.id_margin_offset_hmm = mm_to_hmm(d.id_margin_offset_mm, field="id_margin_offset_mm")
+    t.preprint_zones = pps.zones_from_mm(d.preprint_zones, field="preprint_zones")
+    wanted = d.preprint_preset
+    if wanted is None:
+        return
+    try:
+        preset: PreprintPreset = await pps.get(session, wanted.key)
+    except PreprintPresetNotFoundError:
+        preset = await pps.create_locked(
+            session,
+            key=wanted.key,
+            name=wanted.name,
+            page_size=wanted.page_size,
+            zones=pps.zones_from_mm(wanted.zones, field="zones"),
+            origin="imported",
+        )
+    if preset.page_size != doc.version.geometry.page_size:
+        raise PreprintPresetPageSizeMismatchError()
+    g = geometry_from_doc(doc.version.geometry)
+    pps.check_zones(  # the local zones win: they must keep off this type's cells too
+        preset.zones, page_w=g.page_w, page_h=g.page_h, geometry=g, field="preprint_preset"
+    )
+    t.preprint_preset_id = preset.id

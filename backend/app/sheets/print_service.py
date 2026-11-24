@@ -76,6 +76,7 @@ from app.schemas.sheet_print import (
     SheetPrintRequest,
     SheetPrintResponse,
 )
+from app.schemas.sheets import MarginRectMm
 from app.schemas.spool_swatch import SpoolSwatch
 from app.services import render_slots
 from app.services.errors import (
@@ -135,30 +136,37 @@ from app.sheets.errors import (
     SheetTypeVersionNotFoundError,
 )
 from app.sheets.exchange import geometry_to_doc
+from app.sheets.free_rects import Rect
 from app.sheets.geometry import Geometry, cell_count, hmm_to_mm
 from app.sheets.id_placement import (
     ResolvedPlacement,
     resolve_default_placement,
     resolve_type_placement,
 )
+from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
     MARGIN_TEXT_GAP_HMM,
     FeedMarkPlacement,
+    FeedMarkReason,
+    IdPlacementReason,
     MarginBand,
     MarginContext,
     MarginCorner,
     MarginPlacement,
+    MarginRule,
     PagePlan,
     PlacementIn,
     Plan,
     SheetView,
     choose_feed_mark,
-    choose_margin_placement,
     feed_mark_text,
-    feed_mark_top_taken_hmm,
     margin_bands_hmm,
+    margin_id_text,
+    margin_placement_with_reason,
     plan,
+    printed_boxes,
 )
+from app.sheets.preprint_service import margin_rules
 from app.sheets.printer_facts import PrinterFacts, load_printer_facts
 from app.sheets.reservation import (
     ExpectedPage,
@@ -177,10 +185,13 @@ from app.sheets.sheet_page import (
     PREVIEW_DPI,
     FeedMarkPayload,
     MarginIdPayload,
+    MarginRect,
     SheetCellPayload,
     SheetPageDetail,
     feed_mark_payload,
     margin_id_payload,
+    margin_rect_of,
+    merged_margin_rect,
     render_preview_png,
 )
 from app.sheets.sheet_service import ID_CELL_PURPOSE
@@ -282,13 +293,6 @@ def scan_payload_builder(public_url: str) -> Callable[[str], str]:
     return build
 
 
-def sheet_type_label(vendor: str | None, product_codes: Sequence[str], key: str) -> str:
-    """``"<vendor> <first product code>"``, as the sheet list shows a type."""
-    if vendor and product_codes:
-        return f"{vendor} {product_codes[0]}"
-    return product_codes[0] if product_codes else key
-
-
 def id_cell_title(vendor: str | None, product_codes: Sequence[str], key: str) -> str:
     """The title line of the ID cell: ``"<first product code> <vendor>"``.
 
@@ -298,11 +302,6 @@ def id_cell_title(vendor: str | None, product_codes: Sequence[str], key: str) ->
     if vendor and product_codes:
         return f"{product_codes[0]} {vendor}"
     return sheet_type_label(vendor, product_codes, key)
-
-
-def margin_id_text(code: str, type_label: str) -> str:
-    """The text of the margin ID: the code, then the type (spec 10.2)."""
-    return f"{code} · {type_label}"
 
 
 def id_cell_label(code: str, title: str, scan_payload: str) -> LabelData:
@@ -594,6 +593,8 @@ async def _new_view_of(
         state="active",
         code_hint=hint,
         id_cell_no=id_cell if placement == "cell" else None,
+        margin_rule=(await margin_rules(session, [t]))[t.id],
+        type_label=sheet_type_label(t.vendor, t.product_codes, t.key),
     )
     return view, _SheetInfo(
         t.key,
@@ -881,6 +882,7 @@ def _draw_page(
     margin: MarginIdPayload | None,
     feed_mark: FeedMarkPayload | None,
     render_dpi: int,
+    margin_rect: MarginRect | None = None,
 ) -> _Drawn:
     """Everything CPU-bound for one page (run in a thread)."""
     images: list[tuple[int, CellImage]] = []
@@ -895,7 +897,14 @@ def _draw_page(
         images.append((job.cell, image))
         if image.truncated:
             truncated.add(job.cell)
-    png = render_preview_png(geometry, images, margin, render_dpi=render_dpi, feed_mark=feed_mark)
+    png = render_preview_png(
+        geometry,
+        images,
+        margin,
+        render_dpi=render_dpi,
+        feed_mark=feed_mark,
+        margin_rect=margin_rect,
+    )
     return _Drawn(images, truncated, png)
 
 
@@ -1035,14 +1044,41 @@ def _margin_payload(
     """
     if not margin_id or placement is None:
         return None
+    # A 1.7.x renderer (after a rollback) draws by the band and ``text_end_hmm``; the rectangle
+    # (``SheetPageDetail.margin_id_rect``) is what this hub draws.
     text_end = (
         feed_mark.x_hmm - MARGIN_TEXT_GAP_HMM
-        if feed_mark is not None and placement.band == "top"
+        if feed_mark is not None and feed_mark.end == "top_right" and placement.band == "top"
         else None
     )
-    return margin_id_payload(
-        margin_id_text(code, type_label), scan(code), placement, text_end_hmm=text_end
+    text = code if placement.content == "qr_code" else margin_id_text(code, type_label)
+    return margin_id_payload(text, scan(code), placement, text_end_hmm=text_end)
+
+
+def _rect_mm(rect: MarginRect) -> MarginRectMm:
+    return MarginRectMm(
+        x_mm=hmm_to_mm(rect.x_hmm),
+        y_mm=hmm_to_mm(rect.y_hmm),
+        w_mm=hmm_to_mm(rect.w_hmm),
+        h_mm=hmm_to_mm(rect.h_hmm),
+        content=rect.content,
     )
+
+
+def _decision_keys(page: ReservedPage, margin: MarginIdPayload | None) -> dict[str, Any]:
+    """The 1.8.0 keys of a stored page (spec S2, S15): the margin ID's rectangle and the end of
+    the top band the feed mark took. Both live in ``SheetPageDetail``, which 1.7.x reads with
+    ``extra="ignore"`` (ADR 0034); ``MarginIdPayload`` and ``FeedMarkPayload`` stay as 1.7.1."""
+    rect = (
+        margin_rect_of(page.margin_placement)
+        if margin is not None and page.margin_placement is not None
+        else None
+    )
+    end = None if page.feed_mark is None else page.feed_mark.end
+    return {
+        "margin_id_rect": rect,
+        "feed_mark_end": None if end is None or end == "top_right" else end,
+    }
 
 
 def page_margin_id_payload(
@@ -1216,8 +1252,13 @@ async def preview(
 
         margin_payload = page_margin_id_payload(page, info.type_label, scan)
         mark = feed_mark_payload(page.feed_mark) if page.feed_mark is not None else None
+        rect = (
+            margin_rect_of(page.margin_placement)
+            if margin_payload is not None and page.margin_placement is not None
+            else None
+        )
         drawn = await draw_page_bounded(
-            renderer, view.geometry, jobs, margin_payload, mark, facts.render_dpi
+            renderer, view.geometry, jobs, margin_payload, mark, facts.render_dpi, rect
         )
         flagged = set(page.hw_margin_cells)
         cells: list[PreviewCell] = []
@@ -1268,6 +1309,8 @@ async def preview(
                 id_not_printed=page.id_not_printed,
                 feed_mark=page.feed_mark is not None,
                 load_hint=load_hint,
+                margin_id_rect=None if rect is None else _rect_mm(rect),
+                feed_mark_end=None if page.feed_mark is None else page.feed_mark.end,
             )
         )
 
@@ -1550,6 +1593,7 @@ def _page_payload(
         else:
             cells.append(_cell_payload(items[a.item_index], a.item_index, a.cell, info, render_dpi))
     mark = feed_mark_payload(page.feed_mark) if page.feed_mark is not None else None
+    margin = reserved_margin_id_payload(page, info.label, scan)
     detail = SheetPageDetail(
         sheet_id=page.sheet_id,
         sheet_code=page.sheet_code,
@@ -1559,9 +1603,10 @@ def _page_payload(
         allow_qr=info.allow_qr,
         cells=cells,
         id_cell=id_cell,
-        margin_id=reserved_margin_id_payload(page, info.label, scan),
+        margin_id=margin,
         feed_mark=mark,
         job_summary={"sheet_code": page.sheet_code, "cell_count": len(cells)},
+        **_decision_keys(page, margin),
     )
     return PagePayload(
         kind="sheet_page",
@@ -2231,8 +2276,8 @@ async def print_margin_id(
     """Queue a ``sheet_page`` that prints only the margin ID of a printed ``margin`` sheet.
 
     No cell is reserved and no feed mark is drawn: the page carries ``margin_id`` alone, chosen
-    by the rule a first job uses (``choose_margin_placement`` with the feed mark's room kept
-    free, ``_margin_payload``) for this printer, tray and calibration. The stored page counts
+    by the rule a first job uses (the ID first, by the type's zones and position, D33) for this
+    printer, tray and calibration. The stored page counts
     as "margin ID in flight" while it is queued or printing, and a request meanwhile is refused.
     ``id_printed`` is not touched: the code already counts as printed. Refused: a discarded sheet,
     another placement, an unprinted margin sheet (the next print onto it draws the margin ID) and
@@ -2263,22 +2308,37 @@ async def print_margin_id(
                     raise IdPlacementMismatchError()
                 info = await _type_info(session, sheet.type_version_id, {})
                 geometry = info.geometry
-                mark = choose_feed_mark(
-                    geometry, hw=facts.margins_hmm, dev=deviation, text=feed_mark_text(language)
+                sheet_type = await session.get(SheetType, sheet.type_id)
+                assert sheet_type is not None  # the foreign key holds it
+                rule = (await margin_rules(session, [sheet_type]))[sheet_type.id]
+                # A feed mark already on the sheet, or on its way there, keeps its box: the one
+                # rule every placement uses (``printed_boxes``, review rounds 3-5); the code's
+                # own old box is left out, the reprint may land where it was.
+                view = await load_sheet_view(session, sheet.code)
+                context = MarginContext(
+                    deviation=deviation,
+                    scan_payload=scan,
+                    render_dpi=facts.render_dpi,
+                    language=language,
                 )
-                placement = choose_margin_placement(
-                    geometry,
-                    hw=facts.margins_hmm,
-                    dev=deviation,
-                    payload=scan(sheet.code),
-                    dpi=facts.render_dpi,
-                    top_taken_hmm=0 if mark is None else feed_mark_top_taken_hmm(geometry, mark),
+                taken = printed_boxes(view, context, facts.margins_hmm, include_id=False)
+                # A 1.7.x renderer (after a rollback) ends the text before a mark it was drawn
+                # beside: for a mark printed by 1.7.x (none recorded), the right-end mark.
+                printed_mark = (
+                    choose_feed_mark(
+                        geometry, hw=facts.margins_hmm, dev=deviation, text=feed_mark_text(language)
+                    )[0]
+                    if sheet.feed_mark_printed and view.printed_mark_rect is None
+                    else None
+                )
+                placement = _place_id(
+                    geometry, rule, facts, deviation, scan, sheet.code, info.label, taken=taken
                 )
                 margin = _margin_payload(
                     code=sheet.code,
                     margin_id=True,
                     placement=placement,
-                    feed_mark=mark,
+                    feed_mark=printed_mark,
                     type_label=info.label,
                     scan=scan,
                 )
@@ -2296,6 +2356,7 @@ async def print_margin_id(
                     margin_id=margin,
                     feed_mark=None,
                     job_summary={"sheet_code": sheet.code, "cell_count": 0},
+                    margin_id_rect=None if placement is None else margin_rect_of(placement),
                 )
                 payload = PagePayload(
                     kind="sheet_page",
@@ -2305,6 +2366,15 @@ async def print_margin_id(
                     job_name=f"Sheet {sheet.code} · margin code",
                     calibration=snapshot,
                     detail=detail.model_dump(mode="json"),
+                )
+                # The reprint has no cells, so no outcome settles it: its box is recorded here,
+                # with the earlier code's kept (``merged_margin_rect``), in the transaction that
+                # stores the request. A reprint that never prints keeps its box reserved: the
+                # conservative side, a later feed mark never lands on a code that did print.
+                assert placement is not None  # ``margin`` is ``None`` without one
+                r = placement.rect
+                sheet.margin_id_rect = merged_margin_rect(
+                    sheet.margin_id_rect, {"x": r.x, "y": r.y, "w": r.w, "h": r.h}
                 )
                 await session.commit()
             try:
@@ -2325,7 +2395,8 @@ class MarginCheck:
     """Whether, where and how a sheet type's margin ID and feed mark fit a printer and tray.
 
     ``bands_mm`` are the uncapped depths (they can be negative); ``usable_mm`` is the depth that
-    is drawn (capped). ``reason`` is set exactly when ``printable`` is false.
+    is drawn (capped). ``reason`` is set exactly when ``printable`` is false. ``placement`` is the
+    chosen rectangle (#246).
     """
 
     bands_mm: dict[str, float]
@@ -2337,9 +2408,70 @@ class MarginCheck:
     reason: str | None
     feed_mark: bool
     default_placement: ResolvedPlacement = "margin"
+    placement: MarginPlacement | None = None
+    id_reason: IdPlacementReason | None = None
+    feed_mark_end: Literal["top_right", "top_left"] | None = None
+    feed_mark_reason: FeedMarkReason | None = None
 
 
 NO_MARGIN_BAND_REASON: Final = "no margin band is 4 mm deep on this printer"
+
+
+def _place_id(
+    geometry: Geometry,
+    rule: MarginRule,
+    facts: PrinterFacts,
+    deviation: Any,
+    scan: Callable[[str], str],
+    code: str,
+    type_label: str,
+    *,
+    taken: Sequence[Rect] = (),
+) -> MarginPlacement | None:
+    return _place_id_with_reason(
+        geometry, rule, facts, deviation, scan, code, type_label, taken=taken
+    )[0]
+
+
+def _place_id_with_reason(
+    geometry: Geometry,
+    rule: MarginRule,
+    facts: PrinterFacts,
+    deviation: Any,
+    scan: Callable[[str], str],
+    code: str,
+    type_label: str,
+    *,
+    taken: Sequence[Rect] = (),
+) -> tuple[MarginPlacement | None, IdPlacementReason | None]:
+    """The margin ID of ``code`` by the one placement function (spec 5.2), as a page decides it."""
+    return margin_placement_with_reason(
+        geometry,
+        hw=facts.margins_hmm,
+        dev=deviation,
+        payload=scan(code),
+        dpi=facts.render_dpi,
+        zones=rule.zones,
+        band_rule=rule.band,
+        align=rule.align,
+        offset_hmm=rule.offset_hmm,
+        text=margin_id_text(code, type_label),
+        code_text=code,
+        taken=taken,
+    )
+
+
+async def _type_and_geometry(
+    session: AsyncSession, type_key: str
+) -> tuple[SheetType, Geometry, MarginRule]:
+    sheet_type = await repo.get_type_by_key(session, type_key)
+    if sheet_type is None:
+        raise SheetTypeNotFoundError()
+    version = await types_repo.current_version(session, sheet_type.id)
+    if version is None:  # every type has a version
+        raise SheetTypeVersionNotFoundError()
+    rule = (await margin_rules(session, [sheet_type]))[sheet_type.id]
+    return sheet_type, version_geometry(version), rule
 
 
 async def margin_check(
@@ -2353,37 +2485,32 @@ async def margin_check(
     """Where the margin ID of a new sheet of ``type_key`` would go on ``printer``, read-only.
 
     The same decisions the first job makes (OC-50), from the same inputs: the printer's hardware
-    margins, the tray's calibration, the render resolution, the feed-direction mark in the hub's
-    current language (it shortens the top band) and, as the QR payload, the code the next sheet
-    of the type will probably get (spec 10.1). Nothing is written and no lock is taken.
+    margins, the tray's calibration, the render resolution, the type's zones and position rule,
+    the feed-direction mark in the hub's current language (placed after the ID, D33) and, as the
+    QR payload, the code the next sheet of the type will probably get (spec 10.1). Nothing is
+    written and no lock is taken.
     """
     if not is_page_printer(printer):
         raise MediaKindMismatchError()
-    sheet_type = await repo.get_type_by_key(session, type_key)
-    if sheet_type is None:
-        raise SheetTypeNotFoundError()
-    version = await types_repo.current_version(session, sheet_type.id)
-    if version is None:  # every type has a version
-        raise SheetTypeVersionNotFoundError()
-    geometry = version_geometry(version)
+    sheet_type, geometry, rule = await _type_and_geometry(session, type_key)
     tray_key = await calibration_service.resolve_tray(session, printer.id, tray)
     deviation = snapshot_to_deviation(
         await calibration_service.snapshot(session, printer.id, tray_key)
     )
     facts = await load_printer_facts(session, printer.id)
-    payload = scan_payload_builder(str(get_settings().public_url))(
-        await ss.peek_next_code(session, sheet_type.key)
+    scan = scan_payload_builder(str(get_settings().public_url))
+    code = await ss.peek_next_code(session, sheet_type.key)
+    label = sheet_type_label(sheet_type.vendor, sheet_type.product_codes, sheet_type.key)
+    placement, id_reason = _place_id_with_reason(
+        geometry, rule, facts, deviation, scan, code, label
     )
-    mark = choose_feed_mark(
-        geometry, hw=facts.margins_hmm, dev=deviation, text=feed_mark_text(language)
-    )
-    placement = choose_margin_placement(
+    mark, mark_reason = choose_feed_mark(
         geometry,
         hw=facts.margins_hmm,
         dev=deviation,
-        payload=payload,
-        dpi=facts.render_dpi,
-        top_taken_hmm=0 if mark is None else feed_mark_top_taken_hmm(geometry, mark),
+        text=feed_mark_text(language),
+        zones=rule.zones,
+        taken=() if placement is None else (placement.rect,),
     )
     bands = margin_bands_hmm(geometry, hw=facts.margins_hmm, dev=deviation)
     return MarginCheck(
@@ -2399,7 +2526,62 @@ async def margin_check(
             sheet_type.id_placement,  # type: ignore[arg-type]
             margin_printable=placement is not None,
         ),
+        placement=placement,
+        id_reason=id_reason,
+        feed_mark_end=None if mark is None else mark.end,
+        feed_mark_reason=mark_reason,
     )
+
+
+def margin_rect_mm(placement: MarginPlacement) -> MarginRectMm:
+    """The chosen rectangle in mm for an API answer."""
+    return _rect_mm(margin_rect_of(placement))
+
+
+@dataclass(frozen=True)
+class IdPlacementResult:
+    """The margin ID of a sheet type on one page printer (#246, #326's per-printer view)."""
+
+    printer: Printer
+    tray: str
+    placement: MarginPlacement | None
+    reason: IdPlacementReason | None
+    offset_hmm: int | None
+
+
+async def id_placement_rows(
+    session: AsyncSession, *, type_key: str, printers: Sequence[Printer], tray: str | None
+) -> list[IdPlacementResult]:
+    """Whether and where the margin ID of a new sheet of ``type_key`` fits each printer.
+
+    One row per printer, with its default tray or ``tray`` (a printer without that tray is
+    evaluated on its default). The same decision ``margin_check`` makes, without the feed mark.
+    Read-only.
+    """
+    sheet_type, geometry, rule = await _type_and_geometry(session, type_key)
+    scan = scan_payload_builder(str(get_settings().public_url))
+    code = await ss.peek_next_code(session, sheet_type.key)
+    label = sheet_type_label(sheet_type.vendor, sheet_type.product_codes, sheet_type.key)
+    out: list[IdPlacementResult] = []
+    for printer in printers:
+        try:
+            tray_key = await calibration_service.resolve_tray(session, printer.id, tray)
+        except SheetApiError:
+            tray_key = await calibration_service.resolve_tray(session, printer.id, None)
+        deviation = snapshot_to_deviation(
+            await calibration_service.snapshot(session, printer.id, tray_key)
+        )
+        facts = await load_printer_facts(session, printer.id)
+        placement, reason = _place_id_with_reason(
+            geometry, rule, facts, deviation, scan, code, label
+        )
+        offset = None
+        if placement is not None:
+            horizontal = placement.band in ("top", "bottom")
+            start = geometry.margin_left if horizontal else geometry.margin_top
+            offset = (placement.x_hmm if horizontal else placement.y_hmm) - start
+        out.append(IdPlacementResult(printer, tray_key, placement, reason, offset))
+    return out
 
 
 # ---------------------------------------------------------------------------- retry
@@ -2524,13 +2706,16 @@ async def retry_sheet_page(
             raise SheetPurgedError(detail.sheet_code) from None
         try:
             info = await _type_info(session, page.type_version_id, {})
+            retry_margin = reserved_margin_id_payload(page, info.label, scan)
             new_detail = detail.model_copy(
                 update={
                     "id_cell": detail.id_cell if page.id_cell is not None else None,
-                    "margin_id": reserved_margin_id_payload(page, info.label, scan),
+                    "margin_id": retry_margin,
                     "feed_mark": (
                         feed_mark_payload(page.feed_mark) if page.feed_mark is not None else None
                     ),
+                    # Spec S2: the retry decides again for its printer and stores its own.
+                    **_decision_keys(page, retry_margin),
                 }
             )
             new_payload = payload.model_copy(

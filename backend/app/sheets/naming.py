@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from app.sheets.geometry import Geometry
 
@@ -65,3 +66,10 @@ def default_allow_qr(g: Geometry) -> bool:
     switch afterwards.
     """
     return min(g.label_w, g.label_h) >= _QR_MIN_SIDE_HMM  # OC-28
+
+
+def sheet_type_label(vendor: str | None, product_codes: Sequence[str], key: str) -> str:
+    """``"<vendor> <first product code>"``, as the sheet list shows a type."""
+    if vendor and product_codes:
+        return f"{vendor} {product_codes[0]}"
+    return product_codes[0] if product_codes else key

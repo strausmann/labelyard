@@ -295,7 +295,7 @@ REJECTED: list[tuple[str, Any, type[Exception]]] = [
     ("unknown_type_field", _mutate(["type", "colour"], "red"), InvalidImportError),
     ("unknown_top_field", _mutate(["extra"], 1), InvalidImportError),
     ("unknown_geometry_field", _mutate(["version", "geometry", "bleed"], 1.0), InvalidImportError),
-    ("format_version_3", _mutate(["format_version"], 3), InvalidImportError),
+    ("format_version_4", _mutate(["format_version"], 4), InvalidImportError),
     ("format_wrong", _mutate(["format"], "other.format"), InvalidImportError),
     ("three_decimals", _mutate(["version", "geometry", "margin_top"], 9.855), InvalidImportError),
     ("negative_length", _mutate(["version", "geometry", "label_w"], -1), InvalidImportError),

@@ -159,6 +159,82 @@ async def test_payload_fixture_matches_1_7_1_sheet_page() -> None:
     assert detail.id_cell is not None and [c.cell for c in detail.cells] == [2]
 
 
+def _page_with(placement: MarginPlacement, mark: FeedMarkPlacement) -> dict[str, Any]:
+    info = sps._TypeInfo(
+        key="acme-48", label="ACME48", id_title="Acme ACME48", allow_qr=True, geometry=G48
+    )
+    page = ReservedPage(
+        job_id=uuid4(),
+        sheet_id=uuid4(),
+        sheet_code="ACME48-0001",
+        type_version_id=uuid4(),
+        assignments=[CellAssignment(cell=2, item_index=0, source="api", purpose="x", ref=None)],
+        id_cell=None,
+        margin_id=True,
+        hw_margin_cells=[],
+        margin_placement=placement,
+        feed_mark=mark,
+    )
+    item = sps.ResolvedItem(
+        label=LabelData(source_app="manual", title="Drill", primary_id="T-1", qr_payload="x"),
+        content_type=ContentType.QR_TWO_LINES,
+        meta=ItemMeta(source="api", purpose="x", ref=None),
+        lookup=None,
+    )
+    payload = sps._page_payload(
+        page,
+        [item],
+        info,
+        tray="auto",
+        render_dpi=600,
+        calibration=None,
+        scan=lambda code: f"https://hub.example.invalid/s/{code}",
+    )
+    return payload.model_dump(mode="json")
+
+
+async def test_1_8_sheet_page_payload_validates_with_the_1_7_1_models() -> None:
+    """#246 (S2): the chosen rectangle goes into ``SheetPageDetail`` only; 1.7.1 ignores it."""
+    placement = MarginPlacement(
+        band="top",
+        corner="top_left",
+        depth_hmm=1530,
+        qr=True,
+        x_hmm=5085,
+        y_hmm=500,
+        w_hmm=4000,
+        content="qr_code",
+    )
+    mark = FeedMarkPlacement(
+        text="Feed", x_hmm=17000, baseline_y_hmm=600, size_pt=7.0, width_hmm=800
+    )
+    raw = _page_with(placement, mark)
+    assert raw["detail"]["margin_id_rect"] == {
+        "x_hmm": 5085, "y_hmm": 500, "w_hmm": 4000, "h_hmm": 1530, "content": "qr_code",
+    }  # fmt: skip
+    read = _read_by_1_7_1(raw)
+    detail = v171.SheetPageDetail.model_validate(read.detail)
+    assert detail.margin_id is not None and detail.margin_id.text == "ACME48-0001"
+    assert detail.margin_id.band == "top" and detail.feed_mark is not None
+
+
+async def test_mark_at_the_left_end_validates_with_the_1_7_1_models() -> None:
+    """#246 (S15): a mark at the top-left end keeps ``anchor="top_right"``; its x carries it."""
+    placement = MarginPlacement(
+        band="top", corner="top_left", depth_hmm=900, qr=False, x_hmm=10000, y_hmm=1130,
+        w_hmm=6000, content="code",
+    )  # fmt: skip
+    mark = FeedMarkPlacement(
+        text="Feed", x_hmm=985, baseline_y_hmm=600, size_pt=7.0, width_hmm=800, end="top_left"
+    )
+    raw = _page_with(placement, mark)
+    assert raw["detail"]["feed_mark_end"] == "top_left"
+    assert raw["detail"]["feed_mark"]["x_hmm"] == 985
+    detail = v171.SheetPageDetail.model_validate(_read_by_1_7_1(raw).detail)
+    assert detail.feed_mark is not None and detail.feed_mark.x_hmm == 985
+    assert detail.feed_mark.anchor == "top_right"
+
+
 async def test_payload_fixture_matches_1_7_1_sheet_back_page(
     factory: async_sessionmaker[AsyncSession],
 ) -> None:

@@ -166,6 +166,10 @@ async def test_margin_check_measures_the_mark_in_the_current_language(
     async with running() as rig:
         await _type("mark-32", "M32", G_MARK_32)
         await _type("mark-30", "M30", G_MARK_30)
+        # #246 (D33): the sheet code goes first; in the bottom band it leaves the top to the mark.
+        async with _factory()() as s:
+            for key in ("mark-32", "mark-30"):
+                await ts.patch_type(s, key, {"id_margin_band": "bottom"}, actor="t")
         store = rig.app.state.settings_store
         original = store.get
         language = {"value": "de"}
@@ -368,14 +372,14 @@ async def test_cell_validation_errors_never_echo_the_input() -> None:
 
 async def test_margin_check_uses_probable_code_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     recorded: list[str | None] = []
-    original = planner.choose_margin_placement
+    original = planner.margin_placement_with_reason
 
     def spy(*args: Any, **kwargs: Any) -> Any:
         recorded.append(kwargs.get("payload"))
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(planner, "choose_margin_placement", spy)
-    monkeypatch.setattr(print_service_module, "choose_margin_placement", spy)
+    monkeypatch.setattr(planner, "margin_placement_with_reason", spy)
+    monkeypatch.setattr(print_service_module, "margin_placement_with_reason", spy)
     async with running() as rig:
         first = await _margin_check(rig, QR_KEY)
         assert first.status_code == 200, first.text
@@ -494,8 +498,8 @@ async def test_cell_unexpected_error_after_the_commit_keeps_the_sheet_and_names_
 
 
 async def test_margin_check_counts_the_space_the_feed_mark_takes() -> None:
-    # A narrow 1 x 12 type whose side bands are dead: the top band would win with a QR, but the
-    # feed mark shortens it, so the bottom band wins. The check must say what the job does.
+    # A narrow 1 x 12 type whose side bands are dead: the sheet code goes first (#246, D33) and
+    # keeps the top band with its QR; the mark finds no free end. The check says what the job does.
     narrow = Geometry(
         "A4", 21000, 29700, 5000, 2000, 1, 12, 5000, 2000, 3000, 8000, None, "rectangle"
     )
@@ -510,9 +514,10 @@ async def test_margin_check_counts_the_space_the_feed_mark_takes() -> None:
 
         assert resp.status_code == 202, resp.text
         stored = (await rig.job_payload(resp.json()["pages"][0]["job_id"]))["detail"]
-        assert stored["margin_id"]["band"] == "bottom"
+        assert stored["margin_id"]["band"] == "top"
         assert check.json()["band"] == stored["margin_id"]["band"]
-        assert check.json()["feed_mark"] is True
+        assert check.json()["feed_mark"] is (stored["feed_mark"] is not None)
+        assert check.json()["rect"]["x_mm"] * 100 == stored["margin_id_rect"]["x_hmm"]
 
 
 async def test_creating_a_cell_sheet_holds_no_connection_while_the_service_works(

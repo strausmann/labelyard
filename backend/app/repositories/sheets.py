@@ -317,7 +317,9 @@ async def unattached_reservation_sheets(
     return set(result.scalars().all())
 
 
-_CARRIED_KEYS = ("margin_id", "feed_mark")
+_CARRIED_KEYS = ("margin_id", "feed_mark", "margin_id_rect", "geometry")
+"""The ``detail`` entries the in-flight rules read: what a page carries, and (#246) where its
+margin ID and feed mark sit, which needs the stored rectangle and the page's geometry."""
 
 
 def _carried(key: str) -> tuple[ColumnElement[Any], ColumnElement[Any]]:
@@ -331,10 +333,10 @@ def _carried(key: str) -> tuple[ColumnElement[Any], ColumnElement[Any]]:
 async def _carrier_rows(session: AsyncSession, *where: ColumnElement[bool]) -> list[dict[str, Any]]:
     """What the jobs matching ``where`` carry, without their payloads.
 
-    Only the sheet id and the two ``detail`` entries the in-flight rules look at are selected,
-    each small (a margin ID or a feed mark); a payload holds every cell's label and can be
-    megabytes. Rows come back shaped like the part of a payload ``_active_sheet_page_carries``
-    reads, so the rule stays one function.
+    Only the sheet id and the small ``detail`` entries the in-flight rules look at are selected
+    (``_CARRIED_KEYS``: a margin ID, a feed mark, a rectangle, the geometry); a payload holds
+    every cell's label and can be megabytes. Rows come back shaped like the part of a payload
+    ``_active_sheet_page_carries`` reads, so the rule stays one function.
     """
     columns: list[ColumnElement[Any]] = [literal_column(PAGE_SHEET_EXPR)]
     for key in _CARRIED_KEYS:
@@ -346,9 +348,10 @@ async def _carrier_rows(session: AsyncSession, *where: ColumnElement[bool]) -> l
         .execution_options(**_FRESH)
     )
     out: list[dict[str, Any]] = []
-    for sheet, margin, margin_type, mark, mark_type in result.all():
+    for sheet, *carried in result.all():
         detail: dict[str, Any] = {"sheet_id": sheet}
-        for key, raw, kind in (("margin_id", margin, margin_type), ("feed_mark", mark, mark_type)):
+        for i, key in enumerate(_CARRIED_KEYS):
+            raw, kind = carried[2 * i], carried[2 * i + 1]
             # json_extract answers an object or an array as JSON text, a scalar as a value.
             detail[key] = json.loads(raw) if kind in ("object", "array") and raw else raw
         out.append({"kind": "sheet_page", "detail": detail})

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from app.catalog.upgrade import MIGRATED_KEY, run_catalog_migration
 
-from tests.helpers.db_1_7_1 import build_db_1_7_1, factory_for, migrate
+from tests.helpers.db_1_7_1 import EDITED_KEY, build_db_1_7_1, factory_for, migrate
 
 _REV = "20261121a2"
 _PREV = "20261121e1"
@@ -33,10 +33,15 @@ def _count(db: Path, sql: str, *args: object) -> int:
 
 
 async def _stamp(db: Path) -> None:
+    # The startup step runs on the live models, which carry the columns of later revisions (#246):
+    # the database is brought to the head first, as a real start does.
+    await migrate(db, "head")
     factory, dispose = factory_for(db)
     try:
         report = await run_catalog_migration(factory)
         assert report.ran and not report.failed
+        # the startup step ran on the populated rows: the one locally edited type is found
+        assert report.edited == [EDITED_KEY]
     finally:
         await dispose()
 

@@ -323,6 +323,9 @@ async def margin_check(
         reason=check.reason,
         feed_mark=check.feed_mark,
         default_placement=check.default_placement,
+        rect=None if check.placement is None else print_service.margin_rect_mm(check.placement),
+        feed_mark_end=check.feed_mark_end,
+        feed_mark_reason=check.feed_mark_reason,
     )
 
 

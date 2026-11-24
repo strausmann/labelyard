@@ -312,6 +312,11 @@ export const SHEET_TYPE: Schemas["SheetTypeRead"] = {
   id_placement_resolved: "margin",
   id_placement_auto: "margin",
   backing_design: null,
+  id_margin_band: "auto",
+  id_margin_align: "start",
+  id_margin_offset_mm: 0,
+  preprint_zones: [],
+  preprint_preset: null,
 };
 
 /** A sheet with the given cells in the given state; everything else is free. */

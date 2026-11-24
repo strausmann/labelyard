@@ -592,6 +592,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/preprint-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List preprint presets */
+        get: operations["list_preprint_presets_api_v1_preprint_presets_get"];
+        put?: never;
+        /** Create a preprint preset */
+        post: operations["create_preprint_preset_api_v1_preprint_presets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/preprint-presets/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a preprint preset no sheet type links */
+        delete: operations["delete_preprint_preset_api_v1_preprint_presets__key__delete"];
+        options?: never;
+        head?: never;
+        /** Change the name or the zones of a preprint preset */
+        patch: operations["patch_preprint_preset_api_v1_preprint_presets__key__patch"];
+        trace?: never;
+    };
     "/api/v1/print": {
         parameters: {
             query?: never;
@@ -1323,7 +1359,7 @@ export interface paths {
         head?: never;
         /**
          * Edit the non-geometric fields of a sheet type
-         * @description `id_placement` sets where the sheet code of a new sheet goes, `id_cell` the preferred cell of a `cell` sheet (checked against the current version's cell count), `backing_design` the vendor print on the back of the liner (a design key; `null` clears it).
+         * @description `id_placement` sets where the sheet code of a new sheet goes, `id_cell` the preferred cell of a `cell` sheet (checked against the current version's cell count), `backing_design` the vendor print on the back of the liner (a design key; `null` clears it). `id_margin_band`, `id_margin_align` and `id_margin_offset_mm` place the margin sheet code; its smallest box (4 x 10 mm) must lie on the page and off every cell. `preprint_zones` (at most 16) and `preprint_preset` (a preset key; `null` unlinks it) are kept free of the code and the feed mark; a zone must lie on the page and off every cell.
          */
         patch: operations["patch_sheet_type_api_v1_sheet_types__key__patch"];
         trace?: never;
@@ -1374,6 +1410,26 @@ export interface paths {
         };
         /** Export one version of a sheet type as a JSON document */
         get: operations["export_sheet_type_api_v1_sheet_types__key__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/{key}/id-placement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether and where the margin sheet code fits each page printer
+         * @description One row per enabled page printer the credentials may use, evaluated on its default tray or on `tray`. A printer that cannot use the requested tray (unknown or disabled there) is evaluated on its default tray instead; `tray` in the row always names the tray used. The same decision the first job of a new sheet of the type makes: hardware margins, the tray's calibration, the type's keep-out zones and code position. `reason` says why it does not fit: `outside_printable` (the position lies outside the printable band), `overlaps_preprint` (zones leave no room), `too_small` (the band is shallower than 4 mm or too short) or `no_margin_band` (no margin on that side). Read-only.
+         */
+        get: operations["get_sheet_type_id_placement_api_v1_sheet_types__key__id_placement_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2428,6 +2484,26 @@ export interface components {
              */
             id_cell: number | null;
             /**
+             * Id Margin Align
+             * @description The end of the band the code starts from: `start` is left (or top).
+             * @default start
+             * @enum {string}
+             */
+            id_margin_align: "start" | "end";
+            /**
+             * Id Margin Band
+             * @description The band of the margin sheet code; `auto` lets the hub choose.
+             * @default auto
+             * @enum {string}
+             */
+            id_margin_band: "auto" | "top" | "bottom" | "left" | "right";
+            /**
+             * Id Margin Offset Mm
+             * @description Distance of the code's start from that end of the grid.
+             * @default 0
+             */
+            id_margin_offset_mm: number;
+            /**
              * Id Placement
              * @description Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).
              * @enum {string}
@@ -2461,6 +2537,14 @@ export interface components {
             origin: "seed" | "custom" | "imported";
             /** Prefix */
             prefix: string;
+            /** @description A linked preprint preset; its zones count as well. */
+            preprint_preset?: components["schemas"]["PreprintPresetRead"] | null;
+            /**
+             * Preprint Zones
+             * @description The type's own keep-out zones on the front of the sheet.
+             * @default []
+             */
+            preprint_zones: components["schemas"]["PreprintZoneMm"][];
             /** Product Codes */
             product_codes: string[];
             /**
@@ -2637,7 +2721,7 @@ export interface components {
              * Format Version
              * @enum {integer}
              */
-            format_version: 1 | 2;
+            format_version: 1 | 2 | 3;
             type: components["schemas"]["TypeDoc"];
             version: components["schemas"]["VersionDoc"];
         };
@@ -2863,6 +2947,50 @@ export interface components {
             status: string;
             /** Version */
             version: string;
+        };
+        /**
+         * IdPlacementRow
+         * @description Whether and where the margin sheet code of a type fits one page printer (#246, #326).
+         */
+        IdPlacementRow: {
+            /** Band */
+            band: ("top" | "bottom" | "right" | "left") | null;
+            /** Content */
+            content: ("qr_code_type" | "qr_code" | "code") | null;
+            /** Fits */
+            fits: boolean;
+            /**
+             * H Mm
+             * @description Height of the code's rectangle on the page.
+             */
+            h_mm: number | null;
+            /**
+             * Offset Mm
+             * @description Distance of the code's start from the grid's start along its band.
+             */
+            offset_mm: number | null;
+            /**
+             * Printer Id
+             * Format: uuid
+             */
+            printer_id: string;
+            /** Printer Name */
+            printer_name: string;
+            /**
+             * Reason
+             * @description Why it does not fit, when `fits` is false.
+             */
+            reason: ("outside_printable" | "overlaps_preprint" | "too_small" | "no_margin_band") | null;
+            /**
+             * Tray
+             * @description The tray evaluated: the printer's default or `tray`.
+             */
+            tray: string;
+            /**
+             * W Mm
+             * @description Width of the code's rectangle on the page.
+             */
+            w_mm: number | null;
         };
         /**
          * IdentityResolve
@@ -3123,6 +3251,16 @@ export interface components {
              */
             feed_mark: boolean;
             /**
+             * Feed Mark End
+             * @description The end of the top band the feed mark takes, or `null`.
+             */
+            feed_mark_end?: ("top_right" | "top_left") | null;
+            /**
+             * Feed Mark Reason
+             * @description `no_free_place`: the top band has room, but no end free of zones and code.
+             */
+            feed_mark_reason?: "no_free_place" | null;
+            /**
              * Printable
              * @description Whether the margin ID fits somewhere at all.
              */
@@ -3137,11 +3275,33 @@ export interface components {
              * @description Why not, when `printable` is false.
              */
             reason: string | null;
+            /** @description The rectangle the margin code takes, or `null`. */
+            rect?: components["schemas"]["MarginRectMm"] | null;
             /**
              * Usable Mm
              * @description Depth of the chosen band that is drawn (capped).
              */
             usable_mm: number | null;
+        };
+        /**
+         * MarginRectMm
+         * @description The rectangle the margin sheet code takes on the page, in mm from its top left (#246).
+         */
+        MarginRectMm: {
+            /**
+             * Content
+             * @description What is drawn: QR, code and type; QR and code; or the text alone (`code`: the code first, the type as far as it fits).
+             * @enum {string}
+             */
+            content: "qr_code_type" | "qr_code" | "code";
+            /** H Mm */
+            h_mm: number;
+            /** W Mm */
+            w_mm: number;
+            /** X Mm */
+            x_mm: number;
+            /** Y Mm */
+            y_mm: number;
         };
         /**
          * Margins
@@ -3343,6 +3503,96 @@ export interface components {
              */
             skip?: number[];
         };
+        /** PreprintPresetCreate */
+        PreprintPresetCreate: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Page Size
+             * @enum {string}
+             */
+            page_size: "A4" | "Letter";
+            /**
+             * Zones
+             * @default []
+             */
+            zones: components["schemas"]["PreprintZoneMm"][];
+        };
+        /**
+         * PreprintPresetDoc
+         * @description A preprint preset inside a sheet type document (#246).
+         */
+        PreprintPresetDoc: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Page Size
+             * @enum {string}
+             */
+            page_size: "A4" | "Letter";
+            /** Zones */
+            zones: components["schemas"]["PreprintZoneMm"][];
+        };
+        /**
+         * PreprintPresetPatch
+         * @description Only the fields the client sends change; the page size of a preset is fixed.
+         */
+        PreprintPresetPatch: {
+            /** Name */
+            name?: string | null;
+            /** Zones */
+            zones?: components["schemas"]["PreprintZoneMm"][] | null;
+        };
+        /**
+         * PreprintPresetRead
+         * @description A preprint preset: the vendor print on the front of a sheet, where nothing is printed.
+         */
+        PreprintPresetRead: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "seed" | "custom" | "imported";
+            /**
+             * Page Size
+             * @enum {string}
+             */
+            page_size: "A4" | "Letter";
+            /**
+             * Types In Use
+             * @description Sheet types that link this preset.
+             */
+            types_in_use: number;
+            /**
+             * Zones
+             * @description Keep-out zones on the front of the sheet in mm, from the page's top left.
+             */
+            zones: components["schemas"]["PreprintZoneMm"][];
+        };
+        /**
+         * PreprintZoneMm
+         * @description A keep-out zone on the front of the sheet, in mm, page coordinates (#246).
+         */
+        PreprintZoneMm: {
+            /** H Mm */
+            h_mm: number;
+            /** Note */
+            note?: string | null;
+            /** W Mm */
+            w_mm: number;
+            /** X Mm */
+            x_mm: number;
+            /** Y Mm */
+            y_mm: number;
+        };
         /** PreviewCell */
         PreviewCell: {
             /** Cell */
@@ -3411,6 +3661,11 @@ export interface components {
              * @description The feed-direction mark is printed on this page.
              */
             feed_mark: boolean;
+            /**
+             * Feed Mark End
+             * @description The end of the top band the feed mark takes, or `null`.
+             */
+            feed_mark_end?: ("top_right" | "top_left") | null;
             geometry: components["schemas"]["GeometryMm"];
             /**
              * Id Not Printed
@@ -3429,6 +3684,8 @@ export interface components {
              * @description The sheet ID is printed in a margin band on this page.
              */
             margin_id: boolean;
+            /** @description The rectangle the margin code takes on this page; the job stores the same. */
+            margin_id_rect?: components["schemas"]["MarginRectMm"] | null;
             /**
              * New Code Hint
              * @description The probable code of a new sheet.
@@ -4808,6 +5065,26 @@ export interface components {
              */
             id_cell: number | null;
             /**
+             * Id Margin Align
+             * @description The end of the band the code starts from: `start` is left (or top).
+             * @default start
+             * @enum {string}
+             */
+            id_margin_align: "start" | "end";
+            /**
+             * Id Margin Band
+             * @description The band of the margin sheet code; `auto` lets the hub choose.
+             * @default auto
+             * @enum {string}
+             */
+            id_margin_band: "auto" | "top" | "bottom" | "left" | "right";
+            /**
+             * Id Margin Offset Mm
+             * @description Distance of the code's start from that end of the grid.
+             * @default 0
+             */
+            id_margin_offset_mm: number;
+            /**
              * Id Placement
              * @description Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).
              * @enum {string}
@@ -4841,6 +5118,14 @@ export interface components {
             origin: "seed" | "custom" | "imported";
             /** Prefix */
             prefix: string;
+            /** @description A linked preprint preset; its zones count as well. */
+            preprint_preset?: components["schemas"]["PreprintPresetRead"] | null;
+            /**
+             * Preprint Zones
+             * @description The type's own keep-out zones on the front of the sheet.
+             * @default []
+             */
+            preprint_zones: components["schemas"]["PreprintZoneMm"][];
             /** Product Codes */
             product_codes: string[];
             /**
@@ -4956,6 +5241,22 @@ export interface components {
              */
             id_cell?: number | null;
             /**
+             * Id Margin Align
+             * @enum {string}
+             */
+            id_margin_align?: "start" | "end";
+            /**
+             * Id Margin Band
+             * @description A named band is a rule: without room there the page carries no margin code.
+             * @enum {string}
+             */
+            id_margin_band?: "auto" | "top" | "bottom" | "left" | "right";
+            /**
+             * Id Margin Offset Mm
+             * @description In mm, two decimals at most; checked against the sheet.
+             */
+            id_margin_offset_mm?: number;
+            /**
              * Id Placement
              * @enum {string}
              */
@@ -4964,6 +5265,16 @@ export interface components {
             notes?: string | null;
             /** Prefix */
             prefix?: string;
+            /**
+             * Preprint Preset
+             * @description Key of a preprint preset; `null` unlinks it.
+             */
+            preprint_preset?: string | null;
+            /**
+             * Preprint Zones
+             * @description Replaces the type's own zones; each lies on the page and off every cell.
+             */
+            preprint_zones?: components["schemas"]["PreprintZoneMm"][];
             /** Product Codes */
             product_codes?: string[];
             /** Source Name */
@@ -5030,6 +5341,26 @@ export interface components {
              */
             id_cell: number | null;
             /**
+             * Id Margin Align
+             * @description The end of the band the code starts from: `start` is left (or top).
+             * @default start
+             * @enum {string}
+             */
+            id_margin_align: "start" | "end";
+            /**
+             * Id Margin Band
+             * @description The band of the margin sheet code; `auto` lets the hub choose.
+             * @default auto
+             * @enum {string}
+             */
+            id_margin_band: "auto" | "top" | "bottom" | "left" | "right";
+            /**
+             * Id Margin Offset Mm
+             * @description Distance of the code's start from that end of the grid.
+             * @default 0
+             */
+            id_margin_offset_mm: number;
+            /**
              * Id Placement
              * @description Where the sheet code of a new sheet goes. `auto` resolves to `margin` or `back_side` (see `id_placement_resolved`).
              * @enum {string}
@@ -5063,6 +5394,14 @@ export interface components {
             origin: "seed" | "custom" | "imported";
             /** Prefix */
             prefix: string;
+            /** @description A linked preprint preset; its zones count as well. */
+            preprint_preset?: components["schemas"]["PreprintPresetRead"] | null;
+            /**
+             * Preprint Zones
+             * @description The type's own keep-out zones on the front of the sheet.
+             * @default []
+             */
+            preprint_zones: components["schemas"]["PreprintZoneMm"][];
             /** Product Codes */
             product_codes: string[];
             /**
@@ -5480,6 +5819,23 @@ export interface components {
             /** Id Cell */
             id_cell?: number | null;
             /**
+             * Id Margin Align
+             * @default start
+             * @enum {string}
+             */
+            id_margin_align: "start" | "end";
+            /**
+             * Id Margin Band
+             * @default auto
+             * @enum {string}
+             */
+            id_margin_band: "auto" | "top" | "bottom" | "left" | "right";
+            /**
+             * Id Margin Offset Mm
+             * @default 0
+             */
+            id_margin_offset_mm: number;
+            /**
              * Id Placement
              * @default auto
              * @enum {string}
@@ -5491,6 +5847,12 @@ export interface components {
             notes?: string | null;
             /** Prefix */
             prefix: string;
+            preprint_preset?: components["schemas"]["PreprintPresetDoc"] | null;
+            /**
+             * Preprint Zones
+             * @default []
+             */
+            preprint_zones: components["schemas"]["PreprintZoneMm"][];
             /**
              * Product Codes
              * @default []
@@ -7027,6 +7389,149 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SheetTypeNotice"][];
                 };
+            };
+        };
+    };
+    list_preprint_presets_api_v1_preprint_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreprintPresetRead"][];
+                };
+            };
+        };
+    };
+    create_preprint_preset_api_v1_preprint_presets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreprintPresetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreprintPresetRead"];
+                };
+            };
+            /** @description The key exists (`preprint_preset_exists`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request: a zone is smaller than 1 mm (`invalid_geometry`, `error_detail.field` names it, e.g. `zones.0`), reaches outside the page (`preprint_zone_off_page`) or, on a change, covers a label cell of a type that links the preset (`preprint_zone_overlaps_cell`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_preprint_preset_api_v1_preprint_presets__key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Preset key, e.g. `avery-zweckform`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Preprint preset not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A sheet type links the preset (`preset_in_use`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_preprint_preset_api_v1_preprint_presets__key__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Preset key, e.g. `avery-zweckform`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreprintPresetPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreprintPresetRead"];
+                };
+            };
+            /** @description Preprint preset not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request: a zone is smaller than 1 mm (`invalid_geometry`, `error_detail.field` names it, e.g. `zones.0`), reaches outside the page (`preprint_zone_off_page`) or, on a change, covers a label cell of a type that links the preset (`preprint_zone_overlaps_cell`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -8915,7 +9420,7 @@ export interface operations {
                     "application/json": components["schemas"]["SheetApiErrorResponse"];
                 };
             };
-            /** @description A field is invalid, `id_cell` is outside the sheet (`id_cell_out_of_range`) or the design is for another page size (`backing_design_page_size_mismatch`). */
+            /** @description A field is invalid, `id_cell` is outside the sheet (`id_cell_out_of_range`), the design or preset is for another page size (`backing_design_page_size_mismatch`, `preprint_preset_page_size_mismatch`), the code position leaves the page or covers a cell (`id_position_off_page`, `id_position_overlaps_cell`) or a zone does (`preprint_zone_off_page`, `preprint_zone_overlaps_cell`, `error_detail.field` names it). */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9038,6 +9543,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExportDoc"];
+                };
+            };
+            /** @description Sheet type not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    get_sheet_type_id_placement_api_v1_sheet_types__key__id_placement_get: {
+        parameters: {
+            query?: {
+                tray?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdPlacementRow"][];
                 };
             };
             /** @description Sheet type not found. */

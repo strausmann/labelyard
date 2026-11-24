@@ -15,7 +15,9 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from app.api.bounded_body import read_bounded
 from app.api.pagination import next_link
@@ -26,6 +28,8 @@ from app.catalog import service as catalog_service
 from app.catalog.upgrade import catalog_update_state
 from app.db.session import get_session
 from app.models.backing_design import BackingDesign
+from app.models.preprint_preset import PreprintPreset
+from app.models.printer import Printer, is_page_printer
 from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories import sheet_types as types_repo
 from app.repositories.sheet_types import NO_USAGE, TypeUsage
@@ -36,7 +40,9 @@ from app.schemas.sheets import (
     DeleteUnusedResult,
     FacetCount,
     GeometryMm,
+    IdPlacementRow,
     ImportResponse,
+    PreprintPresetRead,
     SheetTypeCreate,
     SheetTypeDetail,
     SheetTypeFacets,
@@ -48,10 +54,11 @@ from app.schemas.sheets import (
 )
 from app.seed.sheet_seed import shipped_source_urls
 from app.sheets import backing_design_service as bds
-from app.sheets import exchange
+from app.sheets import exchange, print_service
+from app.sheets import preprint_service as pps
 from app.sheets import type_service as ts
 from app.sheets.errors import ImportTooLargeError, SheetTypeVersionNotFoundError
-from app.sheets.geometry import normalise, validate_geometry
+from app.sheets.geometry import hmm_to_mm, mm_to_hmm, normalise, validate_geometry
 from app.sheets.id_placement import resolve_type_placement
 from app.sheets.naming import KEY_PATTERN
 
@@ -99,10 +106,26 @@ def design_read(design: BackingDesign, types_in_use: int) -> BackingDesignRead:
 
 
 _Designs = dict[Any, tuple[BackingDesign, int]]
+_Presets = dict[Any, tuple[PreprintPreset, int]]
 
 
 async def _designs(session: AsyncSession) -> _Designs:
     return {d.id: (d, used) for d, used in await bds.list_with_usage(session)}
+
+
+def preset_read(preset: PreprintPreset, types_in_use: int) -> PreprintPresetRead:
+    return PreprintPresetRead(
+        key=preset.key,
+        name=preset.name,
+        page_size=preset.page_size,  # type: ignore[arg-type]
+        zones=pps.zones_to_mm(preset.zones),
+        origin=preset.origin,  # type: ignore[arg-type]
+        types_in_use=types_in_use,
+    )
+
+
+async def _presets(session: AsyncSession) -> _Presets:
+    return {p.id: (p, used) for p, used in await pps.list_with_usage(session)}
 
 
 async def _type_read(
@@ -111,7 +134,10 @@ async def _type_read(
     versions: list[tuple[SheetTypeVersion, int]] | None = None,
     designs: _Designs | None = None,
     usage: dict[Any, TypeUsage] | None = None,
+    presets: _Presets | None = None,
 ) -> tuple[SheetTypeRead, list[VersionRead]]:
+    if presets is None:
+        presets = await _presets(session) if t.preprint_preset_id is not None else {}
     if versions is None:
         versions = await ts.list_versions_with_sheet_counts(session, t.id)
     if designs is None:
@@ -122,6 +148,7 @@ async def _type_read(
     geometry = ts.version_geometry(current)
     hints = validate_geometry(normalise(geometry))
     linked = designs.get(t.backing_design_id)
+    preset = presets.get(t.preprint_preset_id)
     catalog = catalog_update_state(t, current, None if linked is None else linked[0])
     used = usage.get(t.id, NO_USAGE)
     read = SheetTypeRead(
@@ -153,6 +180,11 @@ async def _type_read(
         id_placement_resolved=resolve_type_placement(t.id_placement, geometry),
         id_placement_auto=resolve_type_placement("auto", geometry),  # type: ignore[arg-type]
         backing_design=None if linked is None else design_read(*linked),
+        id_margin_band=t.id_margin_band,  # type: ignore[arg-type]
+        id_margin_align=t.id_margin_align,  # type: ignore[arg-type]
+        id_margin_offset_mm=hmm_to_mm(t.id_margin_offset_hmm or 0),
+        preprint_zones=pps.zones_to_mm(t.preprint_zones or []),
+        preprint_preset=None if preset is None else preset_read(*preset),
         catalog_key=t.catalog_key,
         catalog_revision=t.catalog_revision,
         update_available=catalog.update_available,
@@ -224,8 +256,10 @@ async def list_sheet_types(
         types = found.types
         by_type = await ts.list_versions_with_sheet_counts_many(session, [t.id for t in types])
         designs = await _designs(session)
+        presets = await _presets(session)
         body = [
-            (await _type_read(session, t, by_type[t.id], designs, found.usage))[0] for t in types
+            (await _type_read(session, t, by_type[t.id], designs, found.usage, presets))[0]
+            for t in types
         ]
     if limit is not None:
         response.headers.update(
@@ -366,6 +400,60 @@ async def get_sheet_type(key: KeyPath, session: SessionDep, _auth: ReadDep) -> S
 
 
 @router.get(
+    "/{key}/id-placement",
+    response_model=list[IdPlacementRow],
+    summary="Whether and where the margin sheet code fits each page printer",
+    description=(
+        "One row per enabled page printer the credentials may use, evaluated on its default tray "
+        "or on `tray`. A printer that cannot use the requested tray (unknown or disabled there) "
+        "is evaluated on its default tray instead; `tray` in the row always names the tray used. "
+        "The same decision the first job of a new sheet of the type makes: hardware "
+        "margins, the tray's calibration, the type's keep-out zones and code position. `reason` "
+        "says why it does not fit: `outside_printable` (the position lies outside the printable "
+        "band), `overlaps_preprint` (zones leave no room), `too_small` (the band is shallower "
+        "than 4 mm or too short) or `no_margin_band` (no margin on that side). Read-only."
+    ),
+    responses=_NOT_FOUND,
+)
+async def get_sheet_type_id_placement(
+    key: KeyPath,
+    session: SessionDep,
+    auth: ReadDep,
+    tray: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+) -> list[IdPlacementRow]:
+    with mapped():
+        await ts.get_type(session, key)  # 404 before anything else
+        allowed = set(auth.allowed_printer_ids)
+        printers = [
+            p
+            for p in (await session.execute(select(Printer).order_by(col(Printer.name)))).scalars()
+            if p.enabled and is_page_printer(p) and (not allowed or str(p.id) in allowed)
+        ]
+        rows = await print_service.id_placement_rows(
+            session, type_key=key, printers=printers, tray=tray
+        )
+    out: list[IdPlacementRow] = []
+    for r in rows:
+        placed = r.placement
+        rect = None if placed is None else placed.rect
+        out.append(
+            IdPlacementRow(
+                printer_id=r.printer.id,
+                printer_name=r.printer.name,
+                tray=r.tray,
+                fits=placed is not None,
+                band=None if placed is None else placed.band,
+                offset_mm=None if r.offset_hmm is None else hmm_to_mm(r.offset_hmm),
+                w_mm=None if rect is None else hmm_to_mm(rect.w),
+                h_mm=None if rect is None else hmm_to_mm(rect.h),
+                content=None if placed is None else placed.content,
+                reason=r.reason,
+            )
+        )
+    return out
+
+
+@router.get(
     "/{key}/versions/{n}",
     response_model=VersionRead,
     summary="One version of a sheet type",
@@ -390,14 +478,21 @@ async def get_sheet_type_version(
         "`id_placement` sets where the sheet code of a new sheet goes, `id_cell` the preferred "
         "cell of a `cell` sheet (checked against the current version's cell count), "
         "`backing_design` the vendor print on the back of the liner (a design key; `null` "
-        "clears it)."
+        "clears it). `id_margin_band`, `id_margin_align` and `id_margin_offset_mm` place the "
+        "margin sheet code; its smallest box (4 x 10 mm) must lie on the page and off every cell. "
+        "`preprint_zones` (at most 16) and `preprint_preset` (a preset key; `null` unlinks it) are "
+        "kept free of the code and the feed mark; a zone must lie on the page and off every cell."
     ),
     responses={
         404: {"description": "Sheet type or backing design not found."},
         422: {
             "description": (
-                "A field is invalid, `id_cell` is outside the sheet (`id_cell_out_of_range`) or "
-                "the design is for another page size (`backing_design_page_size_mismatch`)."
+                "A field is invalid, `id_cell` is outside the sheet (`id_cell_out_of_range`), "
+                "the design or preset is for another page size "
+                "(`backing_design_page_size_mismatch`, `preprint_preset_page_size_mismatch`), "
+                "the code position leaves the page or covers a cell (`id_position_off_page`, "
+                "`id_position_overlaps_cell`) or a zone does (`preprint_zone_off_page`, "
+                "`preprint_zone_overlaps_cell`, `error_detail.field` names it)."
             )
         },
     },
@@ -408,6 +503,16 @@ async def patch_sheet_type(
     with mapped():
         # Only what the client sent: an omitted field is untouched, `null` is a value.
         changes = body.model_dump(exclude_unset=True)
+        # ``null`` stays ``None`` for the fields that refuse it: the service names them (422).
+        if "id_margin_offset_mm" in changes:
+            offset = changes.pop("id_margin_offset_mm")
+            changes["id_margin_offset_hmm"] = (
+                None if offset is None else mm_to_hmm(offset, field="id_margin_offset_mm")
+            )
+        if changes.get("preprint_zones") is not None and body.preprint_zones is not None:
+            changes["preprint_zones"] = pps.zones_from_mm(
+                body.preprint_zones, field="preprint_zones"
+            )
         t = await ts.patch_type(session, key, changes, actor=actor(auth))
         return (await _type_read(session, t))[0]
 

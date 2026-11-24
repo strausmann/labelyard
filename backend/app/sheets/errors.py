@@ -677,6 +677,75 @@ class BackingDesignPageSizeMismatchError(SheetApiError):
     message = "The backing design is for another page size."
 
 
+class PreprintPresetNotFoundError(SheetApiError):
+    status = 404
+    error_code = "preprint_preset_not_found"
+    message = "Preprint preset not found."
+
+
+class PreprintPresetExistsError(SheetApiError):
+    status = 409
+    error_code = "preprint_preset_exists"
+    message = "A preprint preset with this key already exists."
+
+
+class PreprintPresetInUseError(SheetApiError):
+    """A preset some sheet type still links is not deleted (#246)."""
+
+    status = 409
+    error_code = "preset_in_use"
+    message = "The preprint preset is used by a sheet type."
+
+    def __init__(self, types_in_use: int) -> None:
+        super().__init__(detail={"types_in_use": types_in_use})
+
+
+class PreprintPresetPageSizeMismatchError(SheetApiError):
+    """The preset's page size differs from the sheet type's current version (#246)."""
+
+    status = 422
+    error_code = "preprint_preset_page_size_mismatch"
+    message = "The preprint preset is for another page size."
+
+
+class PreprintZoneOffPageError(SheetApiError):
+    """A keep-out zone reaches outside the page (#246); ``field`` names it (``zones.0``)."""
+
+    status = 422
+    error_code = "preprint_zone_off_page"
+    message = "A preprinted area reaches outside the page."
+
+    def __init__(self, field: str) -> None:
+        super().__init__(detail={"field": field})
+
+
+class PreprintZoneOverlapsCellError(SheetApiError):
+    """A keep-out zone covers a label cell (#246): a label there would print on the preprint."""
+
+    status = 422
+    error_code = "preprint_zone_overlaps_cell"
+    message = "A preprinted area covers a label cell."
+
+    def __init__(self, field: str) -> None:
+        super().__init__(detail={"field": field})
+
+
+class IdPositionOffPageError(SheetApiError):
+    """The sheet code's minimal box (4 x 10 mm) at the chosen position leaves the page (#246)."""
+
+    status = 422
+    error_code = "id_position_off_page"
+    message = "The sheet code position lies outside the page."
+
+
+class IdPositionOverlapsCellError(SheetApiError):
+    """The sheet code's minimal box (4 x 10 mm) at the chosen position covers a label cell."""
+
+    status = 422
+    error_code = "id_position_overlaps_cell"
+    message = "The sheet code position covers a label cell."
+
+
 class BackStripDoesNotFitError(SheetApiError):
     """No free strip of the backing design takes the 22 x 62 mm code strip (R-350-3)."""
 

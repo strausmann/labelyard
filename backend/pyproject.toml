@@ -60,6 +60,9 @@ dev = [
     "types-PyYAML>=6.0",
     # Decodes the QR of rendered labels in tests (#247); Apache-2.0, compatible with AGPL-3.0.
     "zxing-cpp==3.1.1",
+    # Property tests of the sheet-code placement around preprint zones (#246); MPL-2.0, compatible
+    # with AGPL-3.0-or-later.
+    "hypothesis==6.170.17",
 ]
 
 [project.scripts]

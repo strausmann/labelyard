@@ -27,6 +27,7 @@ from app.schemas.print_request import (
     RawLabelData,
     RawListingItem,
 )
+from app.schemas.sheets import MarginRectMm
 from app.sheets.exchange import GeometryMm
 from app.sheets.naming import KEY_PATTERN
 
@@ -209,6 +210,13 @@ class PreviewPage(BaseModel):
     id_not_printed: bool = Field(description="No margin band is deep enough: no ID on this page.")
     feed_mark: bool = Field(description="The feed-direction mark is printed on this page.")
     load_hint: str | None = Field(description="How to load the tray, if the printer has a hint.")
+    margin_id_rect: MarginRectMm | None = Field(
+        default=None,
+        description="The rectangle the margin code takes on this page; the job stores the same.",
+    )
+    feed_mark_end: Literal["top_right", "top_left"] | None = Field(
+        default=None, description="The end of the top band the feed mark takes, or `null`."
+    )
 
 
 class ReprintHint(BaseModel):

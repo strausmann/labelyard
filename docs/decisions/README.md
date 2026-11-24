@@ -52,7 +52,7 @@ Each ADR follows the [Nygard format](https://cognitect.com/blog/2011/11/15/docum
 | [0020](0020-backend-kinds-ipp-page-printers.md) | Page printers are a backend kind (IPP) with the hub's own client | Accepted (amended by 0030) |
 | [0021](0021-api-versioning.md) | Every API route lives under `/api/v1` | Accepted (amended 2026-11-22: compatibility within `/api/v1`, bounded lists, D31) |
 | [0022](0022-design-system-and-app-layout.md) | Design system and app layout | Accepted (amended 2026-11-21: top bar, phone menu) |
-| [0023](0023-sheet-archive.md) | Sheet archive, physical sheets and calibration (D13–D19) | Accepted (amended 2026-11-21: seed corrections, sheet code placement; amended by 0028: catalog instead of seed) |
+| [0023](0023-sheet-archive.md) | Sheet archive, physical sheets and calibration (D13–D19) | Accepted (amended 2026-11-21: seed corrections, sheet code placement; amended by 0028: catalog instead of seed; 2026-11-23: keep-out zones, sheet code position, D33) |
 | [0024](0024-runtime-printer-wiring-and-hardware-identity.md) | Printers are wired at runtime through one code path and identified by hardware | Accepted (amended 2026-11-21: a printer that could not be wired says why, D29) |
 | [0025](0025-milestone-branches-for-minor-and-major-releases.md) | Minor and major releases come from milestone branches | Accepted |
 | [0026](0026-rename-to-labelyard.md) | The project is called Labelyard | Accepted |

@@ -123,6 +123,35 @@ describe("buildFeedbackUrl", () => {
     expect(round).toContain("page_h: 297.5 mm");
   });
 
+  it("feedback issue lists the zones in mm", () => {
+    const zoned = input({
+      sheetType: {
+        ...input().sheetType,
+        id_margin_band: "top",
+        id_margin_align: "end",
+        id_margin_offset_mm: 25.5,
+        preprint_zones: [{ x_mm: 9.85, y_mm: 6, w_mm: 40, h_mm: 10, note: "Logo at intranet.example" }],
+        preprint_preset: {
+          key: "avery-front",
+          name: "Avery front",
+          page_size: "A4",
+          origin: "custom",
+          types_in_use: 1,
+          zones: [{ x_mm: 150, y_mm: 5, w_mm: 40, h_mm: 10, note: null }],
+        },
+      },
+    });
+    const lines = params(buildFeedbackUrl(zoned)).get("geometry")!.split("\n");
+    expect(lines).toContain("preprint_zone: x 9.85 mm, y 6 mm, w 40 mm, h 10 mm");
+    expect(lines).toContain("preprint_preset: avery-front");
+    expect(lines).toContain("preprint_preset_zone: x 150 mm, y 5 mm, w 40 mm, h 10 mm");
+    expect(lines).toContain("sheet_code_position: top, from the end, offset 25.5 mm");
+    expect(buildFeedbackUrl(zoned)).not.toContain("intranet");
+    const plain = params(buildFeedbackUrl(input())).get("geometry")!;
+    expect(plain).not.toContain("preprint");
+    expect(plain).not.toContain("sheet_code_position");
+  });
+
   it("encodes umlauts, &, # and newlines", () => {
     const tricky = {
       ...SHEET_TYPE,

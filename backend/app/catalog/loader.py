@@ -30,7 +30,9 @@ from app.models.sheet import SheetType
 from app.sheets.backing_design_service import to_doc
 from app.sheets.errors import CatalogEntryNotFoundError
 from app.sheets.exchange import ExportDoc, TypeDoc, parse_import
+from app.sheets.geometry import hmm_to_mm
 from app.sheets.naming import KEY_PATTERN
+from app.sheets.preprint_service import zones_to_mm
 
 CATALOG_ROOT = importlib.resources.files("app.catalog")
 _HASH = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
@@ -105,6 +107,10 @@ def type_doc_of(t: SheetType, design: BackingDesign | None) -> TypeDoc | None:
         raise ValueError("the design is not the one this type links to")
     if design is None and t.backing_design_id is not None:
         raise ValueError("the type links a design that was not passed")
+    if t.preprint_preset_id is not None:
+        # No catalog entry links a preprint preset yet (#246; Task 10c ships the first): a type
+        # that links one differs from every shipped state and counts as edited.
+        return None
     try:
         return _type_doc(t, design)
     except ValidationError:
@@ -126,6 +132,11 @@ def _type_doc(t: SheetType, design: BackingDesign | None) -> TypeDoc:
         id_placement=cast(Literal["auto", "margin", "back_side", "cell"], t.id_placement),
         id_cell=t.id_cell,
         backing_design=None if design is None else to_doc(design),
+        # #246: the defaults leave the fields hash of a type that never set them unchanged.
+        id_margin_band=cast(Literal["auto", "top", "bottom", "left", "right"], t.id_margin_band),
+        id_margin_align=cast(Literal["start", "end"], t.id_margin_align),
+        id_margin_offset_mm=hmm_to_mm(t.id_margin_offset_hmm or 0),
+        preprint_zones=zones_to_mm(t.preprint_zones or []),
     )
 
 
