@@ -107,7 +107,8 @@ async def allocate_run(
     """Take the next number of ``(printer_id, tray)``, insert the run and commit.
 
     One write transaction: the counter is read and raised under the sheet write lock, the run
-    (and its check sheet pass) inserted, and the oldest rows past ``RUN_RETENTION`` dropped.
+    (and its check sheet pass) inserted. Retention is applied by ``submit_with_run`` only after
+    the submit succeeded, so a failed submit never evicts a kept run.
     """
     async with write_transaction(session):
         counter = await session.get(CalibrationRunCounter, (printer_id, tray))
@@ -141,7 +142,6 @@ async def allocate_run(
                     run_id=run.id,
                 )
             )
-        await _drop_old_runs(session, printer_id, tray)
         await session.commit()
     return run
 
@@ -225,7 +225,19 @@ async def submit_with_run(
     except Exception:
         await _discard_unsubmitted(session, run)
         raise
+    await prune_runs(session, printer_id, payload.tray)
     return run, submitted
+
+
+async def prune_runs(session: AsyncSession, printer_id: UUID, tray: str) -> None:
+    """Keep the newest ``RUN_RETENTION`` runs of the tray; a failure is logged, never raised
+    (the page is already queued)."""
+    try:
+        async with write_transaction(session):
+            await _drop_old_runs(session, printer_id, tray)
+            await session.commit()
+    except Exception:
+        logger.exception("Calibration runs: retention of a tray failed; the next submit retries")
 
 
 async def _discard_unsubmitted(session: AsyncSession, run: CalibrationRun) -> None:
@@ -373,7 +385,8 @@ async def record_media_source(
 ) -> None:
     """Store what the printer said about the tray of the payload's run.
 
-    ``None`` (the printer named no source) leaves the run "not reported". A named source marks it
+    ``None`` (the printer named no source), or an answer that is empty after cleaning, leaves the
+    run "not reported". A named source marks it
     reported and is stored only when it differs from the requested tray. A retry's answer
     replaces the first one: it is the newer print of the same run.
     """
@@ -381,13 +394,13 @@ async def record_media_source(
     if run_id is None or reported is None:
         return
     source = _bounded(reported)
+    if source is None:  # empty or unusable after cleaning: not an answer, still "not reported"
+        return
     async with write_transaction(session):
         run = await session.get(CalibrationRun, run_id)
         if run is not None:
             run.media_source_reported = True
-            run.actual_media_source = (
-                source if source is not None and source != run.requested_tray else None
-            )
+            run.actual_media_source = source if source != run.requested_tray else None
         await session.commit()
 
 

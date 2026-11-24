@@ -82,6 +82,27 @@ async def _job_row(factory: Factory, printer_id: UUID, job_id: UUID) -> None:
         await s.commit()
 
 
+async def _submitted(factory: Factory, printer_id: UUID, tray: str = "tray-1") -> CalibrationRun:
+    """A run whose submit succeeded (the job row exists): retention applies after it."""
+
+    async def ok(payload: PagePayload, job_id: UUID) -> UUID:
+        del payload
+        await _job_row(factory, printer_id, job_id)
+        return job_id
+
+    async with factory() as s:
+        run, _ = await runs.submit_with_run(
+            s,
+            _payload(tray),
+            printer_id=printer_id,
+            kind="calibration_page",
+            type_version_id=uuid4(),
+            actor="user:admin",
+            submit=ok,
+        )
+    return run
+
+
 async def _listed(
     factory: Factory, printer_id: UUID, tray: str = "tray-1", retention_days: int = 30
 ) -> list[runs.CalibrationRunRead]:
@@ -148,8 +169,8 @@ async def test_retention_keeps_1000_runs(async_session_factory: Factory) -> None
         )
         s.add(CalibrationRunCounter(printer_id=pid, tray="tray-1", next_run=1001))
         await s.commit()
-    other_tray = await _alloc(async_session_factory, pid, "tray-2")
-    run = await _alloc(async_session_factory, pid)
+    other_tray = await _submitted(async_session_factory, pid, "tray-2")
+    run = await _submitted(async_session_factory, pid)
     assert run.run_no == 1001
     async with async_session_factory() as s:
         nos = (
@@ -177,9 +198,41 @@ async def test_retention_counts_rows_not_numbers(async_session_factory: Factory)
         assert counter is not None
         counter.next_run = 1502
         await s.commit()
-    run = await _alloc(async_session_factory, pid)
+    run = await _submitted(async_session_factory, pid)
     assert run.run_no == 1502
     assert [r.run_no for r in await _listed(async_session_factory, pid)] == [1502, first.run_no]
+
+
+async def test_failed_submit_at_the_retention_bound_keeps_the_oldest_run(
+    async_session_factory: Factory,
+) -> None:
+    """Codex review on #440: a failed submit must not evict history. 1000 runs, the next submit
+    fails: all 1000 stay, run 1 included."""
+    pid = await _printer(async_session_factory)
+    async with async_session_factory() as s:
+        s.add_all(
+            CalibrationRun(
+                printer_id=pid, tray="tray-1", run_no=n, kind="calibration_page", job_id=uuid4(),
+                type_version_id=uuid4(), requested_tray="tray-1",
+            )
+            for n in range(1, 1001)
+        )  # fmt: skip
+        s.add(CalibrationRunCounter(printer_id=pid, tray="tray-1", next_run=1001))
+        await s.commit()
+
+    async def failing(payload: PagePayload, job_id: UUID) -> UUID:
+        del payload, job_id
+        raise RuntimeError("queue full")
+
+    async with async_session_factory() as s:
+        with pytest.raises(RuntimeError):
+            await runs.submit_with_run(
+                s, _payload(), printer_id=pid, kind="calibration_page", type_version_id=uuid4(),
+                actor="user:admin", submit=failing,
+            )  # fmt: skip
+    async with async_session_factory() as s:
+        nos = (await s.execute(select(CalibrationRun.run_no))).scalars().all()
+    assert len(nos) == 1000 and min(nos) == 1 and max(nos) == 1000
 
 
 # ---------------------------------------------------------------------------- submitted
@@ -370,6 +423,19 @@ async def test_printer_supplied_media_source_is_bounded_text(
     assert listed.actual_media_source is not None
     assert len(listed.actual_media_source) <= runs.MEDIA_SOURCE_MAX == 64
     assert "‮" not in listed.actual_media_source and "\x00" not in listed.actual_media_source
+
+
+@pytest.mark.parametrize("answer", ["", "   ", "\x00\x01\u200b"])
+async def test_an_unusable_media_source_stays_not_reported(
+    async_session_factory: Factory, answer: str
+) -> None:
+    """Codex review on #440: an answer that cleans to nothing is not a confirmed tray."""
+    pid = await _printer(async_session_factory)
+    run = await _alloc(async_session_factory, pid)
+    async with async_session_factory() as s:
+        await runs.record_media_source(s, runs.stamp(_payload(), run), answer)
+    [listed] = await _listed(async_session_factory, pid)
+    assert listed.media_source_reported is False and listed.actual_media_source is None
 
 
 async def test_media_source_of_a_payload_without_a_run_is_ignored(
