@@ -15,6 +15,7 @@ from dataclasses import replace
 from functools import cache
 from typing import Literal
 
+import pytest
 from app.catalog import loader
 from app.page_render.transform import Deviation
 from app.printer_backends.ipp.attributes import Margins
@@ -452,3 +453,170 @@ def test_mark_due_after_the_code_was_printed_never_overlaps_it() -> None:
     assert (box.x, box.x2) == (985, 17100)
     blocked = replace(legacy, margin_rule=MarginRule(zones=left_zone))
     assert decide_margin_and_mark(blocked, _ctx(), None).feed_mark is not None  # right end free
+
+
+# ---------------------------------------------------------------- review round 5: printed_boxes
+
+# A feed mark this hub printed at the top band's left end, as ``printed_mark_rect`` records it:
+# from its x the text width, over the top band down to 1 mm before the grid.
+STORED_LEFT_MARK = Rect(985, 0, 3000, 2130 - SAFETY_HMM)
+# A margin code this hub printed at the top band's right end, as recorded with ``id_printed``.
+STORED_RIGHT_CODE = Rect(14000, 500, 6015, 1530)
+
+
+def _legacy_mark_box() -> Rect:
+    """Where 1.7.x put a printed feed mark: the top band's right end (OC-57)."""
+    from app.sheets.planner import legacy_mark_box
+
+    mark, _ = choose_feed_mark(L4736, hw=None, dev=Deviation(), text=EN_MARK)
+    assert mark is not None and mark.end == "top_right"
+    return legacy_mark_box(L4736, mark, None, Deviation())
+
+
+def _legacy_code_box() -> Rect:
+    """Where 1.7.x put a printed margin code: the top band, its text ending before the mark."""
+    from app.sheets.planner import legacy_margin_box
+
+    return legacy_margin_box(L4736, "top", 1530, text_end_hmm=17300 - 200)
+
+
+def test_code_due_after_the_mark_was_printed_never_overlaps_it() -> None:
+    """Review round 5 (Codex on #439, planner.py:749): a job printed the feed mark but could not
+    place the code; the next normal print places the still-due code. The printed mark keeps its
+    box: the one recorded on the sheet, else the 1.7.x right-end box."""
+    view = replace(_view(MarginRule()), feed_mark_printed=True, printed_mark_rect=STORED_LEFT_MARK)
+
+    decision = decide_margin_and_mark(view, _ctx(), None)
+
+    assert decision.mark_was_due is False and decision.placement is not None
+    assert not decision.placement.rect.overlaps(STORED_LEFT_MARK)
+    unreserved = decide_margin_and_mark(replace(view, feed_mark_printed=False), _ctx(), None)
+    assert unreserved.placement is not None
+    assert unreserved.placement.rect.overlaps(STORED_LEFT_MARK)  # the example is not vacuous
+
+    # A mark printed by 1.7.x (nothing recorded) sits at the right end, where an end-aligned code
+    # would go: the code takes another band instead.
+    end = replace(view, margin_rule=MarginRule(align="end"), printed_mark_rect=None)
+    legacy = decide_margin_and_mark(end, _ctx(), None).placement
+    assert legacy is not None and not legacy.rect.overlaps(_legacy_mark_box())
+    plain = decide_margin_and_mark(replace(end, feed_mark_printed=False), _ctx(), None).placement
+    assert plain is not None and plain.rect.overlaps(_legacy_mark_box())
+
+
+def _plan_path(view: SheetView) -> tuple[Rect | None, Rect | None]:
+    """A normal print, its preview, a Grocy sheet label and an ID-only page job: ``plan``."""
+    (page,) = plan([PlacementIn(view, "first_free")], 1, hw_margins_hmm=None, margin=_ctx()).pages
+    return _boxes(page.margin_placement, page.feed_mark)
+
+
+def _retry_path(view: SheetView) -> tuple[Rect | None, Rect | None]:
+    """The retry of a page job (``reservation.reserve_exact``) re-decides by this function."""
+    d = decide_margin_and_mark(view, _ctx(), None)
+    return _boxes(d.placement, d.feed_mark)
+
+
+def _reprint_path(view: SheetView) -> tuple[Rect | None, Rect | None]:
+    """The margin-code reprint (``print_service.print_margin_id``): the code of a printed sheet
+    again, by the type's rule, beside what ``printed_boxes`` keeps free (its own old box aside)."""
+    from app.sheets.planner import margin_id_text, printed_boxes
+
+    v = replace(view, id_printed=True, printed_margin_rect=STORED_RIGHT_CODE)
+    rule = v.margin_rule
+    placement = choose_margin_placement(
+        L4736,
+        hw=None,
+        dev=Deviation(),
+        payload=PAYLOAD,
+        dpi=600,
+        zones=rule.zones,
+        band_rule=rule.band,
+        align=rule.align,
+        offset_hmm=rule.offset_hmm,
+        text=margin_id_text("L4736-0001", "Acme L4736"),
+        code_text="L4736-0001",
+        taken=printed_boxes(v, _ctx(), None, include_id=False),
+    )
+    return _boxes(placement, None)
+
+
+def _boxes(placement, mark) -> tuple[Rect | None, Rect | None]:  # type: ignore[no-untyped-def]
+    mark_box = (
+        None if mark is None else Rect(mark.x_hmm, 500, mark.width_hmm, 1530)  # top band, drawn
+    )
+    return (None if placement is None else placement.rect), mark_box
+
+
+# (scenario, the sheet's state, what is already printed or on its way, the element placed now)
+_CODE_AFTER_STORED_MARK = (
+    {"feed_mark_printed": True, "printed_mark_rect": STORED_LEFT_MARK},
+    MarginRule(),
+    "stored",
+    "code",
+)
+_CODE_AFTER_LEGACY_MARK = (
+    {"feed_mark_printed": True},
+    MarginRule(align="end"),
+    "legacy_mark",
+    "code",
+)
+_CODE_BESIDE_MARK_IN_FLIGHT = (
+    {"feed_mark_in_flight": True, "in_flight_boxes": (STORED_LEFT_MARK,)},
+    MarginRule(),
+    "stored",
+    "code",
+)
+_MARK_AFTER_STORED_CODE = (
+    {"id_printed": True, "printed_margin_rect": STORED_RIGHT_CODE},
+    MarginRule(),
+    "stored_code",
+    "mark",
+)
+_MARK_AFTER_LEGACY_CODE = ({"id_printed": True}, MarginRule(), "legacy_code", "mark")
+_MARK_BESIDE_CODE_IN_FLIGHT = (
+    {"margin_id_in_flight": True, "in_flight_boxes": (STORED_RIGHT_CODE,)},
+    MarginRule(),
+    "stored_code",
+    "mark",
+)
+
+
+_SCENARIOS = {
+    "code_after_stored_mark": _CODE_AFTER_STORED_MARK,
+    "code_after_1_7_mark": _CODE_AFTER_LEGACY_MARK,
+    "code_beside_mark_in_flight": _CODE_BESIDE_MARK_IN_FLIGHT,
+    "mark_after_stored_code": _MARK_AFTER_STORED_CODE,
+    # The 1.7.x code box ends before the right-end mark by construction; that the box is
+    # reserved at all is proven by ``test_mark_due_after_the_code_was_printed_never_overlaps_it``.
+    "mark_after_1_7_code": _MARK_AFTER_LEGACY_CODE,
+    "mark_beside_code_in_flight": _MARK_BESIDE_CODE_IN_FLIGHT,
+}
+_PATHS = {"plan": _plan_path, "retry": _retry_path, "reprint": _reprint_path}
+
+
+@pytest.mark.parametrize(
+    ("path", "scenario"),
+    [
+        pytest.param(_PATHS[p], _SCENARIOS[s], id=f"{p}-{s}")
+        for p in _PATHS
+        for s in _SCENARIOS
+        if p != "reprint" or s.startswith("code_")  # the reprint places only the code
+    ],
+)
+def test_no_path_places_over_what_the_sheet_already_carries(path, scenario) -> None:  # type: ignore[no-untyped-def]
+    """Every path that places a margin code or a feed mark on an existing sheet keeps the other
+    element's box free (``printed_boxes``): printed and recorded, printed by 1.7.x (nothing
+    recorded), or on its way on another job's stored page."""
+    state, rule, counterpart, placed = scenario
+    view = replace(_view(rule), **state)
+    other = {
+        "stored": STORED_LEFT_MARK,
+        "legacy_mark": _legacy_mark_box(),
+        "stored_code": STORED_RIGHT_CODE,
+        "legacy_code": _legacy_code_box(),
+    }[counterpart]
+
+    code_box, mark_box = path(view)
+
+    new = code_box if placed == "code" else mark_box
+    assert new is not None  # a free place exists: the assertion below is never vacuous
+    assert not new.overlaps(other)

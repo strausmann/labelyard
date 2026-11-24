@@ -62,6 +62,7 @@ __all__ = [
     "feed_mark_text",
     "grown_zones",
     "legacy_margin_box",
+    "legacy_mark_box",
     "margin_bands_hmm",
     "margin_id_text",
     "margin_placement_with_reason",
@@ -69,6 +70,7 @@ __all__ = [
     "margin_qr_fits",
     "margin_text_start_pt",
     "plan",
+    "printed_boxes",
 ]
 
 MarginBand = Literal["top", "bottom", "right", "left"]
@@ -169,6 +171,11 @@ class SheetView:
     type_label: str | None = None
     # Where the printed margin code sits (``Sheet.margin_id_rect``); ``None`` if not recorded.
     printed_margin_rect: Rect | None = None
+    # Where the printed feed mark sits (``Sheet.feed_mark_rect``); ``None`` if not recorded.
+    printed_mark_rect: Rect | None = None
+    # The boxes of a margin code or feed mark another job carries onto this sheet (its stored
+    # page), so this page keeps clear of what is on its way (``printed_boxes``).
+    in_flight_boxes: tuple[Rect, ...] = ()
 
 
 @dataclass
@@ -636,6 +643,55 @@ def legacy_margin_box(
     return Rect(x, g.margin_top, depth_hmm, grid_bottom - g.margin_top)
 
 
+def legacy_mark_box(
+    g: Geometry, mark: FeedMarkPlacement, hw: Margins | None, dev: Deviation
+) -> Rect:
+    """The box a feed mark takes in the top band: its text width, the band's drawn depth."""
+    depth = min(margin_bands_hmm(g, hw=hw, dev=dev)["top"], MAX_MARGIN_ID_HMM)
+    return Rect(mark.x_hmm, g.margin_top - SAFETY_HMM - depth, mark.width_hmm, depth)
+
+
+def _printed_mark_box(view: SheetView, margin: MarginContext, hw: Margins | None) -> Rect | None:
+    """Where the sheet's printed feed mark sits, for a margin code printed after it (#246).
+
+    The rectangle recorded with ``feed_mark_printed``; for a mark printed by 1.7.x (none
+    recorded) the top band's right end, where 1.7.x put it before the code (OC-57). ``None`` when
+    the sheet has no printed mark."""
+    if not view.feed_mark_printed:
+        return None
+    if view.printed_mark_rect is not None:
+        return view.printed_mark_rect
+    mark, _ = choose_feed_mark(
+        view.geometry, hw=hw, dev=margin.deviation, text=feed_mark_text(margin.language)
+    )
+    return None if mark is None else legacy_mark_box(view.geometry, mark, hw, margin.deviation)
+
+
+def printed_boxes(
+    view: SheetView, margin: MarginContext, hw: Margins | None, *, include_id: bool = True
+) -> tuple[Rect, ...]:
+    """The one rule for what a page keeps free on a partly printed sheet (#246, review round 5).
+
+    The boxes of the margin code and the feed mark that are already on the sheet (the rectangle
+    recorded when they printed, else the 1.7.x box on this printer) and of those another job is
+    carrying onto it (its stored page). Every path that places a margin code or a feed mark on an
+    existing sheet passes these as ``taken``: the planner and the retry
+    (``decide_margin_and_mark``) and the margin-code reprint, which leaves out the code's own old
+    box (``include_id=False``). An element that is due is neither printed nor in flight, so the
+    boxes are always those of the *other* element.
+    """
+    boxes: list[Rect] = []
+    if include_id:
+        id_box = _printed_id_box(view, margin, hw)
+        if id_box is not None:
+            boxes.append(id_box)
+    mark_box = _printed_mark_box(view, margin, hw)
+    if mark_box is not None:
+        boxes.append(mark_box)
+    boxes.extend(view.in_flight_boxes)
+    return tuple(boxes)
+
+
 def _printed_id_box(view: SheetView, margin: MarginContext, hw: Margins | None) -> Rect | None:
     """Where the sheet's printed margin code sits, for a feed mark printed after it (#246).
 
@@ -654,14 +710,7 @@ def _printed_id_box(view: SheetView, margin: MarginContext, hw: Margins | None) 
     mark, _ = choose_feed_mark(
         view.geometry, hw=hw, dev=margin.deviation, text=feed_mark_text(margin.language)
     )
-    mark_box = None
-    if mark is not None:
-        depth = min(
-            margin_bands_hmm(view.geometry, hw=hw, dev=margin.deviation)["top"], MAX_MARGIN_ID_HMM
-        )
-        mark_box = Rect(
-            mark.x_hmm, view.geometry.margin_top - SAFETY_HMM - depth, mark.width_hmm, depth
-        )
+    mark_box = None if mark is None else legacy_mark_box(view.geometry, mark, hw, margin.deviation)
     legacy = choose_margin_placement(
         view.geometry,
         hw=hw,
@@ -733,6 +782,8 @@ def decide_margin_and_mark(
     mark_due = not view.feed_mark_printed and not view.feed_mark_in_flight and not mark_done
     feed_mark: FeedMarkPlacement | None = None
     reason: FeedMarkReason | None = None
+    # What is already on the sheet, or on its way there, stays free (``printed_boxes``).
+    printed = printed_boxes(view, margin, hw_margins_hmm) if margin is not None else ()
     if due and margin is not None:
         code = view.code or view.code_hint
         placement = choose_margin_placement(
@@ -747,14 +798,12 @@ def decide_margin_and_mark(
             offset_hmm=rule.offset_hmm,
             text=margin_id_text(code, view.type_label) if code and view.type_label else None,
             code_text=code,
+            taken=printed,
         )
         margin_id = placement is not None
         id_not_printed = placement is None
     if mark_due and margin is not None:
-        printed = None if placement is not None else _printed_id_box(view, margin, hw_margins_hmm)
-        taken = (
-            (placement.rect,) if placement is not None else (() if printed is None else (printed,))
-        )
+        taken = printed if placement is None else (placement.rect, *printed)
         key = (g, rule.zones, taken)
         if feed_marks is not None and key in feed_marks:
             feed_mark, reason = feed_marks[key]

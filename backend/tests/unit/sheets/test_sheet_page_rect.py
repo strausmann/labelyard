@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import uuid
 from typing import Any
 
 from app.services.page_jobs import PagePayload
@@ -163,3 +164,23 @@ def test_detail_keeps_the_new_keys_and_the_old_payloads_validate() -> None:
     assert detail.margin_id_rect is not None and detail.margin_id_rect.content == "code"
     assert SheetPageDetail.model_validate(_stored_1_7_1()).margin_id_rect is None
     assert isinstance(detail.margin_id, MarginIdPayload)
+
+
+def test_in_flight_pages_report_the_boxes_they_carry() -> None:
+    """Review round 5 (#246): a page another job carries onto the sheet keeps its margin code and
+    feed mark free for this page (``SheetView.in_flight_boxes``), read from its stored detail; a
+    page of another sheet or another kind adds nothing."""
+    from app.sheets.free_rects import Rect
+    from app.sheets.reservation import _in_flight_boxes
+
+    detail = _stored_1_7_1()
+    own = {"kind": "sheet_page", "detail": detail}
+    other_sheet = {"kind": "sheet_page", "detail": {**detail, "sheet_id": str(uuid.UUID(int=9))}}
+    other_kind = {"kind": "label", "detail": detail}
+
+    boxes = _in_flight_boxes([own, other_sheet, other_kind], uuid.UUID(int=1))
+
+    code, mark = boxes
+    assert code == Rect(985, 500, 17100 - 985, 1530)  # the 1.7.x band box, text up to the mark
+    assert mark.x == 17300 and mark.y == 0 and mark.h == 2130 - 100
+    assert not code.overlaps(mark)

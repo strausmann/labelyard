@@ -212,6 +212,35 @@ async def _in_flight_many(
     a reservation without a job row yet, queued or printing payloads, the payloads of jobs that
     still own unconfirmed cells of the sheet, and those of finished jobs whose cells are not
     settled yet (R10-4). A sheet with an unattached reservation answers at once."""
+    return {
+        sid: flags for sid, (flags, _) in (await _in_flight_details(session, sheet_ids)).items()
+    }
+
+
+def _in_flight_boxes(payloads: Sequence[dict[str, Any]], sheet_id: UUID) -> tuple[Rect, ...]:
+    """The boxes of the margin codes and feed marks the sheet's in-flight pages carry (#246):
+    what their stored pages say (``printed_margin_rect``, ``printed_mark_rect``)."""
+    from app.sheets.sheet_page import printed_margin_rect, printed_mark_rect  # heavy renderer
+
+    boxes: list[Rect] = []
+    for payload in payloads:
+        detail = payload.get("detail")
+        if payload.get("kind") != "sheet_page" or not isinstance(detail, dict):
+            continue
+        if str(detail.get("sheet_id")) != str(sheet_id):
+            continue
+        for stored in (printed_margin_rect(detail), printed_mark_rect(detail)):
+            box = _rect_or_none(stored)
+            if box is not None:
+                boxes.append(box)
+    return tuple(boxes)
+
+
+async def _in_flight_details(
+    session: AsyncSession, sheet_ids: Sequence[UUID]
+) -> dict[UUID, tuple[tuple[bool, bool], tuple[Rect, ...]]]:
+    """``_in_flight_many`` with the boxes those pages carry (``_in_flight_boxes``). A sheet with
+    an unattached reservation has no stored page yet: both in flight, no box known."""
     unattached = await repo.unattached_reservation_sheets(session, sheet_ids)
     rest = [sid for sid in sheet_ids if sid not in unattached]
     payloads: list[dict[str, Any]] = []
@@ -223,11 +252,14 @@ async def _in_flight_many(
         ]
     return {
         sid: (
-            (True, True)
+            ((True, True), ())
             if sid in unattached
             else (
-                _active_sheet_page_carries(payloads, sid, "margin_id"),
-                _active_sheet_page_carries(payloads, sid, "feed_mark"),
+                (
+                    _active_sheet_page_carries(payloads, sid, "margin_id"),
+                    _active_sheet_page_carries(payloads, sid, "feed_mark"),
+                ),
+                _in_flight_boxes(payloads, sid),
             )
         )
         for sid in sheet_ids
@@ -251,7 +283,7 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
         session, list({s.type_version_id for s in sheets.values()})
     )
     cells = await repo.cells_of_many(session, ids)
-    flags = await _in_flight_many(session, ids)
+    flags = await _in_flight_details(session, ids)
     rules = await margin_rules(session, types.values())
     geometries = {vid: version_geometry(v) for vid, v in versions.items()}
     views: dict[str, SheetView] = {}
@@ -261,7 +293,7 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
         if sheet_type is None or version is None:  # foreign keys make this unreachable
             raise SheetNotFoundError()
         rows = cells[sheet.id]
-        margin_in_flight, mark_in_flight = flags[sheet.id]
+        (margin_in_flight, mark_in_flight), in_flight_boxes = flags[sheet.id]
         views[code] = SheetView(
             code=sheet.code,
             type_key=sheet_type.key,
@@ -283,12 +315,15 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
                 sheet_type.vendor, sheet_type.product_codes, sheet_type.key
             ),
             printed_margin_rect=_rect_or_none(sheet.margin_id_rect),
+            printed_mark_rect=_rect_or_none(sheet.feed_mark_rect),
+            in_flight_boxes=in_flight_boxes,
         )
     return views
 
 
 def _rect_or_none(stored: Any) -> Rect | None:
-    """``Sheet.margin_id_rect`` as a ``Rect``; anything unreadable counts as not recorded."""
+    """A rectangle recorded on a sheet or a stored page (``{"x", "y", "w", "h"}``) as a ``Rect``;
+    anything unreadable counts as not recorded."""
     try:
         return Rect(int(stored["x"]), int(stored["y"]), int(stored["w"]), int(stored["h"]))
     except (KeyError, TypeError, ValueError):

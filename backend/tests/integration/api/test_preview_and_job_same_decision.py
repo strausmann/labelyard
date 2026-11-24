@@ -201,3 +201,54 @@ async def test_reprint_of_an_end_aligned_code_keeps_its_place_and_the_printed_ma
         m = row.feed_mark_rect
         drawn = Rect(rect["x_hmm"], rect["y_hmm"], rect["w_hmm"], rect["h_hmm"])
         assert not drawn.overlaps(Rect(m["x"], m["y"], m["w"], m["h"]))
+
+
+@pytest.mark.parametrize("recorded", [True, False], ids=["stored_mark", "mark_of_1_7"])
+async def test_code_due_after_its_mark_printed_keeps_the_mark_free(recorded: bool) -> None:
+    """Review round 5 (Codex on #439, planner.py:749): a job printed the feed mark but not the
+    code; the next normal print places the still-due code clear of the printed mark. The mark's
+    box is the one its page stored (here the top band's left end), or, for a mark printed by
+    1.7.x (nothing recorded), the top band's right end."""
+    from app.page_render.transform import Deviation
+    from app.sheets.free_rects import Rect
+    from app.sheets.planner import choose_feed_mark, legacy_mark_box
+
+    margins = Margins(top=423, left=423, bottom=423, right=423)
+    async with running(margins=margins) as rig:
+        async with _factory()() as s:
+            await ts.patch_type(
+                s, "acme-t1", {"id_margin_band": "top", "id_margin_align": "end"}, actor="t"
+            )
+        code = await _sheet(placement="margin")
+        first = await rig.print(_body(code, 1))
+        assert first.status_code == 202, first.text
+        await rig.until_sheet(code, lambda s: s["id_printed"] and s["feed_mark_printed"])
+        async with _factory()() as s:
+            row = (await s.execute(select(Sheet).where(col(Sheet.code) == code))).scalar_one()
+            if recorded:
+                m = row.feed_mark_rect
+                assert m is not None and m["x"] == G48.margin_left  # the left end
+                mark_box = Rect(m["x"], m["y"], m["w"], m["h"])
+                align = "start"  # the code now wants the left end, where the mark is
+            else:
+                row.feed_mark_rect = None  # a mark printed by 1.7.x: at the right end
+                mark, _ = choose_feed_mark(G48, hw=margins, dev=Deviation(), text=EN_MARK)
+                assert mark is not None and mark.end == "top_right"
+                mark_box = legacy_mark_box(G48, mark, margins, Deviation())
+                align = "end"  # the code wants the right end, where that mark is
+            row.id_printed = False  # the code did not fit that page: still due
+            row.margin_id_rect = None
+            await s.commit()
+            await ts.patch_type(
+                s, "acme-t1", {"id_margin_band": "auto", "id_margin_align": align}, actor="t"
+            )
+
+        second = await rig.print(_body(code, 1))
+
+        assert second.status_code == 202, second.text
+        detail = (await rig.job_payload(second.json()["pages"][0]["job_id"]))["detail"]
+        assert detail["feed_mark"] is None  # printed already
+        rect = detail["margin_id_rect"]
+        assert rect is not None
+        drawn = Rect(rect["x_hmm"], rect["y_hmm"], rect["w_hmm"], rect["h_hmm"])
+        assert not drawn.overlaps(mark_box)

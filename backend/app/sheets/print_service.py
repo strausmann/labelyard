@@ -50,7 +50,6 @@ from app.models.print_batch import PrintBatch
 from app.models.printer import Printer, is_page_printer
 from app.models.printer_tray import PrinterTray
 from app.models.sheet import SheetType, SheetTypeVersion
-from app.page_render.transform import Deviation
 from app.printer_backends.exceptions import ContentTypeDataMismatchError
 from app.printer_backends.ipp.attributes import Margins
 from app.repositories import print_batches as batches_repo
@@ -147,8 +146,6 @@ from app.sheets.id_placement import (
 from app.sheets.naming import sheet_type_label
 from app.sheets.planner import (
     MARGIN_TEXT_GAP_HMM,
-    MAX_MARGIN_ID_HMM,
-    SAFETY_HMM,
     FeedMarkPlacement,
     FeedMarkReason,
     IdPlacementReason,
@@ -167,6 +164,7 @@ from app.sheets.planner import (
     margin_id_text,
     margin_placement_with_reason,
     plan,
+    printed_boxes,
 )
 from app.sheets.preprint_service import margin_rules
 from app.sheets.printer_facts import PrinterFacts, load_printer_facts
@@ -2312,28 +2310,28 @@ async def print_margin_id(
                 sheet_type = await session.get(SheetType, sheet.type_id)
                 assert sheet_type is not None  # the foreign key holds it
                 rule = (await margin_rules(session, [sheet_type]))[sheet_type.id]
-                # A feed mark already on the sheet keeps its box (review rounds 3 and 4): the
-                # one its printing page stored (either end), else, for a mark printed by 1.7.x,
-                # the top band's right end, where 1.7.x put it before the code.
-                printed_mark = None
-                mark_box: Rect | None = _stored_rect(sheet.feed_mark_rect)
-                if sheet.feed_mark_printed and mark_box is None:
-                    printed_mark = choose_feed_mark(
+                # A feed mark already on the sheet, or on its way there, keeps its box: the one
+                # rule every placement uses (``printed_boxes``, review rounds 3-5); the code's
+                # own old box is left out, the reprint may land where it was.
+                view = await load_sheet_view(session, sheet.code)
+                context = MarginContext(
+                    deviation=deviation,
+                    scan_payload=scan,
+                    render_dpi=facts.render_dpi,
+                    language=language,
+                )
+                taken = printed_boxes(view, context, facts.margins_hmm, include_id=False)
+                # A 1.7.x renderer (after a rollback) ends the text before a mark it was drawn
+                # beside: for a mark printed by 1.7.x (none recorded), the right-end mark.
+                printed_mark = (
+                    choose_feed_mark(
                         geometry, hw=facts.margins_hmm, dev=deviation, text=feed_mark_text(language)
                     )[0]
-                    if printed_mark is not None:
-                        mark_box = _mark_box(geometry, printed_mark, facts.margins_hmm, deviation)
-                if not sheet.feed_mark_printed:
-                    mark_box = None
+                    if sheet.feed_mark_printed and view.printed_mark_rect is None
+                    else None
+                )
                 placement = _place_id(
-                    geometry,
-                    rule,
-                    facts,
-                    deviation,
-                    scan,
-                    sheet.code,
-                    info.label,
-                    taken=() if mark_box is None else (mark_box,),
+                    geometry, rule, facts, deviation, scan, sheet.code, info.label, taken=taken
                 )
                 margin = _margin_payload(
                     code=sheet.code,
@@ -2407,20 +2405,6 @@ class MarginCheck:
 
 
 NO_MARGIN_BAND_REASON: Final = "no margin band is 4 mm deep on this printer"
-
-
-def _stored_rect(stored: Any) -> Rect | None:
-    """A rectangle recorded on a sheet (``{"x", "y", "w", "h"}``); unreadable counts as none."""
-    try:
-        return Rect(int(stored["x"]), int(stored["y"]), int(stored["w"]), int(stored["h"]))
-    except (KeyError, TypeError, ValueError):
-        return None
-
-
-def _mark_box(g: Geometry, mark: FeedMarkPlacement, hw: Margins | None, dev: Deviation) -> Rect:
-    """The box a feed mark takes in the top band: its text width, the band's drawn depth."""
-    depth = min(margin_bands_hmm(g, hw=hw, dev=dev)["top"], MAX_MARGIN_ID_HMM)
-    return Rect(mark.x_hmm, g.margin_top - SAFETY_HMM - depth, mark.width_hmm, depth)
 
 
 def _place_id(
