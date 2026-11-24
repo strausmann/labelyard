@@ -28,6 +28,10 @@ at the printer). The sequence:
    ``MAX_CONSECUTIVE_POLL_ERRORS`` in a row, so a misbehaving printer cannot hold the queue
    forever. ``client-error-not-found``
    (the printer forgot the job) ends ``failed/interrupted`` with ``started`` as observed.
+7. After a final state of a job that started (completed, or cancelled/aborted after it
+   started), for a kind with a media-source listener that wants the payload (a calibration
+   run, #336): one more Get-Job-Attributes asks for ``media-col-actual``. The outcome
+   is already stored and reported; a failed question is logged and never retried.
 
 Final states: 9 -> ``done``; 7 -> ``cancelled`` if never started, else ``failed/interrupted``;
 8 -> ``failed/ipp_aborted`` if never started, else ``failed/interrupted`` (plan decision: a
@@ -81,6 +85,7 @@ from app.services.page_jobs import (
     IDENTITY_MISMATCH_CODE,
     PageJob,
     PagePrinter,
+    media_source_listener,
     notify_ended,
     outcome_handler,
     render_page,
@@ -451,18 +456,41 @@ class PageJobRunner:
                 await self._handler_call(page_job, "on_started")
             if info.state == _COMPLETED:
                 await self._complete(page_job)
+                await self._report_media_source(page_job, active)
                 return
             if info.state == _CANCELED:
                 if result["started"]:
                     await self._fail(page_job, result, "interrupted", started=True)
+                    await self._report_media_source(page_job, active)
                 else:
-                    await self._cancelled(page_job)
+                    await self._cancelled(page_job)  # nothing printed: no tray to ask about
                 return
             if info.state == _ABORTED:
                 code = "interrupted" if result["started"] else "ipp_aborted"
                 await self._fail(page_job, result, code, started=result["started"])
+                if result["started"]:
+                    await self._report_media_source(page_job, active)
                 return
             self._at_printer(job, _AT_PRINTER.get(info.state, "waiting"))
+
+    async def _report_media_source(self, page_job: PageJob, active: _Active) -> None:
+        """Ask the printer once which tray the ended job came from (#336, design 7.1).
+
+        Only for a kind whose listener wants it, after the outcome is stored and reported, so the
+        question can never change the job. Any failure (unreachable, timeout, an unusable answer,
+        a failing listener) is logged and leaves the run "not reported"; it is not retried.
+        """
+        listener = media_source_listener(page_job.payload.kind)
+        if listener is None or active.ipp_job_id is None:
+            return
+        job_id = UUID(page_job.job.id)
+        try:
+            if not listener.wants(page_job.payload):
+                return
+            info = await active.printer.client.get_job(active.ipp_job_id, media_source=True)
+            await listener.record(job_id, page_job.payload, info.media_source)
+        except Exception as exc:
+            _log.info("Page job %s: tray not reported (%s)", job_id, type(exc).__name__)
 
     def _backoff(self, delay: float) -> float:
         return min(self._max_backoff_s, max(delay * 2, self._poll_interval_s, _MIN_BACKOFF_S))

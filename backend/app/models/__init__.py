@@ -10,6 +10,13 @@ required for Alembic autogenerate to detect schema changes.
 from app.models.api_key import ApiKey
 from app.models.app_setting import AppSetting
 from app.models.backing_design import BackingDesign
+from app.models.calibration_run import (
+    CalibrationCheckSheet,
+    CalibrationCheckSheetPass,
+    CalibrationHistory,
+    CalibrationRun,
+    CalibrationRunCounter,
+)
 from app.models.job import Job, JobState
 from app.models.preprint_preset import PreprintPreset
 from app.models.preset import Preset
@@ -36,6 +43,11 @@ __all__ = [
     "ApiKey",
     "AppSetting",
     "BackingDesign",
+    "CalibrationCheckSheet",
+    "CalibrationCheckSheetPass",
+    "CalibrationHistory",
+    "CalibrationRun",
+    "CalibrationRunCounter",
     "Job",
     "JobState",
     "PreprintPreset",

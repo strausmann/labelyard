@@ -10,7 +10,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - **Deciders:** maintainer
 - **Decision labels:** D13, D14, D15, D16, D17, D19 (D18 is [0020](0020-backend-kinds-ipp-page-printers.md))
 - **Amended:** 2026-11-21 (#334, #350) — seed corrections and adoption, sheet code placement and backing designs as shipped in 1.7.0, and the open D19 violation, see "Amendment — 2026-11-21" at the end
-- **Amended by:** [0028](0028-sheet-type-catalog.md) (#335) — the "Seed" bullet, including the `adopt`/`corrections` rule of the 2026-11-21 amendment, and OC-10 are superseded by the sheet-type catalog; D14 no longer archives a type without sheets, see "Amendment — 2026-11-22" at the end
+- **Amended by:** [0028](0028-sheet-type-catalog.md) (#335) — the "Seed" bullet, including the `adopt`/`corrections` rule of the 2026-11-21 amendment, and OC-10 are superseded by the sheet-type catalog; D14 no longer archives a type without sheets, see "Amendment — 2026-11-22" at the end; [0029](0029-calibration-runs-and-history.md) (#336) — D17's stored calibration is no longer overwritten: every save, revert and reset is a history entry, and every calibration print is a numbered run
 - **Amended:** 2026-11-23 (#246) — keep-out zones for preprinted areas, preprint presets, a band, alignment and offset for the margin sheet code, one placement function, and the sheet code placed before the feed mark (reverses OC-57), see "Amendment — 2026-11-23" at the end
 - **Related:** [0020](0020-backend-kinds-ipp-page-printers.md) (page printers over IPP), [0005](0005-print-queue-is-mandatory.md)
 

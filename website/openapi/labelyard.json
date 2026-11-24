@@ -869,6 +869,139 @@
         "title": "CalibrationRead",
         "type": "object"
       },
+      "CalibrationRunRead": {
+        "description": "One print of a run: the run itself, or a retry of its job (same number, ``retry``).",
+        "properties": {
+          "actual_media_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tray the printer reported, only when it differs from the request.",
+            "title": "Actual Media Source"
+          },
+          "check_sheet_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Sheet Id"
+          },
+          "created_at": {
+            "description": "When the run was sent, or the retry.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "description": "The run id; the reading form sends it with a fit and a save.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "description": "The job; it may have been cleaned up since.",
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "calibration_page",
+              "check_page",
+              "probe_page"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "media_source_reported": {
+            "description": "False: the printer did not say which tray it took (\"not reported\").",
+            "title": "Media Source Reported",
+            "type": "boolean"
+          },
+          "pass_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass No"
+          },
+          "requested_tray": {
+            "title": "Requested Tray",
+            "type": "string"
+          },
+          "retry": {
+            "description": "A retry of the run's job: shown as `#7 (retry)`.",
+            "title": "Retry",
+            "type": "boolean"
+          },
+          "run_no": {
+            "description": "Number per printer and tray, from 1, never reused.",
+            "title": "Run No",
+            "type": "integer"
+          },
+          "submitted": {
+            "description": "False when the run has no job row although jobs are still kept for it (`jobs.retention_days`): its submit failed or was interrupted.",
+            "title": "Submitted",
+            "type": "boolean"
+          },
+          "type_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the sheet type was deleted since.",
+            "title": "Type Key"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the sheet type was deleted since.",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "run_no",
+          "kind",
+          "created_at",
+          "job_id",
+          "retry",
+          "submitted",
+          "requested_tray",
+          "actual_media_source",
+          "media_source_reported",
+          "check_sheet_id",
+          "pass_no",
+          "type_key",
+          "version"
+        ],
+        "title": "CalibrationRunRead",
+        "type": "object"
+      },
       "CalibrationScale": {
         "description": "The mini scale at a crossing of the calibration page (mm); the app draws from it.",
         "properties": {
@@ -13036,6 +13169,80 @@
           }
         ],
         "summary": "Download the calibration page as a PDF",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/runs": {
+      "get": {
+        "description": "Every run of the tray (at most 1000 are kept) and every retry of a run's job.\n\nThe tray is not checked against the printer's current trays: a tray the printer renamed keeps\nits runs under the old key. ``actual_media_source`` is the printer's own text, bounded.",
+        "operationId": "list_calibration_runs_api_v1_printers__printer_id__calibration__tray__runs_get",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CalibrationRunRead"
+                  },
+                  "title": "Response List Calibration Runs Api V1 Printers  Printer Id  Calibration  Tray  Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+          },
+          "404": {
+            "description": "No such printer (`printer_not_found`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Calibration, check and probe pages printed on a tray, newest first",
         "tags": [
           "calibration"
         ]
