@@ -115,8 +115,8 @@ class VersionHistoryRead(VersionRead):
     )
     restorable: bool = Field(
         description=(
-            "`POST …/versions/{n}/restore` is possible: an older version and no sheet is pinned "
-            "to a newer one."
+            "`POST …/versions/{n}/restore` is possible: an older version whose geometry differs "
+            "from the newest, and no sheet is pinned to a newer one."
         )
     )
 

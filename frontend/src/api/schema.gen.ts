@@ -6264,7 +6264,7 @@ export interface components {
             geometry_hash: string;
             /**
              * Restorable
-             * @description `POST …/versions/{n}/restore` is possible: an older version and no sheet is pinned to a newer one.
+             * @description `POST …/versions/{n}/restore` is possible: an older version whose geometry differs from the newest, and no sheet is pinned to a newer one.
              */
             restorable: boolean;
             /**

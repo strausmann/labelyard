@@ -135,6 +135,8 @@ async def test_type_version_restore_adds_a_version(api_client_with_seed: Any) ->
     listed = (await c.get(f"/api/v1/sheet-types/{KEY}/versions", headers=admin)).json()
     assert [v["version"] for v in listed] == [3, 2, 1]
     assert listed[0]["changed_fields"]["label_w"] == {"old": 45.5, "new": 45.7}
+    # Version 1 now has the newest geometry: restoring it again could not succeed (Codex, #442).
+    assert [v["restorable"] for v in listed] == [False, True, False]
     # The newest version cannot be restored onto itself: its geometry is unchanged.
     same = await c.post(f"/api/v1/sheet-types/{KEY}/versions/3/restore", headers=admin)
     assert same.status_code == 422

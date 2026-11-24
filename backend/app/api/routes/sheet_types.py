@@ -469,6 +469,8 @@ async def list_sheet_type_versions(
         t = await ts.get_type(session, key)
         versions = await ts.list_versions_with_sheet_counts(session, t.id)  # oldest first
     newest = versions[-1][0].version if versions else 0
+    # A version with the newest geometry cannot be restored: the new version would be unchanged.
+    newest_hash = versions[-1][0].geometry_hash if versions else None
     out: list[VersionHistoryRead] = []
     before: dict[str, Any] | None = None
     for i, (v, count) in enumerate(versions):
@@ -489,7 +491,9 @@ async def list_sheet_type_versions(
                 **read.model_dump(),
                 created_by=v.created_by,
                 changed_fields=changed,  # type: ignore[arg-type]  # validated into FieldChange
-                restorable=v.version < newest and not newer_in_use,
+                restorable=(
+                    v.version < newest and v.geometry_hash != newest_hash and not newer_in_use
+                ),
             )
         )
         before = geometry
