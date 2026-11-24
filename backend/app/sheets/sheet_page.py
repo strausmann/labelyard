@@ -215,44 +215,66 @@ def printed_margin_rect(detail: Any) -> dict[str, int] | None:
     """Where the margin code of a stored ``sheet_page`` detail sits on the page (#246).
 
     The stored ``margin_id_rect``; a page stored by 1.7.x has none, then the box of its band rule
-    (``legacy_margin_box``). ``None`` when the page carries no margin code or the detail is not
-    readable."""
+    (``legacy_margin_box``). ``None`` when the page carries no margin code or the parts are not
+    readable. Reads only ``margin_id``, ``margin_id_rect`` and ``geometry``, so the small
+    projection of in-flight pages (``repositories.sheets._carrier_rows``) answers as a full
+    detail does."""
     from app.sheets.planner import legacy_margin_box
 
     if not isinstance(detail, dict) or not detail.get("margin_id"):
         return None
     try:
-        page = SheetPageDetail.model_validate(detail)
-    except ValueError:
+        m = MarginIdPayload.model_validate(detail["margin_id"])
+        stored = detail.get("margin_id_rect")
+        if stored is not None:
+            r = MarginRect.model_validate(stored)
+            return {"x": r.x_hmm, "y": r.y_hmm, "w": r.w_hmm, "h": r.h_hmm}
+        geometry = Geometry(**detail["geometry"])
+    except (ValueError, TypeError, KeyError):
         return None
-    if page.margin_id is None:
-        return None
-    if page.margin_id_rect is not None:
-        r = page.margin_id_rect
-        return {"x": r.x_hmm, "y": r.y_hmm, "w": r.w_hmm, "h": r.h_hmm}
-    m = page.margin_id
-    box = legacy_margin_box(
-        Geometry(**page.geometry), m.band, m.usable_hmm, text_end_hmm=m.text_end_hmm
-    )
+    box = legacy_margin_box(geometry, m.band, m.usable_hmm, text_end_hmm=m.text_end_hmm)
     return {"x": box.x, "y": box.y, "w": box.w, "h": box.h}
 
 
 def printed_mark_rect(detail: Any) -> dict[str, int] | None:
     """Where the feed mark of a stored ``sheet_page`` detail sits (#246): from its ``x_hmm`` (the
     stored decision, whichever end it took) the text's width, over the top band down to 1 mm
-    before the grid. ``None`` when the page carries no mark or is not readable."""
+    before the grid. ``None`` when the page carries no mark or the parts are not readable. Reads
+    only ``feed_mark`` and ``geometry`` (see ``printed_margin_rect``)."""
     if not isinstance(detail, dict) or not detail.get("feed_mark"):
         return None
     try:
-        page = SheetPageDetail.model_validate(detail)
-    except ValueError:
+        f = FeedMarkPayload.model_validate(detail["feed_mark"])
+        top = int(detail["geometry"]["margin_top"]) - SAFETY_HMM
+    except (ValueError, TypeError, KeyError):
         return None
-    if page.feed_mark is None:
-        return None
-    f = page.feed_mark
     width = round(text_width_mm(f.text, f.size_pt) * 100)
-    top = int(page.geometry["margin_top"]) - SAFETY_HMM
     return {"x": f.x_hmm, "y": 0, "w": width, "h": max(top, 0)}
+
+
+def merged_margin_rect(stored: Any, new: dict[str, int]) -> dict[str, Any]:
+    """``Sheet.margin_id_rect`` after a margin code printed at ``new`` (#246, review round 5).
+
+    A reprint adds a second code to the sheet, the first one stays printed: ``new`` becomes the
+    rectangle, every earlier one is kept under ``earlier`` (deduplicated, at most
+    ``MAX_EARLIER_RECTS``), so a later feed mark keeps clear of all of them. Calling it again
+    with the same ``new`` changes nothing."""
+    keys = ("x", "y", "w", "h")
+    earlier: list[dict[str, int]] = []
+    if isinstance(stored, dict):
+        for r in [*(stored.get("earlier") or []), {k: stored.get(k) for k in keys}]:
+            if isinstance(r, dict) and all(isinstance(r.get(k), int) for k in keys):
+                box = {k: int(r[k]) for k in keys}
+                if box != new and box not in earlier:
+                    earlier.append(box)
+    out: dict[str, Any] = dict(new)
+    if earlier:
+        out["earlier"] = earlier[-MAX_EARLIER_RECTS:]
+    return out
+
+
+MAX_EARLIER_RECTS: Final = 8
+"""How many earlier margin-code rectangles a sheet keeps (``merged_margin_rect``)."""
 
 
 def feed_mark_payload(p: FeedMarkPlacement) -> FeedMarkPayload:

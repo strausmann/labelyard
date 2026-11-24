@@ -171,6 +171,9 @@ class SheetView:
     type_label: str | None = None
     # Where the printed margin code sits (``Sheet.margin_id_rect``); ``None`` if not recorded.
     printed_margin_rect: Rect | None = None
+    # Earlier printed margin codes still on the sheet (a reprint adds one; ``earlier`` of
+    # ``Sheet.margin_id_rect``).
+    earlier_margin_rects: tuple[Rect, ...] = ()
     # Where the printed feed mark sits (``Sheet.feed_mark_rect``); ``None`` if not recorded.
     printed_mark_rect: Rect | None = None
     # The boxes of a margin code or feed mark another job carries onto this sheet (its stored
@@ -672,8 +675,9 @@ def printed_boxes(
 ) -> tuple[Rect, ...]:
     """The one rule for what a page keeps free on a partly printed sheet (#246, review round 5).
 
-    The boxes of the margin code and the feed mark that are already on the sheet (the rectangle
-    recorded when they printed, else the 1.7.x box on this printer) and of those another job is
+    The boxes of the margin code (with any earlier one a reprint left) and the feed mark that are
+    already on the sheet (the rectangle recorded when they printed, else the 1.7.x box on this
+    printer) and of those another job is
     carrying onto it (its stored page). Every path that places a margin code or a feed mark on an
     existing sheet passes these as ``taken``: the planner and the retry
     (``decide_margin_and_mark``) and the margin-code reprint, which leaves out the code's own old
@@ -685,6 +689,7 @@ def printed_boxes(
         id_box = _printed_id_box(view, margin, hw)
         if id_box is not None:
             boxes.append(id_box)
+            boxes.extend(view.earlier_margin_rects)
     mark_box = _printed_mark_box(view, margin, hw)
     if mark_box is not None:
         boxes.append(mark_box)

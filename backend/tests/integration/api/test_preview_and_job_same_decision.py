@@ -73,6 +73,17 @@ async def _sheet_row(code: str) -> Sheet:
         return (await s.execute(select(Sheet).where(col(Sheet.code) == code))).scalar_one()
 
 
+async def _job_state(job_id: str) -> str:
+    from uuid import UUID
+
+    from app.models.job import Job
+
+    async with _factory()() as s:
+        row = await s.get(Job, UUID(job_id), populate_existing=True)
+    assert row is not None
+    return str(row.state)
+
+
 async def _zone_the_logo() -> None:
     async with _factory()() as s:
         await ts.patch_type(s, "acme-t1", {"preprint_zones": [LOGO]}, actor="t")
@@ -252,3 +263,52 @@ async def test_code_due_after_its_mark_printed_keeps_the_mark_free(recorded: boo
         assert rect is not None
         drawn = Rect(rect["x_hmm"], rect["y_hmm"], rect["w_hmm"], rect["h_hmm"])
         assert not drawn.overlaps(mark_box)
+
+
+async def test_mark_after_a_moved_reprint_keeps_both_codes_free() -> None:
+    """Review round 5 (Codex on #439, print_service.py:2358): the first page has no room at the
+    top (20 mm lost), so the code goes to the bottom band and the mark stays due. The code is
+    reprinted with the top margin back and moves to the top band's right end. The reprint has no
+    cells, yet the sheet now records its rectangle and keeps the first one; the next print places
+    the due mark clear of both codes."""
+    import asyncio
+
+    from app.sheets.free_rects import Rect
+
+    async with running(margins=Margins(top=2000, left=423, bottom=423, right=423)) as rig:
+        async with _factory()() as s:
+            await ts.patch_type(s, "acme-t1", {"id_margin_align": "end"}, actor="t")
+        code = await _sheet(placement="margin")
+        first = await rig.print(_body(code, 1))
+        assert first.status_code == 202, first.text
+        detail = (await rig.job_payload(first.json()["pages"][0]["job_id"]))["detail"]
+        assert detail["margin_id"]["band"] == "bottom" and detail["feed_mark"] is None
+        await rig.until_sheet(code, lambda s: s["id_printed"])
+        bottom = (await _sheet_row(code)).margin_id_rect
+        assert bottom is not None
+        await _set_margins(rig, Margins(top=423, left=423, bottom=423, right=423))
+
+        again = await rig.client.post(
+            f"/api/v1/sheets/{code}/margin-id", json={"printer": "page-1"}, headers=rig.key
+        )
+
+        assert again.status_code in (200, 201, 202), again.text
+        r = (await rig.job_payload(again.json()["job_id"]))["detail"]["margin_id_rect"]
+        assert r["y_hmm"] < 2130  # the top band now
+        reprinted = {"x": r["x_hmm"], "y": r["y_hmm"], "w": r["w_hmm"], "h": r["h_hmm"]}
+        async with asyncio.timeout(15):  # the reprint is over: nothing is in flight any more
+            while (await _job_state(again.json()["job_id"])) != "done":
+                await asyncio.sleep(0.05)
+        row = await _sheet_row(code)
+        assert row.margin_id_rect is not None
+        recorded = row.margin_id_rect
+        assert {k: recorded[k] for k in "xywh"} == reprinted
+        assert recorded["earlier"] == [{k: bottom[k] for k in "xywh"}]
+
+        nxt = await rig.print(_body(code, 1))
+
+        assert nxt.status_code == 202, nxt.text
+        mark = (await rig.job_payload(nxt.json()["pages"][0]["job_id"]))["detail"]["feed_mark"]
+        assert mark is not None
+        box = Rect(mark["x_hmm"], 0, 3000, 2030)  # generous: the mark's text from its x
+        assert not box.overlaps(Rect(**{k: reprinted[k] for k in "xywh"}))

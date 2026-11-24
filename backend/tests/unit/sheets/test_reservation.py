@@ -874,3 +874,46 @@ async def test_reserved_cell_is_skipped_by_first_free(session: AsyncSession) -> 
     assert page.id_cell == 2
     items = sorted(a.cell for a in page.assignments if a.item_index is not None)
     assert items == [1, 3, 4]
+
+
+async def test_in_flight_pages_keep_their_code_and_mark_free(session: AsyncSession) -> None:
+    """Review round 5 (Codex on #439, reservation.py:235): a queued page of this sheet carrying
+    only the code, or only the mark, reaches the view's ``in_flight_boxes`` through the small
+    in-flight projection (``repositories.sheets._carrier_rows``), not only through a full payload:
+    stored rectangle, the 1.7.x band box, and the mark's box. Another sheet adds nothing."""
+    from app.sheets.free_rects import Rect
+    from app.sheets.reservation import load_sheet_view
+
+    code = await make_sheet(session, placement="margin")
+    sheet_id = (await session.execute(select(Sheet.id))).scalar_one()
+    geometry = {
+        "page_size": "A4", "page_w": 21000, "page_h": 29700, "label_w": 4570, "label_h": 2120,
+        "cols": 4, "rows": 12, "pitch_x": 4820, "pitch_y": 2120, "margin_top": 2130,
+        "margin_left": 985, "corner_radius": None, "shape": "rectangle",
+    }  # fmt: skip
+    margin_id = {
+        "text": code,
+        "qr_payload": f"https://hub.example.invalid/sheet/{code}",
+        "usable_hmm": 1530,
+        "band": "top",
+        "corner": "top_left",
+        "qr_allowed": True,
+        "text_end_hmm": 17100,
+    }
+    rect = {"x_hmm": 14000, "y_hmm": 500, "w_hmm": 6015, "h_hmm": 1530, "content": "code"}
+    mark = {"text": "Top - this edge first", "x_hmm": 985, "baseline_y_hmm": 1354, "size_pt": 7.0}
+    base = {"sheet_id": str(sheet_id), "geometry": geometry, "cells": [], "id_cell": None}
+    await _job(session, uuid4(), JobState.QUEUED.value, {**base, "margin_id": margin_id,
+               "margin_id_rect": rect})  # fmt: skip
+    await _job(session, uuid4(), JobState.PRINTING.value, {**base, "margin_id": margin_id})
+    await _job(session, uuid4(), JobState.QUEUED.value, {**base, "feed_mark": mark})
+    await _job(session, uuid4(), JobState.QUEUED.value, {**base, "sheet_id": str(uuid4()),
+               "margin_id": margin_id, "margin_id_rect": rect})  # fmt: skip
+
+    view = await load_sheet_view(session, code)
+
+    assert view.margin_id_in_flight and view.feed_mark_in_flight
+    assert Rect(14000, 500, 6015, 1530) in view.in_flight_boxes
+    assert Rect(985, 500, 17100 - 985, 1530) in view.in_flight_boxes
+    assert any(b.x == 985 and b.y == 0 and b.h == 2030 for b in view.in_flight_boxes)
+    assert len(view.in_flight_boxes) == 3

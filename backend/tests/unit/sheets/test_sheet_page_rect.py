@@ -184,3 +184,25 @@ def test_in_flight_pages_report_the_boxes_they_carry() -> None:
     assert code == Rect(985, 500, 17100 - 985, 1530)  # the 1.7.x band box, text up to the mark
     assert mark.x == 17300 and mark.y == 0 and mark.h == 2130 - 100
     assert not code.overlaps(mark)
+
+
+def test_a_reprinted_code_keeps_the_earlier_rectangle() -> None:
+    """Review round 5 (#246): a reprint adds a second code; ``Sheet.margin_id_rect`` holds the new
+    rectangle and keeps the earlier ones (deduplicated, bounded); the same call twice changes
+    nothing."""
+    from app.sheets.sheet_page import MAX_EARLIER_RECTS, merged_margin_rect
+
+    bottom = {"x": 14118, "y": 27670, "w": 5897, "h": 1607}
+    top = {"x": 14118, "y": 423, "w": 5897, "h": 1607}
+
+    once = merged_margin_rect(bottom, top)
+
+    assert once == {**top, "earlier": [bottom]}
+    assert merged_margin_rect(once, top) == once  # idempotent
+    assert merged_margin_rect(None, top) == top
+    back = merged_margin_rect(once, bottom)  # back at the first place: both still on the sheet
+    assert back == {**bottom, "earlier": [top]}
+    many = top
+    for i in range(MAX_EARLIER_RECTS + 3):
+        many = merged_margin_rect(many, {**top, "x": i})
+    assert len(many["earlier"]) == MAX_EARLIER_RECTS

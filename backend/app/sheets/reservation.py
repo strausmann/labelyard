@@ -315,10 +315,19 @@ async def load_sheet_views(session: AsyncSession, codes: Sequence[str]) -> dict[
                 sheet_type.vendor, sheet_type.product_codes, sheet_type.key
             ),
             printed_margin_rect=_rect_or_none(sheet.margin_id_rect),
+            earlier_margin_rects=_earlier_rects(sheet.margin_id_rect),
             printed_mark_rect=_rect_or_none(sheet.feed_mark_rect),
             in_flight_boxes=in_flight_boxes,
         )
     return views
+
+
+def _earlier_rects(stored: Any) -> tuple[Rect, ...]:
+    """The earlier margin codes of ``Sheet.margin_id_rect`` (``merged_margin_rect``)."""
+    earlier = stored.get("earlier") if isinstance(stored, dict) else None
+    if not isinstance(earlier, list):
+        return ()
+    return tuple(r for r in map(_rect_or_none, earlier) if r is not None)
 
 
 def _rect_or_none(stored: Any) -> Rect | None:

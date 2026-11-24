@@ -620,3 +620,22 @@ def test_no_path_places_over_what_the_sheet_already_carries(path, scenario) -> N
     new = code_box if placed == "code" else mark_box
     assert new is not None  # a free place exists: the assertion below is never vacuous
     assert not new.overlaps(other)
+
+
+def test_mark_keeps_every_code_a_reprint_left_free() -> None:
+    """Review round 5 (Codex on #439, print_service.py:2358): the code was printed at the top
+    band's right end and reprinted in the bottom band; the sheet keeps the earlier rectangle too,
+    and a due mark stays clear of both."""
+    earlier = Rect(14000, 500, 6015, 1530)  # the top band's right end
+    reprinted = Rect(985, 27670, 6015, 1530)  # the bottom band
+    view = replace(
+        _view(), id_printed=True, printed_margin_rect=reprinted, earlier_margin_rects=(earlier,)
+    )
+
+    mark = decide_margin_and_mark(view, _ctx(), None).feed_mark
+
+    assert mark is not None and mark.end == "top_left"
+    box = Rect(mark.x_hmm, 500, mark.width_hmm, 1530)
+    assert not box.overlaps(earlier) and not box.overlaps(reprinted)
+    alone = decide_margin_and_mark(replace(view, earlier_margin_rects=()), _ctx(), None).feed_mark
+    assert alone is not None and alone.end == "top_right"  # without it: over the earlier code
