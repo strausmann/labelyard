@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, Final, Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
@@ -30,7 +30,7 @@ from app.calibration.model import (
     deviation_to_values,
     to_deviation,
 )
-from app.models.calibration_run import CalibrationRun
+from app.models.calibration_run import CalibrationHistory, CalibrationRun
 from app.models.printer import Printer, is_page_printer
 from app.models.printer_calibration import PrinterCalibration
 from app.models.printer_tray import PrinterTray
@@ -390,6 +390,50 @@ async def snapshot_with_history(
     session: AsyncSession, printer_id: UUID, tray: str
 ) -> tuple[CalibrationSnapshot, UUID | None]:
     """The snapshot and the history entry it stands for (``PagePayload.calibration_history_id``,
-    design 7.5, S7); ``None`` for a tray without any entry."""
-    snap = await snapshot(session, printer_id, tray)
-    return snap, await history.latest_id(session, printer_id, tray)
+    design 7.5, S7); ``None`` for a tray without any entry.
+
+    One SELECT reads both, so a save committed meanwhile cannot pair the old values with the new
+    entry's id (SQLite answers a statement from one snapshot; review on #442).
+    """
+    await _page_printer(session, printer_id)
+    await _check_tray(session, printer_id, tray)
+    latest = (
+        select(col(CalibrationHistory.id))
+        .where(
+            col(CalibrationHistory.printer_id) == printer_id, col(CalibrationHistory.tray) == tray
+        )
+        .order_by(col(CalibrationHistory.seq).desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    one = select(literal(1).label("one")).subquery()
+    found = (
+        await session.execute(
+            select(
+                latest.label("history_id"),
+                col(PrinterCalibration.method),
+                col(PrinterCalibration.offset_x_hmm),
+                col(PrinterCalibration.offset_y_hmm),
+                col(PrinterCalibration.scale_x_ppm),
+                col(PrinterCalibration.scale_y_ppm),
+                col(PrinterCalibration.rotation_udeg),
+            )
+            .select_from(one)
+            .outerjoin(
+                PrinterCalibration,
+                and_(
+                    col(PrinterCalibration.printer_id) == printer_id,
+                    col(PrinterCalibration.tray_key) == tray,
+                ),
+            )
+        )
+    ).one()
+    history_id: UUID | None = found[0]
+    method: str | None = found[1]
+    dx, dy, sx, sy, rot = found[2:]
+    if method is None:  # no row: the outer join gave nulls
+        return CalibrationSnapshot(method="none"), history_id
+    snap = CalibrationSnapshot(
+        method=method, dx_hmm=dx, dy_hmm=dy, sx_ppm=sx, sy_ppm=sy, rotation_udeg=rot
+    )
+    return snap, history_id

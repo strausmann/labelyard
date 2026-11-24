@@ -148,6 +148,37 @@ async def record(
     return entry
 
 
+async def record_resets(
+    session: AsyncSession, rows: Sequence[PrinterCalibration], *, actor: str | None
+) -> None:
+    """A ``reset`` entry for each calibration row the caller deletes in its transaction (a removed
+    tray, a replaced device; review on #442). The caller already holds SQLite's write lock."""
+    for row in rows:
+        await record(
+            session,
+            printer_id=row.printer_id,
+            tray=row.tray_key,
+            action="reset",
+            new=None,
+            previous=Deviation(
+                row.offset_x_hmm,
+                row.offset_y_hmm,
+                row.scale_x_ppm,
+                row.scale_y_ppm,
+                row.rotation_udeg,
+            ),
+            method=None,
+            measured_on_version_id=None,
+            run_id=None,
+            readings=None,
+            residuals=None,
+            reverted_from_id=None,
+            actor=actor,
+            note=None,
+            source=None,
+        )
+
+
 async def _drop_old(session: AsyncSession, printer_id: UUID, tray: str) -> None:
     old = (
         (

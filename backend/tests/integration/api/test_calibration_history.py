@@ -591,3 +591,73 @@ async def test_two_concurrent_saves_are_two_entries_in_commit_order(production_e
         "rotation_udeg": first.rotation_udeg,
     }
     assert row is not None and row.offset_x_hmm == second.offset_x_hmm
+
+
+# ---------------------------------------------------------------------------- review round 1 (#442)
+
+
+async def test_snapshot_and_history_id_are_read_in_one_statement(
+    api_client_with_seed: Any,
+) -> None:
+    """Codex on #442: a save committed between two reads would pair the old snapshot with the
+    new entry's id. Both come from one SELECT, which SQLite answers from one snapshot.
+
+    Statement guard (what the test can and cannot see): it records the SQL the call runs and
+    asserts that the one statement reading ``printer_calibrations`` also reads
+    ``calibration_history``. It cannot tell a comment or an alias apart; a deterministic
+    interleaving is not possible because no await point lies inside one statement.
+    """
+    from sqlalchemy import event
+
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    assert (
+        await c.put(f"/api/v1/printers/{pid}/calibration/auto", json=BODY, headers=admin)
+    ).status_code == 200
+    seen: list[str] = []
+
+    def capture(_c: Any, _cur: Any, statement: str, *_a: Any) -> None:
+        seen.append(statement)
+
+    engine = _factory()().bind
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        async with _factory()() as s:
+            snap, entry = await service.snapshot_with_history(s, pid, "auto")
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+    reading_row = [q for q in seen if "printer_calibrations" in q]
+    assert len(reading_row) == 1, seen
+    assert "calibration_history" in reading_row[0]
+    assert snap.dx_hmm == 120 and entry is not None
+
+
+async def test_removing_a_calibrated_tray_writes_a_reset_entry(api_client_with_seed: Any) -> None:
+    """Codex on #442: the admin tray list drops the calibration of a removed tray; its history
+    must say so, or a re-added tray's prints count against the old correction."""
+    from app.schemas.printer_admin import PrinterUpdatePayload, TrayIn
+    from app.services.printer_admin_service import PrinterAdminService
+
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await c.put(f"/api/v1/printers/{pid}/calibration/tray-2", json=BODY, headers=admin)
+    await c.put(f"/api/v1/printers/{pid}/calibration/auto", json=OTHER, headers=admin)
+    async with _factory()() as s:
+        printer = await s.get(Printer, pid)
+        assert printer is not None
+        only_auto = [TrayIn(key="auto", label="Auto", is_default=True)]
+        await PrinterAdminService(s, "user:admin").update_printer(
+            printer.slug, PrinterUpdatePayload(trays=only_auto)
+        )
+    reset, saved = await _history(c, pid, "tray-2", admin)
+    assert reset["action"] == "reset" and reset["actor"] == "user:admin"
+    assert {k: reset["previous"][k] for k in VALUE_KEYS} == BODY
+    assert [e["action"] for e in await _history(c, pid, "auto", admin)] == ["save"]
+    assert saved["action"] == "save"
+    async with _factory()() as s:  # re-added (directly: a new key would probe the printer)
+        s.add(PrinterTray(printer_id=pid, tray_key="tray-2", label="Tray 2"))
+        await s.commit()
+        snap, entry = await service.snapshot_with_history(s, pid, "tray-2")
+    assert snap.method == "none" and entry == UUID(reset["id"])

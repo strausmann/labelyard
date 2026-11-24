@@ -208,6 +208,37 @@ async def test_resolve_replaced_resets_calibration() -> None:
         assert not rig.app.state.print_queue.is_identity_held(rig.printer_id)
 
 
+async def test_resolve_replaced_writes_a_reset_history_entry() -> None:
+    """Codex on #442: every calibration the swap removes gets a ``reset`` history entry in the
+    same transaction, so later prints do not count against the old correction."""
+    from app.calibration import history
+    from app.models.calibration_run import CalibrationHistory
+
+    async with running() as rig:
+        await _seed_calibrations(rig.printer_id, "auto", "gone")
+        await _flag_swap(rig)
+        assert (await _resolve(rig, "replaced")).status_code == 200
+        async with _factory()() as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(CalibrationHistory).where(
+                            CalibrationHistory.printer_id == rig.printer_id  # type: ignore[arg-type]
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            latest = await history.latest_id(s, rig.printer_id, "auto")
+        by_tray = {r.tray: r for r in rows}
+        assert set(by_tray) == {"auto", "gone"}
+        assert all(r.action == "reset" and r.offset_x_hmm is None for r in rows)
+        assert by_tray["auto"].previous is not None
+        assert by_tray["auto"].previous["offset_x_hmm"] == 10
+        assert latest == by_tray["auto"].id
+
+
 async def test_replaced_is_atomic(monkeypatch: pytest.MonkeyPatch) -> None:
     """The second calibration delete fails: no calibration row is lost, the mismatch stays."""
     async with running() as rig:
