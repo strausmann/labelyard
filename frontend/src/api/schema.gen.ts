@@ -880,7 +880,8 @@ export interface paths {
          * Use an earlier calibration of the tray again (a `revert` history entry)
          * @description Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry
          *     clears the tray. When the entry's sheet type version was deleted since, the values are
-         *     restored without it and `notes` carries `measured_on_deleted`.
+         *     restored without it and `notes` carries `measured_on_deleted`. The optional body's `note` is
+         *     kept on the new entry.
          */
         post: operations["restore_calibration_api_v1_printers__printer_id__calibration__tray__history__entry_id__restore_post"];
         delete?: never;
@@ -4842,6 +4843,17 @@ export interface components {
             outcome: "printed" | "not_printed";
         };
         /**
+         * RestoreRequest
+         * @description Optional body of a restore: a note for the new `revert` entry.
+         */
+        RestoreRequest: {
+            /**
+             * Note
+             * @description A note for the revert entry (at most 500 characters, cleaned).
+             */
+            note?: string | null;
+        };
+        /**
          * RollColourUpdate
          * @description Body of ``PUT /printers/{id}/roll``.
          */
@@ -8549,7 +8561,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RestoreRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

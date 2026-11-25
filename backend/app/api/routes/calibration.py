@@ -13,7 +13,7 @@ import re
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,7 @@ from app.calibration.model import (
     CalibrationRead,
     CalibrationScale,
     ReadingIn,
+    RestoreRequest,
     deviation_to_values,
 )
 from app.calibration.runs import CalibrationRunRead
@@ -385,13 +386,22 @@ async def restore_calibration(
     entry_id: Annotated[UUID, Path(description="History entry id.")],
     session: SessionDep,
     auth: AdminDep,
+    body: Annotated[RestoreRequest | None, Body()] = None,
 ) -> CalibrationRead:
     """Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry
     clears the tray. When the entry's sheet type version was deleted since, the values are
-    restored without it and `notes` carries `measured_on_deleted`."""
+    restored without it and `notes` carries `measured_on_deleted`. The optional body's `note` is
+    kept on the new entry."""
     check_printer_access(auth, printer_id)
     with mapped():
-        return await history.restore(session, printer_id, tray, entry_id, actor=actor(auth))
+        return await history.restore(
+            session,
+            printer_id,
+            tray,
+            entry_id,
+            actor=actor(auth),
+            note=body.note if body is not None else None,
+        )
 
 
 def _setting(request: Request, key: str) -> object:

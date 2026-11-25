@@ -147,6 +147,16 @@ class CalibrationPut(CalibrationIn):
     )
 
 
+class RestoreRequest(BaseModel):
+    """Optional body of a restore: a note for the new `revert` entry."""
+
+    note: str | None = Field(
+        default=None,
+        max_length=NOTE_MAX,
+        description="A note for the revert entry (at most 500 characters, cleaned).",
+    )
+
+
 class CalibrationScale(BaseModel):
     """The mini scale at a crossing of the calibration page (mm); the app draws from it."""
 
