@@ -237,9 +237,11 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
     if (type && !print.isPending) print.mutate({ tray, request: { type: type.key, version: type.current_version, corrected } });
   };
 
+  const active: CalibrationTab = tab ?? (hasStored ? "result" : "print");
+
   return (
     <>
-    <Tabs selectedKey={tab ?? (hasStored ? "result" : "print")} onSelectionChange={(key) => onTabChange(CALIBRATION_TABS.find((x) => x === key) ?? "print")} className="flex min-w-0 flex-col gap-6">
+    <Tabs selectedKey={active} onSelectionChange={(key) => onTabChange(CALIBRATION_TABS.find((x) => x === key) ?? "print")} className="flex min-w-0 flex-col gap-6">
       <TabList aria-label={t`Calibration`} className="flex gap-1 overflow-x-auto border-b border-line">
         <Tab id="print" className={TAB}>{t`Print page`}</Tab>
         <Tab id="readings" className={TAB}>{t`Readings`}</Tab>
@@ -260,6 +262,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
             label={t`Print the check page (with correction)`}
             subject={t`Check page`}
             statusLabel={t`Check page status`}
+            inView={active === "result"}
             doneHint={t`The check page printed. Measure the crossings again: each one should be within 0.5 mm.`}
             hint={hasStored ? t`Every crossing should be within 0.5 mm of the cut.` : t`Measure and save values first, then check.`}
             primary={hasStored}
@@ -303,6 +306,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
               label={t`Print the calibration page (without correction)`}
               subject={t`Calibration page`}
               statusLabel={t`Calibration page status`}
+              inView={active === "print"}
               doneHint={t`The calibration page printed. Now measure the crossings.`}
               primary={!hasStored}
               noKey={!canPrint}
@@ -472,9 +476,11 @@ interface PrintActionProps {
   lockWhilePending?: boolean;
   /** More controls for the row next to the print button. */
   children?: ReactNode;
+  /** False while its tab is not open: the status line then leaves the announcement to the notification stack. */
+  inView?: boolean;
 }
 
-function PrintAction({ printerId, type, print, onPress, disabled, label, subject, statusLabel, doneHint, hint, busyNote, primary, noKey, lockWhilePending = true, children }: PrintActionProps) {
+function PrintAction({ printerId, type, print, onPress, disabled, label, subject, statusLabel, doneHint, hint, busyNote, primary, noKey, lockWhilePending = true, children, inView = true }: PrintActionProps) {
   const { t } = useLingui();
   const hintId = useId();
   const noteId = useId();
@@ -515,6 +521,7 @@ function PrintAction({ printerId, type, print, onPress, disabled, label, subject
         subject={subject}
         label={statusLabel}
         doneHint={doneHint}
+        inView={inView}
       />
     </div>
   );

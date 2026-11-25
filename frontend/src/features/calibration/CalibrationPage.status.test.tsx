@@ -5,6 +5,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { recordJobEvent, resetPrintWatch } from "../jobs/printWatch";
+import { SIGNED_IN } from "../../test-utils";
 import { apiErrorBody, job, respond } from "../test-api";
 import { BASE, button, JOB, open, P, printCalibrationAnyway, resetBetweenTests, RETRY } from "./CalibrationPage.kit";
 
@@ -16,7 +17,8 @@ describe("the live print status line (#239)", () => {
     act(() => recordJobEvent({ job_id: JOB, from_state: "queued", to_state: to, queue_depth: 1, error_code: null, ...extra }));
   const lineOf = (name: string) => screen.getByRole("status", { name });
   const printed = async (routesExtra: Record<string, unknown> = {}) => {
-    const api = await open({ [`POST ${BASE}/main/page`]: respond(202, { job_id: JOB }), ...routesExtra });
+    // The calibration page is printed from the Print page tab, so its line is the one in view.
+    const api = await open({ [`POST ${BASE}/main/page`]: respond(202, { job_id: JOB }), ...routesExtra }, SIGNED_IN, `/calibration?printer=${P}&tray=main&view=print`);
     await printCalibrationAnyway();
     await within(lineOf("Calibration page status")).findByText("Queued");
     return api;
@@ -139,6 +141,20 @@ describe("the live print status line (#239)", () => {
     expect(calls.filter((c) => c.method === "POST" && c.path.endsWith("/retry"))).toHaveLength(1);
     // One card, following the new job.
     expect(stack().getAllByText("Queued")).toHaveLength(1);
+  });
+
+  it("a print whose tab is left is announced by the stack again, and claimed again on return (#446 review)", async () => {
+    await printed({ [`GET /api/v1/jobs/${JOB}`]: job(JOB, P, "queued", PAGE_JOB) });
+    // The line on the open tab announces it: the stack card is quiet.
+    expect(stack().getByText("Queued").closest("[aria-live]")).toBeNull();
+    // On another tab the line is hidden and inert: the stack takes the announcement over.
+    await userEvent.click(screen.getByRole("tab", { name: "History" }));
+    await waitFor(() => expect(stack().getByText("Queued").closest("[aria-live]")?.getAttribute("aria-live")).toBe("polite"));
+    event("failed", { error_code: "ipp_aborted" });
+    expect(stack().getByText("Failed").closest("[aria-live]")?.getAttribute("aria-live")).toBe("assertive");
+    // Back on Print page the line shows it again and claims it.
+    await userEvent.click(screen.getByRole("tab", { name: "Print page" }));
+    await waitFor(() => expect(stack().getByText("Failed").closest("[aria-live]")).toBeNull());
   });
 
   it("leaving the page before the POST answers does not leave the card unannounced", async () => {
