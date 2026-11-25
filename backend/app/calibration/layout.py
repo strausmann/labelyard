@@ -51,11 +51,13 @@ from app.sheets.planner import DEFAULT_HW_HMM, SAFETY_HMM
 
 __all__ = [
     "BLOCK_PT",
+    "BLOCK_PT_STEPS",
     "CELL_INSET_HMM",
     "CELL_NUMBER_PT",
     "CHECKERBOARD_SENTENCE",
     "CORNER_LEG_INNER_HMM",
     "CORNER_LEG_OUTER_HMM",
+    "MIN_BLOCK_PT",
     "RUN_LINE_PT",
     "Box",
     "CellCode",
@@ -63,10 +65,12 @@ __all__ = [
     "CodeSpot",
     "Corner",
     "MarginBlock",
+    "MarginText",
     "Mark",
     "PageLayout",
     "PrintableArea",
     "TextMark",
+    "bottom_line_count",
     "check_page_layout",
     "correction_line",
     "geometry_line",
@@ -85,6 +89,10 @@ CELL_INSET_HMM: Final = 250
 """Cell content keeps 2.5 mm from the label edges: clear of the corner marks and the scales."""
 BLOCK_PT: Final = 6.0
 """Size of the margin block lines."""
+BLOCK_PT_STEPS: Final = (6.0, 5.5, 5.0, 4.5)
+"""The sizes a margin block tries, largest first, when its margin is too narrow for 6 pt."""
+MIN_BLOCK_PT: Final = BLOCK_PT_STEPS[-1]
+"""Below this the block is left out (operator decision, 25.11.2026)."""
 CELL_NUMBER_PT: Final = 6.0
 RUN_LINE_PT: Final = 6.0
 BLOCK_LEADING: Final = 1.15
@@ -106,6 +114,8 @@ LABEL_PT: Final = 2.5
 _CELL_NUMBER_GAP_MM: Final = 0.5
 
 Corner = Literal["top_left", "top_right", "bottom_left", "bottom_right"]
+MarginText = Literal["full", "reduced", "omitted"]
+"""A margin block at 6 pt, at a smaller size, or left out (no room in the margin)."""
 CORNERS: Final[tuple[Corner, ...]] = ("top_left", "top_right", "bottom_left", "bottom_right")
 Anchor = Literal["start", "middle", "end"]
 _Seg = tuple[float, float, float, float]
@@ -175,6 +185,13 @@ class MarginBlock:
         top = self.box.y / 100
         return [top + em + i * BLOCK_LEADING * em for i in range(self.lines)]
 
+    def baselines_for(self, count: int) -> list[float]:
+        """The baselines ``count`` lines are drawn on: the lowest ones, so a line left empty is
+        never the one nearest the page edge."""
+        if count > self.lines:
+            raise ValueError("margin block: more lines than the block holds")
+        return self.baselines_mm()[self.lines - count :]
+
 
 @dataclass(frozen=True)
 class CodeSpot:
@@ -217,6 +234,12 @@ class PageLayout:
     """The ``S``/``Z`` gap labels that are drawn."""
     checkerboard: bool
     """The bottom block carries the checkerboard sentence (a sheet without a gap on one axis)."""
+    margin_text: dict[str, MarginText]
+    """Per block (``top``, ``bottom``): drawn at 6 pt, smaller, or left out for lack of margin."""
+
+    def block(self, edge: Literal["top", "bottom"]) -> MarginBlock | None:
+        """The block at ``edge``; ``None`` when the margin had no room for it."""
+        return next((b for b in self.margin_blocks if b.edge == edge), None)
 
     def page_code_records(self) -> list[dict[str, object]]:
         """The drawn page codes as the run stores them (``calibration_runs.page_codes``)."""
@@ -538,27 +561,37 @@ def geometry_line(diff: Mapping[GeometryField, int] | Mapping[str, int]) -> str 
     return "Not as shipped: " + " · ".join(parts) if parts else None
 
 
-def _widest(lines: Iterable[str]) -> float:
-    return max(text_width_mm(s, BLOCK_PT) for s in lines)
+def _widest(size_pt: float, lines: Iterable[str]) -> float:
+    return max(text_width_mm(s, size_pt) for s in lines)
+
+
+def bottom_line_count(*, geometry_diff: bool, checkerboard: bool) -> int:
+    """The lines of the bottom block: the correction, then the values not as shipped and the
+    checkerboard sentence where they apply."""
+    return 1 + int(geometry_diff) + int(checkerboard)
 
 
 _WORST_DEV: Final = Deviation(-1000, -1000, 950_000, 950_000, -2_000_000)
 _WORST_DIFF: Final = dict.fromkeys(GEOMETRY_FIELDS, 100000)
 
 
-def top_block_width_mm() -> float:
+def top_block_width_mm(size_pt: float = BLOCK_PT) -> float:
     """The width the top block reserves: its longest fixed line (the run line, run 999999)."""
     return _widest(
-        run_line(n, "2026-11-21", t, corrected=c)
-        for n, t in ((999_999, "23:59"), (None, None))
-        for c in (False, True)
+        size_pt,
+        [
+            run_line(n, "2026-11-21", t, corrected=c)
+            for n, t in ((999_999, "23:59"), (None, None))
+            for c in (False, True)
+        ],
     )
 
 
-def bottom_block_width_mm() -> float:
+def bottom_block_width_mm(size_pt: float = BLOCK_PT) -> float:
     """The width the bottom block reserves: its longest fixed line at the bounds of the values."""
     return _widest(
-        [correction_line(_WORST_DEV), geometry_line(_WORST_DIFF) or "", CHECKERBOARD_SENTENCE]
+        size_pt,
+        [correction_line(_WORST_DEV), geometry_line(_WORST_DIFF) or "", CHECKERBOARD_SENTENCE],
     )
 
 
@@ -570,25 +603,53 @@ def _block_height_mm(lines: int, size_pt: float = BLOCK_PT) -> float:
     return em * (1 + BLOCK_LEADING * (lines - 1) + 0.25)
 
 
-def _blocks(area: _Rect, *, bottom_lines: int) -> tuple[MarginBlock, MarginBlock]:
-    """Top and bottom block at the area's edges, centred, as wide as their longest fixed line at
-    the bounds of the values and never wider than the room between the printable-corner spots
-    (a narrow block leaves the corner cells free for the page codes)."""
+def _blocks(
+    area: _Rect, grid: _Rect, *, bottom_lines: int
+) -> tuple[tuple[MarginBlock, ...], dict[str, MarginText]]:
+    """The top and the bottom block, each in its margin between the area's edge and the grid
+    (spec 7.2: nothing across the grid, no label and no gap between labels).
+
+    A block is centred, as wide as its longest fixed line at the bounds of the values and never
+    wider than the room between the printable-corner spots. When the margin is too shallow (or
+    the room too narrow) at 6 pt, the block tries ``BLOCK_PT_STEPS`` down to ``MIN_BLOCK_PT``;
+    below that it is left out (operator decision, 25.11.2026). Its fields never shorten.
+    """
     reserve = CORNER_RESERVE_HMM / 100
     room = (area[0] + reserve, area[2] - reserve)
     centre = (area[0] + area[2]) / 2
     pad = GAP_HMM / 100
-
-    def span(width: float) -> tuple[float, float]:
-        half = min(width / 2 + pad, (room[1] - room[0]) / 2)
-        return centre - half, centre + half
-
-    tx0, tx1 = span(top_block_width_mm())
-    bx0, bx1 = span(bottom_block_width_mm())
-    top_h, bottom_h = _block_height_mm(2), _block_height_mm(bottom_lines)
-    top = MarginBlock("top", Box.of_mm((tx0, area[1], tx1, area[1] + top_h)), 2)
-    bottom = MarginBlock("bottom", Box.of_mm((bx0, area[3] - bottom_h, bx1, area[3])), bottom_lines)
-    return top, bottom
+    gap = GAP_HMM / 100
+    bands = {
+        "top": (area[1], grid[1] - gap),
+        "bottom": (grid[3] + gap, area[3]),
+    }
+    widths = {"top": top_block_width_mm, "bottom": bottom_block_width_mm}
+    lines = {"top": 2, "bottom": bottom_lines}
+    blocks: list[MarginBlock] = []
+    text: dict[str, MarginText] = {}
+    for edge in ("top", "bottom"):
+        lo, hi = bands[edge]
+        placed: MarginBlock | None = None
+        for pt in BLOCK_PT_STEPS:
+            width = widths[edge](pt) + 2 * pad
+            height = _block_height_mm(lines[edge], pt)
+            if width > room[1] - room[0] + _EPS or height > hi - lo + _EPS:
+                continue
+            x0, x1 = centre - width / 2, centre + width / 2
+            y0 = lo if edge == "top" else hi - height
+            placed = MarginBlock(
+                edge,
+                Box.of_mm((x0, y0, x1, y0 + height)),
+                lines[edge],
+                pt,
+            )
+            break
+        if placed is None:
+            text[edge] = "omitted"
+        else:
+            blocks.append(placed)
+            text[edge] = "full" if placed.size_pt == BLOCK_PT else "reduced"
+    return tuple(blocks), text
 
 
 def _slots(need: int, area: _Rect, blocks: Sequence[MarginBlock], grid: _Rect) -> tuple[Box, ...]:
@@ -716,20 +777,27 @@ def _clear_of(rect: _Rect, ink: Iterable[_Rect]) -> bool:
 
 
 def check_page_layout(
-    g: Geometry, area: PrintableArea, *, allow_qr: bool, passes: int
+    g: Geometry,
+    area: PrintableArea,
+    *,
+    allow_qr: bool,
+    passes: int,
+    bottom_lines: int | None = None,
 ) -> PageLayout:
     """The calibration page (or pass 1 of a check sheet that takes ``passes`` passes) for ``g``.
 
     Pure and deterministic: no text of the run goes in, so the print dialog, the run record and
     the renderer agree. Raises nothing for a sheet that leaves no room; the page then carries
-    fewer page codes (``page_codes`` 0 to 4) and, for ``passes`` above 1, no run-line slots.
+    fewer page codes (``page_codes`` 0 to 4), smaller or no margin blocks (``margin_text``)
+    and, for ``passes`` above 1, no run-line slots. ``bottom_lines`` is the bottom block's line
+    count (``bottom_line_count``); unknown, it reserves room for every line that may appear.
+    The page codes carry the run, the sheet type, its version and the correction, so a page
+    without margin blocks still names its run.
     """
     if g.cols < 2 or g.rows < 2:
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
     a = area.rect_mm()
     checker = needs_checkerboard(g)
-    top, bottom = _blocks(a, bottom_lines=3 if checker else 2)
-    blocks = (top, bottom)
     x0, y0 = g.margin_left / 100, g.margin_top / 100
     grid = (
         x0,
@@ -737,6 +805,9 @@ def check_page_layout(
         x0 + ((g.cols - 1) * g.pitch_x + g.label_w) / 100,
         y0 + ((g.rows - 1) * g.pitch_y + g.label_h) / 100,
     )
+    if bottom_lines is None:
+        bottom_lines = bottom_line_count(geometry_diff=True, checkerboard=checker)
+    blocks, margin_text = _blocks(a, grid, bottom_lines=bottom_lines)
     slots = _slots(min(max(passes - 1, 0), 2), a, blocks, grid)
     keep_out = [b.box.rect_mm() for b in blocks] + [s.rect_mm() for s in slots]
 
@@ -766,11 +837,13 @@ def check_page_layout(
         cells_ink = [v.box.rect_mm() for k, v in codes.items()] + [
             v.box.rect_mm() for v in numbers.values()
         ]
+        # The codes placed at earlier corners are ink, and their quiet zones stay blank.
+        placed = [_grow(_r_mm(p.box), quiet) for p in spots]
         # 1. The printable corner of the page.
         ax = a[0] if corner in ("top_left", "bottom_left") else a[2]
         ay = a[1] if corner in ("top_left", "top_right") else a[3]
         sym = _spot_at(ax, ay, corner)
-        if _inside(sym, a) and _clear_of(_grow(sym, quiet), [*ink, *cells_ink]):
+        if _inside(sym, a) and _clear_of(_grow(sym, quiet), [*ink, *cells_ink, *placed]):
             spots.append(CodeSpot(corner, "page_corner", None, Box.of_mm(sym)))
             continue
         # 2. The outer corner of the corner cell, inset so the corner marks stay.
@@ -786,7 +859,7 @@ def check_page_layout(
         if (
             moved is None
             or not _inside(sym, a)
-            or not _clear_of(zone, [*ink, *others])
+            or not _clear_of(zone, [*ink, *others, *placed])
             or _overlap(moved.box.rect_mm(), zone)
             or not _clear_of(moved.box.rect_mm(), [*ink, *others])
         ):
@@ -794,10 +867,18 @@ def check_page_layout(
         spots.append(CodeSpot(corner, "corner_cell", cell, Box.of_mm(sym)))
         numbers[cell] = moved
         own = codes.get(cell)
-        if own is not None and (
-            _overlap(own.box.rect_mm(), zone) or _overlap(own.box.rect_mm(), moved.box.rect_mm())
-        ):
-            del codes[cell]
+        if own is not None:
+            # Dropped only when ink meets the other code's quiet zone: the cell symbol in the page
+            # code's zone, or the page symbol in the cell code's zone. Two quiet zones touching
+            # is blank on blank.
+            box = own.box.rect_mm()
+            cell_symbol = _grow(box, -CELL_QR_HMM / 100 * QUIET_MODULES / (21 + 2 * QUIET_MODULES))
+            if (
+                _overlap(cell_symbol, zone)
+                or _overlap(sym, box)
+                or _overlap(box, moved.box.rect_mm())
+            ):
+                del codes[cell]
 
     return PageLayout(
         area=area,
@@ -809,4 +890,9 @@ def check_page_layout(
         marks=tuple(marks.marks),
         labels=tuple(marks.labels),
         checkerboard=checker,
+        margin_text=margin_text,
     )
+
+
+def _r_mm(box: Box) -> _Rect:
+    return box.rect_mm()

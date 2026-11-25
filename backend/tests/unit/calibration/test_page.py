@@ -550,10 +550,13 @@ def test_the_longest_ordinary_names_are_not_cut() -> None:
     assert text == "k" * 24 + " v1 · " + "n" * 24 + " · tray " + "t" * 12
 
 
-def test_a_block_that_cannot_fit_is_an_error_not_a_missing_block() -> None:
+def test_a_block_with_no_room_even_at_4_5_pt_is_left_out_not_cut() -> None:
+    """Operator decision (25.11.2026): smaller first, then no block; the fields never shorten."""
     narrow = PrintableArea(left=9000, top=600, right=12000, bottom=29100)
-    with pytest.raises(ValueError, match="fixed part"):
-        _pdf(L4736, area=narrow)
+    pdf = _pdf(L4736, area=narrow)
+    texts = pi.texts(pdf)
+    assert not any(t.startswith("No run") or t.startswith("No correction") for t in texts)
+    assert [s for s in _strokes(pdf) if s["width"] == 0.1]  # the grid is still drawn
 
 
 # ---------------------------------------------------------------------------- boundary (M1, M2)

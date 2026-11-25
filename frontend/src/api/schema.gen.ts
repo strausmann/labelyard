@@ -3622,6 +3622,24 @@ export interface components {
             y_mm: number;
         };
         /**
+         * MarginTextSummary
+         * @description Per margin block: `full` (6 pt), `reduced` (smaller, at least 4.5 pt) or `omitted`.
+         */
+        MarginTextSummary: {
+            /**
+             * Bottom
+             * @description The correction, the values not as shipped, the checkerboard hint.
+             * @enum {string}
+             */
+            bottom: "full" | "reduced" | "omitted";
+            /**
+             * Top
+             * @description The run, its date and time, the sheet type and tray.
+             * @enum {string}
+             */
+            top: "full" | "reduced" | "omitted";
+        };
+        /**
          * Margins
          * @description Smallest unprintable margin per side, hundredths of mm.
          */
@@ -3732,6 +3750,8 @@ export interface components {
          * @description What the print dialog says before a calibration or check page is printed (design 7.2).
          */
         PageLayoutSummary: {
+            /** @description How the run information fits the margins above and below the grid. It never goes across the labels: a block that does not fit at 6 pt is printed smaller (down to 4.5 pt), and one that does not fit even then is left out, so the dialog can say before printing that the page prints without that margin text. The page codes carry the run, the sheet type, its version and the correction either way. */
+            margin_text: components["schemas"]["MarginTextSummary"];
             /**
              * Page Codes
              * @description How many of the four page codes the page carries on this printer and tray; fewer than 4: "This sheet type leaves room for 2 of the 4 page codes on this printer".

@@ -3960,6 +3960,37 @@
         "title": "MarginRectMm",
         "type": "object"
       },
+      "MarginTextSummary": {
+        "description": "Per margin block: `full` (6 pt), `reduced` (smaller, at least 4.5 pt) or `omitted`.",
+        "properties": {
+          "bottom": {
+            "description": "The correction, the values not as shipped, the checkerboard hint.",
+            "enum": [
+              "full",
+              "reduced",
+              "omitted"
+            ],
+            "title": "Bottom",
+            "type": "string"
+          },
+          "top": {
+            "description": "The run, its date and time, the sheet type and tray.",
+            "enum": [
+              "full",
+              "reduced",
+              "omitted"
+            ],
+            "title": "Top",
+            "type": "string"
+          }
+        },
+        "required": [
+          "top",
+          "bottom"
+        ],
+        "title": "MarginTextSummary",
+        "type": "object"
+      },
       "Margins": {
         "description": "Smallest unprintable margin per side, hundredths of mm.",
         "properties": {
@@ -4238,6 +4269,10 @@
       "PageLayoutSummary": {
         "description": "What the print dialog says before a calibration or check page is printed (design 7.2).",
         "properties": {
+          "margin_text": {
+            "$ref": "#/components/schemas/MarginTextSummary",
+            "description": "How the run information fits the margins above and below the grid. It never goes across the labels: a block that does not fit at 6 pt is printed smaller (down to 4.5 pt), and one that does not fit even then is left out, so the dialog can say before printing that the page prints without that margin text. The page codes carry the run, the sheet type, its version and the correction either way."
+          },
           "page_codes": {
             "description": "How many of the four page codes the page carries on this printer and tray; fewer than 4: \"This sheet type leaves room for 2 of the 4 page codes on this printer\".",
             "maximum": 4.0,
@@ -4262,7 +4297,8 @@
         "required": [
           "page_codes",
           "run_line_slots",
-          "passes_total"
+          "passes_total",
+          "margin_text"
         ],
         "title": "PageLayoutSummary",
         "type": "object"

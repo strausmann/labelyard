@@ -6,14 +6,19 @@ printable area, the page codes as the layout says, the run in the margin blocks.
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from functools import cache
 from typing import Any
 
 import pytest
 from app.calibration import codes
 from app.calibration.layout import PrintableArea, check_page_layout, printable_area
-from app.calibration.page import check_run_codes, payload_layout, render_calibration_page
+from app.calibration.page import (
+    bottom_lines_of,
+    check_run_codes,
+    payload_layout,
+    render_calibration_page,
+)
 from app.catalog import loader
 from app.page_render.pdf import PT_PER_MM, text_width_mm
 from app.page_render.transform import IDENTITY, Deviation
@@ -301,7 +306,8 @@ def test_a_payload_from_before_1_8_0_renders_with_5_mm_and_without_codes() -> No
     assert layout.area == printable_area(g, None, IDENTITY)
     pdf = render_calibration_page(payload, compress=False)
     assert pi.placed_images(pdf) == []
-    assert layout == check_page_layout(g, layout.area, allow_qr=True, passes=1)
+    lines = bottom_lines_of(payload)
+    assert layout == check_page_layout(g, layout.area, allow_qr=True, passes=1, bottom_lines=lines)
 
 
 @pytest.mark.parametrize(
@@ -333,3 +339,113 @@ def test_a_corrected_page_keeps_every_element_inside_the_hardware_margin(
     assert [p for p in starts if not _inside((*p, *p), limit)] == []
     # An uncorrected page of the same tray keeps the plain area.
     assert printable_area(g, _hw(500), dev, applied=None) == printable_area(g, _hw(500), dev)
+
+
+# ---------------------------------------------------------------------------- fix round 1
+
+
+def _hull(g: Geometry) -> tuple[float, float, float, float]:
+    return (
+        g.margin_left / 100,
+        g.margin_top / 100,
+        (g.margin_left + (g.cols - 1) * g.pitch_x + g.label_w) / 100,
+        (g.margin_top + (g.rows - 1) * g.pitch_y + g.label_h) / 100,
+    )
+
+
+def _text_boxes(pdf: bytes, page_h_mm: float) -> dict[str, tuple[float, float, float, float]]:
+    sizes: list[float] = []
+    size = 0.0
+    for op, a in pi.operations(pdf):
+        if op == "Tf":
+            size = a[-1]
+        elif op == "Tj":
+            sizes.append(size)
+    out = {}
+    for text, (x_pt, y_pt), pt in zip(pi.texts(pdf), pi.text_positions(pdf), sizes, strict=True):
+        x, y = x_pt / PT_PER_MM, page_h_mm - y_pt / PT_PER_MM
+        em = pt * 25.4 / 72
+        out[text] = (x, y - em, x + text_width_mm(text, pt), y + em * 0.25)
+    return out
+
+
+def test_the_6121_on_5_mm_prints_its_run_information_in_the_margin_not_on_the_labels() -> None:
+    key = "avery-zweckform-6121"
+    g = _geometry(key)
+    pdf = render_calibration_page(
+        _payload(key, printable_area(g, _hw(500), IDENTITY)), compress=False
+    )
+    boxes = _text_boxes(pdf, g.page_h / 100)
+    hull = _hull(g)
+    lines = [
+        "Run #7 · 2026-11-25 14:05 · Calibration page — printed without correction",
+        f"{key} v1 · Office · tray tray-1",
+        "No correction applied",
+        "Peel every other label (checkerboard) if the cut is hard to see.",
+    ]
+    for line in lines:
+        b = boxes[line]
+        assert b[3] <= hull[1] or b[1] >= hull[3], (line, b, hull)  # above or below the grid
+
+
+@pytest.mark.parametrize(("key", "hw"), _cases())
+def test_no_block_line_is_drawn_across_the_grid(key: str, hw: int) -> None:
+    g = _geometry(key)
+    payload = _payload(key, printable_area(g, _hw(hw), IDENTITY))
+    layout = payload_layout(payload)
+    pdf = render_calibration_page(payload, compress=False)
+    boxes = _text_boxes(pdf, g.page_h / 100)
+    hull = _hull(g)
+    sizes = {b.size_pt for b in layout.margin_blocks}
+    for text, b in boxes.items():
+        if " · " not in text and not text.startswith(("No correction", "Peel every")):
+            continue  # cell numbers and S/Z labels belong to the grid
+        assert b[3] <= hull[1] + 1e-6 or b[1] >= hull[3] - 1e-6, (key, hw, text)
+    assert sizes <= set(BLOCK_STEPS)
+
+
+BLOCK_STEPS = (6.0, 5.5, 5.0, 4.5)
+
+
+class _Pen:
+    def __init__(self) -> None:
+        self.texts: list[tuple[str, float]] = []
+
+    def line(self, *a: Any, **k: Any) -> None:
+        del a, k
+
+    def text(self, x: float, y: float, s: str, **k: Any) -> None:
+        del x, k
+        self.texts.append((s, y))
+
+
+def test_the_used_lines_sit_on_the_lowest_baselines() -> None:
+    from app.calibration.page import draw_calibration_page
+
+    g = _geometry("avery-5160")
+    layout = check_page_layout(
+        g, printable_area(g, _hw(300), IDENTITY), allow_qr=True, passes=1, bottom_lines=3
+    )
+    bottom = layout.block("bottom")
+    assert bottom is not None and bottom.lines == 3
+    pen = _Pen()
+    draw_calibration_page(pen, layout, lines={"bottom": ["one", "two"]})  # type: ignore[arg-type]
+    ys = [y for s, y in pen.texts if s in ("one", "two")]
+    assert ys == bottom.baselines_mm()[1:]  # the empty line is the upper one, never the edge's
+
+
+def test_a_page_without_margin_text_still_names_its_run_in_the_page_codes() -> None:
+    from app.calibration.page import _page_code
+
+    key = "avery-5160"
+    g = _geometry(key)
+    narrow = replace(g, margin_top=700, rows=9)  # 7 mm: no room above the grid at 5 mm
+    snap = CalibrationSnapshot(method="manual", dx_hmm=120)
+    payload = _payload(key, printable_area(narrow, _hw(500), IDENTITY), snapshot=snap)
+    payload.detail["geometry"] = asdict(narrow)
+    layout = payload_layout(payload)
+    assert layout.margin_text["top"] == "omitted" and layout.block("top") is None
+    texts = pi.texts(render_calibration_page(payload, compress=False))
+    assert not any(t.startswith("Run #") for t in texts)
+    code = _page_code(payload)
+    assert code is not None and code.startswith("LYC1:7:0:") and ":1:120:0:0:0:0" in code

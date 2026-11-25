@@ -548,8 +548,25 @@ async def test_layout_summary_for_6121_on_5_mm(env: _Env) -> None:
         bad = await c.get(base, params={"type": "lay-6121", "kind": "probe_page"})
     assert r.status_code == 200, r.text
     # The printer reports no margins: 5 mm; the corner cells take the four page codes.
-    assert r.json() == {"page_codes": 4, "run_line_slots": 0, "passes_total": 1}
+    # The 4.8 mm and 4.86 mm margins take the run information only below 6 pt.
+    assert r.json() == {
+        "page_codes": 4,
+        "run_line_slots": 0,
+        "passes_total": 1,
+        "margin_text": {"top": "reduced", "bottom": "reduced"},
+    }
     assert check.status_code == 200 and check.json()["page_codes"] == 4
+    # A margin too shallow even at 4.5 pt: the dialog can say the page prints without that text.
+    async with env.factory() as s:
+        await ts.create_type(
+            s, ts.TypeFields("lay-flat", "LFLAT", "Acme", [], None, None),
+            Geometry("A4", 21000, 29700, 3810, 2118, 5, 13, 3810, 2118, 650, 990, None,
+                     "rectangle"),
+            actor="t",
+        )  # fmt: skip
+    async with env.client() as c:
+        flat = await c.get(base, params={"type": "lay-flat"})
+    assert flat.status_code == 200 and flat.json()["margin_text"]["top"] == "omitted"
     assert bad.status_code == 422
     async with env.factory() as s:  # nothing is stored, no run is taken
         assert (await s.execute(select(CalibrationRun))).scalars().all() == []

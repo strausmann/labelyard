@@ -58,9 +58,12 @@ def _hw(hmm: int) -> Margins:
     return Margins(top=hmm, left=hmm, bottom=hmm, right=hmm)
 
 
-def _layout(key: str, hw: int, *, passes: int = 1) -> tuple[Geometry, PageLayout]:
+def _layout(
+    key: str, hw: int, *, passes: int = 1, bottom_lines: int | None = None
+) -> tuple[Geometry, PageLayout]:
     g, qr = _type(key)
-    return g, check_page_layout(g, printable_area(g, _hw(hw), IDENTITY), allow_qr=qr, passes=passes)
+    area = printable_area(g, _hw(hw), IDENTITY)
+    return g, check_page_layout(g, area, allow_qr=qr, passes=passes, bottom_lines=bottom_lines)
 
 
 def _r(box: lay.Box) -> tuple[float, float, float, float]:
@@ -137,6 +140,26 @@ def test_page_codes_clear_of_cell_elements_and_scales(key: str, hw: int) -> None
             nb = _r(num.box)
             assert x0 <= nb[0] and nb[2] <= x0 + g.label_w / 100
             assert y0 <= nb[1] and nb[3] <= y0 + g.label_h / 100
+            _assert_at_inner_corner(g, spot, num)
+
+
+def _assert_at_inner_corner(g: Geometry, spot: lay.CodeSpot, num: lay.CellNumber) -> None:
+    """The cell's number sits in the corner opposite the page code, 2.5 mm in from both edges."""
+    assert spot.cell is not None
+    c, r = (spot.cell - 1) % g.cols, (spot.cell - 1) // g.cols
+    x0 = (g.margin_left + c * g.pitch_x) / 100
+    y0 = (g.margin_top + r * g.pitch_y) / 100
+    x1, y1 = x0 + g.label_w / 100, y0 + g.label_h / 100
+    inset = lay.CELL_INSET_HMM / 100
+    nb = _r(num.box)
+    if spot.corner in ("top_left", "bottom_left"):  # the code is left: the number goes right
+        assert nb[2] == pytest.approx(x1 - inset, abs=1e-6), (spot, num)
+    else:
+        assert nb[0] == pytest.approx(x0 + inset, abs=1e-6), (spot, num)
+    if spot.corner in ("top_left", "top_right"):  # the code is on top: the number goes down
+        assert nb[3] == pytest.approx(y1 - inset, abs=1e-6), (spot, num)
+    else:
+        assert nb[1] == pytest.approx(y0 + inset, abs=1e-6), (spot, num)
 
 
 @pytest.mark.parametrize(("key", "hw"), _cases())
@@ -264,9 +287,12 @@ WORST_DIFF = {"PX": 100_000, "PY": 100_000, "MT": 100_000, "ML": 100_000}
 @pytest.mark.parametrize("hw", HW_HMM)
 def test_margin_block_fits_a4_and_letter(page: str, hw: int) -> None:
     w, h = {"A4": (21000, 29700), "Letter": (21590, 27940)}[page]
-    g = replace(L4736, page_size=page, page_w=w, page_h=h)  # type: ignore[arg-type]
+    # Deep margins above and below the grid: both blocks at 6 pt, at the worst offsets.
+    g = replace(L4736, page_size=page, page_w=w, page_h=h, rows=8, margin_top=4000)  # type: ignore[arg-type]
     layout = check_page_layout(g, printable_area(g, _hw(hw), WORST_DEV), allow_qr=True, passes=1)
-    top, bottom = layout.margin_blocks
+    top, bottom = layout.block("top"), layout.block("bottom")
+    assert top is not None and bottom is not None
+    assert layout.margin_text == {"top": "full", "bottom": "full"}
     fixed_top = [lay.run_line(999_999, "2026-11-21", "23:59", corrected=c) for c in (False, True)]
     fixed_bottom = [
         lay.correction_line(WORST_DEV),
@@ -356,3 +382,113 @@ def test_the_page_code_records_are_the_drawn_boxes() -> None:
     assert [r["cell"] for r in records] == [1, 5, 61, 65]
     assert all(r["size_hmm"] == 1000 for r in records)
     assert records[0]["x_hmm"] == round(layout.page_codes[0].box.x)
+
+
+# ---------------------------------------------------------------------------- fix round 1
+
+
+def _grid_hull(g: Geometry) -> tuple[float, float, float, float]:
+    """Every label and every gap between labels (spec 7.2: nothing across the grid)."""
+    return (
+        g.margin_left / 100,
+        g.margin_top / 100,
+        (g.margin_left + (g.cols - 1) * g.pitch_x + g.label_w) / 100,
+        (g.margin_top + (g.rows - 1) * g.pitch_y + g.label_h) / 100,
+    )
+
+
+@pytest.mark.parametrize(("key", "hw"), _cases())
+def test_no_margin_block_overlaps_the_grid(key: str, hw: int) -> None:
+    g, layout = _layout(key, hw)
+    hull = _grid_hull(g)
+    area = layout.area.rect_mm()
+    assert set(layout.margin_text) == {"top", "bottom"}
+    for block in layout.margin_blocks:
+        b = _r(block.box)
+        assert not _overlap(b, hull), (key, hw, block)
+        assert area[0] <= b[0] and b[2] <= area[2] and area[1] <= b[1] and b[3] <= area[3]
+        assert lay.MIN_BLOCK_PT <= block.size_pt <= lay.BLOCK_PT
+        status = layout.margin_text[block.edge]
+        assert status == ("full" if block.size_pt == lay.BLOCK_PT else "reduced")
+    edges = {b.edge for b in layout.margin_blocks}
+    for edge, status in layout.margin_text.items():
+        assert (status == "omitted") == (edge not in edges)
+
+
+def test_6121_on_5_mm_keeps_its_run_information_in_the_margin() -> None:
+    # A catalog 6121 differs from nothing and has no gap: correction and checkerboard lines.
+    lines = lay.bottom_line_count(geometry_diff=False, checkerboard=True)
+    g, layout = _layout("avery-zweckform-6121", 500, bottom_lines=lines)
+    hull = _grid_hull(g)
+    top, bottom = layout.block("top"), layout.block("bottom")
+    assert top is not None and bottom is not None
+    # 4.8 mm and 4.86 mm of margin: the 6 pt block does not fit, a smaller one does.
+    assert layout.margin_text == {"top": "reduced", "bottom": "reduced"}
+    assert _r(top.box)[3] <= hull[1] and _r(bottom.box)[1] >= hull[3]
+    assert lay.MIN_BLOCK_PT <= top.size_pt < lay.BLOCK_PT
+
+
+def test_a_margin_too_narrow_for_4_5_pt_leaves_the_block_out() -> None:
+    narrow = replace(L4736, margin_top=900)  # 3 mm of margin above the grid at 5 mm hardware
+    layout = check_page_layout(
+        narrow, printable_area(narrow, _hw(500), IDENTITY), allow_qr=True, passes=1
+    )
+    assert layout.margin_text["top"] == "omitted" and layout.block("top") is None
+    assert layout.margin_text["bottom"] == "full"
+
+
+def test_the_block_shrinks_its_font_step_by_step_before_it_is_left_out() -> None:
+    sizes = []
+    for top_mm in (2000, 1300, 1200, 1150, 1100, 1050, 900):
+        g = replace(L4736, margin_top=top_mm)
+        block = check_page_layout(
+            g, printable_area(g, _hw(500), IDENTITY), allow_qr=True, passes=1
+        ).block("top")
+        sizes.append(None if block is None else block.size_pt)
+    assert sizes[0] == lay.BLOCK_PT and sizes[-1] is None
+    shown = [s for s in sizes if s is not None]
+    assert shown == sorted(shown, reverse=True)  # never larger in a narrower margin
+    assert all(s in lay.BLOCK_PT_STEPS for s in shown)
+    assert min(shown) >= lay.MIN_BLOCK_PT == 4.5
+
+
+def test_the_bottom_block_holds_exactly_the_lines_it_draws() -> None:
+    g = L4736  # no row gap: the checkerboard sentence goes along
+    area = printable_area(g, _hw(500), IDENTITY)
+    plain = check_page_layout(g, area, allow_qr=True, passes=1, bottom_lines=2)
+    diffed = check_page_layout(g, area, allow_qr=True, passes=1, bottom_lines=3)
+    assert plain.block("bottom").lines == 2  # type: ignore[union-attr]
+    assert diffed.block("bottom").lines == 3  # type: ignore[union-attr]
+    assert lay.bottom_line_count(geometry_diff=False, checkerboard=True) == 2
+    assert lay.bottom_line_count(geometry_diff=True, checkerboard=True) == 3
+    assert lay.bottom_line_count(geometry_diff=False, checkerboard=False) == 1
+
+
+# A 2 x 2 sheet of 34 x 30 mm labels 10 mm from the edges: the page codes go to the corner cells,
+# where the page code's quiet zone (to 13.58 mm) reaches into the cell code's own quiet zone
+# (13.0 to 14.10 mm) but never its symbol, and the page symbol (to 12.5 mm) stays clear of it.
+QUIET_TOUCH = Geometry("A4", 21000, 29700, 3400, 3000, 2, 2, 3400, 3000, 1000, 1000, None,
+                       "rectangle")  # fmt: skip
+
+
+def test_the_cell_code_stays_when_only_the_quiet_zones_touch() -> None:
+    g = QUIET_TOUCH
+    layout = check_page_layout(g, printable_area(g, _hw(500), IDENTITY), allow_qr=True, passes=1)
+    quiet = lay.PAGE_QUIET_HMM / 100
+    [spot] = [s for s in layout.page_codes if s.corner == "top_left"]
+    assert (spot.spot, spot.cell) == ("corner_cell", 1)
+    [code] = [c for c in layout.cell_codes if c.cell == 1]
+    assert _overlap(_grow(_r(spot.box), quiet), _r(code.box))  # the quiet zones touch ...
+    cell_quiet = lay.CELL_QR_HMM / 100 * lay.QUIET_MODULES / 29
+    assert not _overlap(_grow(_r(spot.box), quiet), _grow(_r(code.box), -cell_quiet))
+    assert not _overlap(_r(spot.box), _r(code.box))  # ... no ink meets the other's zone
+    assert {c.cell for c in layout.cell_codes} == {1, 2, 3, 4}
+
+
+def test_a_spot_never_overlaps_a_page_code_already_placed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every corner is offered the same clear place: only the first may take it."""
+    g = replace(L4736, cols=2)  # two columns end at 103.75 mm: the right half stays blank
+    fixed = (150.0, 150.0, 160.0, 160.0)  # inside the area, on that blank paper
+    monkeypatch.setattr(lay, "_spot_at", lambda x, y, corner: fixed)
+    layout = check_page_layout(g, printable_area(g, _hw(500), IDENTITY), allow_qr=True, passes=1)
+    assert len(layout.page_codes) == 1, layout.page_codes

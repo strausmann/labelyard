@@ -37,9 +37,11 @@ from app.calibration.layout import (
     CHECKERBOARD_SENTENCE,
     PageLayout,
     PrintableArea,
+    bottom_line_count,
     check_page_layout,
     correction_line,
     geometry_line,
+    needs_checkerboard,
     printable_area,
     run_line,
     scale_segments,
@@ -92,7 +94,13 @@ def _short(text: str, limit: int) -> str:
 
 
 def fit_type_line(
-    type_key: str, version: int, printer_name: str, tray: str, *, room_mm: float
+    type_key: str,
+    version: int,
+    printer_name: str,
+    tray: str,
+    *,
+    room_mm: float,
+    size_pt: float = BLOCK_PT,
 ) -> str:
     """The second line of the top block, shortened until it fits ``room_mm``.
 
@@ -108,41 +116,59 @@ def fit_type_line(
         return type_line(k, version, n, t)
 
     for i in range(3):
-        while text_width_mm(build(), BLOCK_PT) > room_mm and keep[i] > 0:
+        while text_width_mm(build(), size_pt) > room_mm and keep[i] > 0:
             keep[i] = min(keep[i], len(fields[i])) - 1
     line = build()
-    if text_width_mm(line, BLOCK_PT) > room_mm:
+    if text_width_mm(line, size_pt) > room_mm:
         raise ValueError("margin block: the fixed part alone does not fit the printable area")
     return line
 
 
-def _fixed(line: str, room_mm: float) -> str:
-    if text_width_mm(line, BLOCK_PT) > room_mm:
+def _fixed(line: str, room_mm: float, size_pt: float) -> str:
+    if text_width_mm(line, size_pt) > room_mm:
         raise ValueError("margin block: the fixed part alone does not fit the printable area")
     return line
 
 
-def block_lines(payload: PagePayload, layout: PageLayout) -> tuple[list[str], list[str]]:
-    """The lines of the top and the bottom margin block, fitted to their boxes."""
+def bottom_lines_of(payload: PagePayload) -> int:
+    """How many lines the payload's bottom block draws (``layout.bottom_line_count``)."""
+    d = payload.detail
+    g = Geometry(**d["geometry"])
+    return bottom_line_count(
+        geometry_diff=geometry_line(d.get("geometry_diff") or {}) is not None,
+        checkerboard=needs_checkerboard(g),
+    )
+
+
+def block_lines(payload: PagePayload, layout: PageLayout) -> dict[str, list[str]]:
+    """The lines of each margin block the layout holds, fitted to its box and size; a block the
+    margin had no room for has none (``layout.margin_text``)."""
     d = payload.detail
     corrected = bool(d["corrected"])
-    top_block, bottom_block = layout.margin_blocks
-    top_room = top_block.box.w / 100
-    bottom_room = bottom_block.box.w / 100
-    top = [
-        _fixed(run_line(d.get("run_no"), d["date"], d.get("time"), corrected=corrected), top_room),
-        fit_type_line(
-            d["type_key"], d["version"], d["printer_name"], payload.tray, room_mm=top_room
-        ),
-    ]
-    dev = snapshot_to_deviation(payload.calibration) if corrected else None
-    bottom = [_fixed(correction_line(dev), bottom_room)]
-    geometry = geometry_line(d.get("geometry_diff") or {})
-    if geometry is not None:
-        bottom.append(_fixed(geometry, bottom_room))
-    if layout.checkerboard:
-        bottom.append(_fixed(CHECKERBOARD_SENTENCE, bottom_room))
-    return top, bottom
+    out: dict[str, list[str]] = {}
+    top = layout.block("top")
+    if top is not None:
+        room, pt = top.box.w / 100, top.size_pt
+        run = run_line(d.get("run_no"), d["date"], d.get("time"), corrected=corrected)
+        out["top"] = [
+            _fixed(run, room, pt),
+            fit_type_line(
+                d["type_key"], d["version"], d["printer_name"], payload.tray, room_mm=room,
+                size_pt=pt,
+            ),
+        ]  # fmt: skip
+    bottom = layout.block("bottom")
+    if bottom is not None:
+        room, pt = bottom.box.w / 100, bottom.size_pt
+        dev = snapshot_to_deviation(payload.calibration) if corrected else None
+        lines = [_fixed(correction_line(dev), room, pt)]
+        geometry = geometry_line(d.get("geometry_diff") or {})
+        if geometry is not None:
+            lines.append(_fixed(geometry, room, pt))
+        if layout.checkerboard:
+            lines.append(_fixed(CHECKERBOARD_SENTENCE, room, pt))
+        out["bottom"] = lines
+    return out
 
 
 # ---------------------------------------------------------------------------- layout of a payload
@@ -163,7 +189,11 @@ def payload_layout(payload: PagePayload, *, passes: int = 1) -> PageLayout:
     if g.cols < 2 or g.rows < 2:
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
     return check_page_layout(
-        g, payload_area(payload), allow_qr=bool(d.get("allow_qr", True)), passes=passes
+        g,
+        payload_area(payload),
+        allow_qr=bool(d.get("allow_qr", True)),
+        passes=passes,
+        bottom_lines=bottom_lines_of(payload),
     )
 
 
@@ -239,9 +269,10 @@ def _code_images(payload: PagePayload, layout: PageLayout) -> list[PageImage]:
 
 
 def draw_calibration_page(
-    pen: VectorPen, layout: PageLayout, *, top: Sequence[str], bottom: Sequence[str]
+    pen: VectorPen, layout: PageLayout, *, lines: Mapping[str, Sequence[str]]
 ) -> None:
-    """Draw ``layout`` (everything in black, 0.1 mm lines) with the two blocks' lines."""
+    """Draw ``layout`` (everything in black, 0.1 mm lines) with the lines of its blocks, each on
+    the block's lowest baselines."""
     for mark in layout.marks:
         for x1, y1, x2, y2 in mark.segs:
             pen.line(x1, y1, x2, y2, width_mm=LINE_MM, dash=mark.dash)
@@ -249,12 +280,11 @@ def draw_calibration_page(
         pen.text(t.x, t.y, t.text, size_pt=t.size_pt, anchor=t.anchor)
     for n in layout.cell_numbers:
         pen.text(n.x, n.y, str(n.cell), size_pt=CELL_NUMBER_PT, anchor=n.anchor)
-    for block, lines in zip(layout.margin_blocks, (top, bottom), strict=True):
-        if len(lines) > block.lines:
-            raise ValueError("margin block: more lines than the block holds")
+    for block in layout.margin_blocks:
+        shown = lines.get(block.edge, ())
         cx = (block.box.x + block.box.w / 2) / 100
-        for y, line in zip(block.baselines_mm(), lines, strict=False):
-            pen.text(cx, y, line, size_pt=BLOCK_PT, anchor="middle")
+        for y, line in zip(block.baselines_for(len(shown)), shown, strict=True):
+            pen.text(cx, y, line, size_pt=block.size_pt, anchor="middle")
 
 
 def render_calibration_page(payload: PagePayload, *, compress: bool = True) -> bytes:
@@ -262,11 +292,11 @@ def render_calibration_page(payload: PagePayload, *, compress: bool = True) -> b
     corrected = bool(payload.detail["corrected"])
     layout = payload_layout(payload)
     images = _code_images(payload, layout)  # first: a code too large is refused as such
-    top, bottom = block_lines(payload, layout)
+    lines = block_lines(payload, layout)
     return write_pdf(
         payload.media,
         images=images,
-        vector=lambda pen: draw_calibration_page(pen, layout, top=top, bottom=bottom),
+        vector=lambda pen: draw_calibration_page(pen, layout, lines=lines),
         correction=snapshot_to_deviation(payload.calibration if corrected else None),
         compress=compress,
         title="Calibration page",

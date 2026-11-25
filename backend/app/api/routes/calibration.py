@@ -25,6 +25,7 @@ from app.auth.scope_deps import require_admin, require_print, require_read
 from app.calibration import history, page, runs, scale, service
 from app.calibration.fit import Reading, fit
 from app.calibration.history import CalibrationHistoryRead
+from app.calibration.layout import MarginText
 from app.calibration.model import (
     READINGS_MAX,
     CalibrationIn,
@@ -301,6 +302,15 @@ async def print_calibration_page(
     return PageJobAccepted(job_id=job_id)
 
 
+class MarginTextSummary(BaseModel):
+    """Per margin block: `full` (6 pt), `reduced` (smaller, at least 4.5 pt) or `omitted`."""
+
+    top: MarginText = Field(description="The run, its date and time, the sheet type and tray.")
+    bottom: MarginText = Field(
+        description="The correction, the values not as shipped, the checkerboard hint."
+    )
+
+
 class PageLayoutSummary(BaseModel):
     """What the print dialog says before a calibration or check page is printed (design 7.2)."""
 
@@ -321,6 +331,15 @@ class PageLayoutSummary(BaseModel):
         ),
     )
     passes_total: int = Field(ge=1, description="Passes the sheet takes.")
+    margin_text: MarginTextSummary = Field(
+        description=(
+            "How the run information fits the margins above and below the grid. It never goes "
+            "across the labels: a block that does not fit at 6 pt is printed smaller (down to "
+            "4.5 pt), and one that does not fit even then is left out, so the dialog can say "
+            "before printing that the page prints without that margin text. The page codes "
+            "carry the run, the sheet type, its version and the correction either way."
+        )
+    )
 
 
 PageKindQuery = Literal["calibration_page", "check_page"]
@@ -369,6 +388,9 @@ async def get_calibration_page_layout(
         page_codes=len(layout.page_codes),
         run_line_slots=len(layout.run_line_slots),
         passes_total=passes,
+        margin_text=MarginTextSummary(
+            top=layout.margin_text["top"], bottom=layout.margin_text["bottom"]
+        ),
     )
 
 
