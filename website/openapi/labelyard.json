@@ -2665,7 +2665,8 @@
               {
                 "enum": [
                   "same_type",
-                  "no_check_run"
+                  "no_check_run",
+                  "unknown_correction"
                 ],
                 "type": "string"
               },
@@ -2673,7 +2674,7 @@
                 "type": "null"
               }
             ],
-            "description": "Why a run gives no suggestion: `no_check_run` (not a check print, or printed without a correction), `same_type` (the correction was measured on this sheet type, so its geometry error is already in the correction). Null without `run_id`.",
+            "description": "Why a run gives no suggestion: `no_check_run` (not a check print, or printed without a correction), `same_type` (the correction was measured on this sheet type, so its geometry error is already in the correction), `unknown_correction` (the sheet type the correction was measured on is not known: typed in by hand, or its history entry or version is gone). Null without `run_id`.",
             "title": "Suggestion Unavailable"
           },
           "values": {
@@ -10412,8 +10413,8 @@
           "margin_left_mm": {
             "anyOf": [
               {
-                "exclusiveMinimum": 0.0,
                 "maximum": 1000.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -10426,8 +10427,8 @@
           "margin_top_mm": {
             "anyOf": [
               {
-                "exclusiveMinimum": 0.0,
                 "maximum": 1000.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {

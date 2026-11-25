@@ -217,6 +217,42 @@ async def test_the_job_names_the_correction_the_check_was_printed_with(
     assert r.json()["suggestion"]["pitch_x_hmm"] == pytest.approx(3755, abs=5)
 
 
+async def test_a_correction_of_unknown_origin_gives_no_suggestion(
+    api_client_with_seed: Any,
+) -> None:
+    """Typed in by hand, or its history entry gone: the correction may hold this type's own
+    geometry error, so nothing is suggested (Codex review on #448)."""
+    c = api_client_with_seed
+    admin, read = await _key(["admin"]), await _key(["read"])
+    _measured, checked = await _types()
+    body = {"type": checked, "readings": _check_readings()}
+
+    no_history = await _printer()  # a run whose correction has no entry at all
+    run_id = await _run(no_history, "auto", checked)
+    r = await c.post(
+        f"/api/v1/printers/{no_history}/calibration/auto/fit",
+        json={**body, "run_id": str(run_id)},
+        headers=read,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["suggestion"] is None
+    assert r.json()["suggestion_unavailable"] == "unknown_correction"
+
+    by_hand = await _printer()
+    saved = await c.put(
+        f"/api/v1/printers/{by_hand}/calibration/auto", json=CORRECTION, headers=admin
+    )
+    assert saved.status_code == 200, saved.text
+    run_id = await _run(by_hand, "auto", checked)
+    r = await c.post(
+        f"/api/v1/printers/{by_hand}/calibration/auto/fit",
+        json={**body, "run_id": str(run_id)},
+        headers=read,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["suggestion_unavailable"] == "unknown_correction"
+
+
 async def test_fit_with_a_run_of_another_printer_is_422(api_client_with_seed: Any) -> None:
     c = api_client_with_seed
     read = await _key(["read"])
@@ -277,3 +313,10 @@ async def test_apply_suggestion_adds_a_version_admin_only(api_client_with_seed: 
     fresh = await _run(pid, "auto", checked)
     r = await c.post(url, json={"run_id": str(fresh)}, headers=admin)
     assert r.status_code == 422, r.text
+
+    # A margin of 0 is a valid suggestion (the geometry rules allow it), a pitch of 0 is not.
+    r = await c.post(url, json={"run_id": str(fresh), "pitch_x_mm": 0}, headers=admin)
+    assert r.status_code == 422, r.text
+    r = await c.post(url, json={"run_id": str(fresh), "margin_left_mm": 0}, headers=admin)
+    assert r.status_code == 201, r.text
+    assert r.json()["geometry"]["margin_left"] == 0

@@ -518,17 +518,18 @@ class VersionCreate(_Body):
     change_note: str = Field(min_length=1, max_length=500)
 
 
-_SUGGESTED_MM = Field(default=None, gt=0, le=1000, description="Millimetres, two decimals.")
+_PITCH_MM = Field(default=None, gt=0, le=1000, description="Millimetres, two decimals.")
+_MARGIN_MM = Field(default=None, ge=0, le=1000, description="Millimetres, two decimals.")
 
 
 class VersionFromSuggestion(_Body):
     """The values of a geometry suggestion an admin applies (design 7.4); at least one."""
 
     run_id: UUID = Field(description="The check print the suggestion came from.")
-    pitch_x_mm: float | None = _SUGGESTED_MM
-    pitch_y_mm: float | None = _SUGGESTED_MM
-    margin_left_mm: float | None = _SUGGESTED_MM
-    margin_top_mm: float | None = _SUGGESTED_MM
+    pitch_x_mm: float | None = _PITCH_MM
+    pitch_y_mm: float | None = _PITCH_MM
+    margin_left_mm: float | None = _MARGIN_MM
+    margin_top_mm: float | None = _MARGIN_MM
 
     @model_validator(mode="after")
     def _one_value(self) -> VersionFromSuggestion:

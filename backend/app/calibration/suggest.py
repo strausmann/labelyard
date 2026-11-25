@@ -38,7 +38,7 @@ from app.sheets.geometry import Geometry
 #: A proposed value closer than this to the stored one is no change (hundredths of a mm).
 MIN_CHANGE_HMM = 5
 
-SuggestionUnavailable = Literal["same_type", "no_check_run"]
+SuggestionUnavailable = Literal["same_type", "no_check_run", "unknown_correction"]
 
 
 class GeometrySuggestion(BaseModel):
@@ -120,7 +120,7 @@ async def _correction_entry(
     """The history entry the check page was printed with.
 
     The job's payload names it (``calibration_history_id``, design 7.5); once the job was cleaned
-    up, the tray's newest entry written before the run stands in.
+    up, the tray's newest entry written before the run stands in, if its values are the run's.
     """
     job = await session.get(Job, run.job_id)
     raw = job.payload.get("calibration_history_id") if job is not None else None
@@ -131,7 +131,7 @@ async def _correction_entry(
             entry = None
         if entry is not None:
             return entry
-    return (
+    entry = (
         await session.execute(
             select(CalibrationHistory)
             .where(
@@ -143,6 +143,25 @@ async def _correction_entry(
             .limit(1)
         )
     ).scalar_one_or_none()
+    # Only an entry with the values the page was printed with: a save between the page's
+    # snapshot and its run, or a pruned entry, leaves the origin unknown.
+    return entry if entry is not None and _same_values(entry, run.correction or {}) else None
+
+
+def _same_values(entry: CalibrationHistory, snap: dict[str, object]) -> bool:
+    return (
+        entry.offset_x_hmm,
+        entry.offset_y_hmm,
+        entry.scale_x_ppm,
+        entry.scale_y_ppm,
+        entry.rotation_udeg,
+    ) == (
+        snap.get("dx_hmm"),
+        snap.get("dy_hmm"),
+        snap.get("sx_ppm"),
+        snap.get("sy_ppm"),
+        snap.get("rotation_udeg"),
+    )
 
 
 async def _type_id(session: AsyncSession, version_id: UUID | None) -> UUID | None:
@@ -158,14 +177,18 @@ async def suggestion_for_run(
     """The suggestion for the readings of ``run`` (printed on geometry ``g``), or why there is
     none: ``no_check_run`` for a calibration or probe page and for a check page printed without
     any correction (nothing was compensated), ``same_type`` when the correction was measured on
-    the run's sheet type, in any version."""
+    the run's sheet type, in any version, ``unknown_correction`` when the sheet type it was
+    measured on is not known (typed in by hand, its history entry or version gone since)."""
     correction = run.correction or {}
     if run.kind != "check_page" or correction.get("method", "none") == "none":
         return None, "no_check_run"
     entry = await _correction_entry(session, run)
     measured_on = entry.measured_on_type_version_id if entry is not None else None
     measured_type = await _type_id(session, measured_on)
-    if measured_type is not None and measured_type == await _type_id(session, run.type_version_id):
+    if measured_type is None:
+        # Without a known origin the correction may hold this type's own geometry error.
+        return None, "unknown_correction"
+    if measured_type == await _type_id(session, run.type_version_id):
         return None, "same_type"
     suggestion = suggest_geometry(
         g,

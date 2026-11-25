@@ -3082,9 +3082,9 @@ export interface components {
             suggestion?: components["schemas"]["GeometrySuggestion"] | null;
             /**
              * Suggestion Unavailable
-             * @description Why a run gives no suggestion: `no_check_run` (not a check print, or printed without a correction), `same_type` (the correction was measured on this sheet type, so its geometry error is already in the correction). Null without `run_id`.
+             * @description Why a run gives no suggestion: `no_check_run` (not a check print, or printed without a correction), `same_type` (the correction was measured on this sheet type, so its geometry error is already in the correction), `unknown_correction` (the sheet type the correction was measured on is not known: typed in by hand, or its history entry or version is gone). Null without `run_id`.
              */
-            suggestion_unavailable?: ("same_type" | "no_check_run") | null;
+            suggestion_unavailable?: ("same_type" | "no_check_run" | "unknown_correction") | null;
             values: components["schemas"]["CalibrationIn"];
         };
         /** GeometryMm */
