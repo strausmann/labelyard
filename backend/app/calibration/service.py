@@ -253,7 +253,7 @@ class RunVersionMismatchError(SheetApiError):
 
     status = 422
     error_code = "run_version_mismatch"
-    message = "The run was printed for another sheet type version than measured_on."
+    message = "The run was printed for another sheet type version than the one named."
 
 
 async def check_run(

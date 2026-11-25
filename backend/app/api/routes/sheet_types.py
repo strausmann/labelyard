@@ -618,7 +618,9 @@ async def add_sheet_type_version(
         "values in place (pitch and margins, mm), with a change note naming the run. The run "
         "must be a check print (`422 run_not_a_check_print`) of this type "
         "(`422 run_not_for_this_type`) and of its newest version "
-        "(`409 run_version_not_current`). Geometry rules apply as for any new version "
+        "(`409 run_version_not_current`) that gives a suggestion "
+        "(`422 suggestion_unavailable`, `error_detail.reason` as in the fit's "
+        "`suggestion_unavailable`). Geometry rules apply as for any new version "
         "(`422 invalid_geometry`, also for values equal to the stored ones)."
     ),
     responses={
@@ -627,7 +629,8 @@ async def add_sheet_type_version(
         422: {
             "description": (
                 "The run is not a check print of this type (`run_not_for_this_type`, "
-                "`run_not_a_check_print`), no value was sent (request validation), or the "
+                "`run_not_a_check_print`), gives no suggestion (`suggestion_unavailable`), no "
+                "value was sent (request validation), or the "
                 "geometry is invalid or unchanged (`invalid_geometry`)."
             )
         },

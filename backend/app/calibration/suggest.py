@@ -42,7 +42,9 @@ SuggestionUnavailable = Literal["same_type", "no_check_run", "unknown_correction
 
 
 class GeometrySuggestion(BaseModel):
-    """Proposed geometry values in hundredths of a millimetre; ``null`` means "keep it"."""
+    """Proposed geometry values in hundredths of a millimetre; ``null`` means "keep it": a change
+    under 0.05 mm, too few gaps on that axis, or a pitch that would fall below the label size
+    (then pitch and margin of that axis are both ``null``)."""
 
     pitch_x_hmm: int | None = Field(description="From the trend across the S gaps.")
     pitch_y_hmm: int | None = Field(description="From the trend across the Z gaps.")
@@ -72,6 +74,21 @@ def _changed(stored: int, proposed: float) -> int | None:
     return None if abs(value - stored) < MIN_CHANGE_HMM else value
 
 
+def _axis(
+    line: tuple[float, float] | None, pitch: int, margin: int, label: int
+) -> tuple[int | None, int | None]:
+    """(pitch, margin) of one axis. A pitch below the label size (a gapless sheet read as
+    smaller) is no geometry a version may have: the whole axis is left out, so applying a
+    suggestion never fails with ``invalid_geometry``."""
+    if line is None:
+        return None, None
+    c0, c1 = line
+    new_pitch = pitch - c1 * 100
+    if round(new_pitch) < label:
+        return None, None
+    return _changed(pitch, new_pitch), _changed(margin, margin - (c0 + 0.5 * c1) * 100)
+
+
 def suggest_geometry(
     g: Geometry,
     readings: Sequence[Reading],
@@ -96,15 +113,8 @@ def suggest_geometry(
         math.hypot(detrended(x_line, c, a), detrended(y_line, r, d)) > RESIDUAL_FLAG_MM
         for c, r, a, d in zip(cols, rows, across, down, strict=True)
     )
-    pitch_x = margin_left = pitch_y = margin_top = None
-    if x_line is not None:
-        c0, c1 = x_line
-        pitch_x = _changed(g.pitch_x, g.pitch_x - c1 * 100)
-        margin_left = _changed(g.margin_left, g.margin_left - (c0 + 0.5 * c1) * 100)
-    if y_line is not None:
-        c0, c1 = y_line
-        pitch_y = _changed(g.pitch_y, g.pitch_y - c1 * 100)
-        margin_top = _changed(g.margin_top, g.margin_top - (c0 + 0.5 * c1) * 100)
+    pitch_x, margin_left = _axis(x_line, g.pitch_x, g.margin_left, g.label_w)
+    pitch_y, margin_top = _axis(y_line, g.pitch_y, g.margin_top, g.label_h)
     return GeometrySuggestion(
         pitch_x_hmm=pitch_x,
         pitch_y_hmm=pitch_y,
@@ -171,32 +181,45 @@ async def _type_id(session: AsyncSession, version_id: UUID | None) -> UUID | Non
     return version.type_id if version is not None else None
 
 
-async def suggestion_for_run(
-    session: AsyncSession, run: CalibrationRun, g: Geometry, readings: Sequence[Reading]
-) -> tuple[GeometrySuggestion | None, SuggestionUnavailable | None]:
-    """The suggestion for the readings of ``run`` (printed on geometry ``g``), or why there is
-    none: ``no_check_run`` for a calibration or probe page and for a check page printed without
-    any correction (nothing was compensated), ``same_type`` when the correction was measured on
-    the run's sheet type, in any version, ``unknown_correction`` when the sheet type it was
-    measured on is not known (typed in by hand, its history entry or version gone since)."""
+async def unavailable_reason(
+    session: AsyncSession, run: CalibrationRun
+) -> tuple[SuggestionUnavailable | None, UUID | None]:
+    """Why ``run`` can give no suggestion (``None`` when it can), and the sheet type version its
+    correction was measured on: ``no_check_run`` for a calibration or probe page and for a check
+    page printed without any correction (nothing was compensated), ``same_type`` when the
+    correction was measured on the run's sheet type, in any version, ``unknown_correction`` when
+    the sheet type it was measured on is not known (typed in by hand, its history entry or
+    version gone since, or a save between the page's snapshot and its run)."""
     correction = run.correction or {}
     if run.kind != "check_page" or correction.get("method", "none") == "none":
-        return None, "no_check_run"
+        return "no_check_run", None
     entry = await _correction_entry(session, run)
     measured_on = entry.measured_on_type_version_id if entry is not None else None
     measured_type = await _type_id(session, measured_on)
     if measured_type is None:
         # Without a known origin the correction may hold this type's own geometry error.
-        return None, "unknown_correction"
+        return "unknown_correction", None
     if measured_type == await _type_id(session, run.type_version_id):
-        return None, "same_type"
-    suggestion = suggest_geometry(
-        g,
-        readings,
-        correction_type_version_id=measured_on,
-        run_type_version_id=run.type_version_id,
-    )
-    return (suggestion, None) if suggestion is not None else (None, "same_type")
+        return "same_type", measured_on
+    return None, measured_on
+
+
+async def suggestion_for_run(
+    session: AsyncSession, run: CalibrationRun, g: Geometry, readings: Sequence[Reading]
+) -> tuple[GeometrySuggestion | None, SuggestionUnavailable | None]:
+    """The suggestion for the readings of ``run`` (printed on geometry ``g``), or why there is
+    none (``unavailable_reason``)."""
+    reason, measured_on = await unavailable_reason(session, run)
+    if reason is not None:
+        return None, reason
+    # Another sheet type, so another version: never None here.
+    return (
+        suggest_geometry(
+            g, readings, correction_type_version_id=measured_on,
+            run_type_version_id=run.type_version_id,
+        ),
+        None,
+    )  # fmt: skip
 
 
 # ---------------------------------------------------------------------------- apply
@@ -212,6 +235,18 @@ class RunNotACheckPrintError(SheetApiError):
     status = 422
     error_code = "run_not_a_check_print"
     message = "A geometry suggestion comes from a check print; this run is another page."
+
+
+class SuggestionUnavailableError(SheetApiError):
+    """The run gives no suggestion, so its values cannot be applied as one (review M3);
+    ``error_detail.reason`` is the fit's ``suggestion_unavailable``."""
+
+    status = 422
+    error_code = "suggestion_unavailable"
+    message = "This check print gives no geometry suggestion."
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(detail={"reason": reason})
 
 
 class RunVersionNotCurrentError(SheetApiError):
@@ -237,7 +272,8 @@ async def apply_suggestion(
 ) -> SheetTypeVersion:
     """Add a version of ``key`` with the run's version geometry and ``values_hmm`` in place.
 
-    The run must be a check print of this type's newest version. The change note names the run
+    The run must be a check print of this type's newest version that can give a suggestion
+    (``unavailable_reason``). The change note names the run
     by its number only: a version note travels into exports and the feedback issue, a printer or
     tray name must not.
     """
@@ -253,6 +289,9 @@ async def apply_suggestion(
             raise RunNotACheckPrintError()
         if (await ts.current_version(session, t.id)).id != version.id:
             raise RunVersionNotCurrentError()
+        reason, _ = await unavailable_reason(session, run)
+        if reason is not None:
+            raise SuggestionUnavailableError(reason)
         base = ts.version_geometry(version)
         geometry = replace(
             base,
@@ -266,7 +305,7 @@ async def apply_suggestion(
             key,
             geometry,
             actor=actor,
-            change_note=f"Applied the geometry suggestion of check print run #{run.run_no}",
+            change_note=f"Pitch and margins from the check print of run #{run.run_no}",
         )
         await session.commit()
     return v

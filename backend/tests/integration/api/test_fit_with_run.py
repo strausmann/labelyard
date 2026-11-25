@@ -109,7 +109,13 @@ async def _version_id(key: str) -> UUID:
 
 
 async def _run(
-    printer_id: UUID, tray: str, key: str, *, kind: str = "check_page", job_id: UUID | None = None
+    printer_id: UUID,
+    tray: str,
+    key: str,
+    *,
+    kind: str = "check_page",
+    job_id: UUID | None = None,
+    correction: dict[str, Any] | None = None,
 ) -> UUID:
     version_id = await _version_id(key)
     async with _factory()() as s:
@@ -120,7 +126,7 @@ async def _run(
             kind=kind,  # type: ignore[arg-type]
             job_id=job_id or uuid4(),
             type_version_id=version_id,
-            correction=SNAPSHOT if kind == "check_page" else None,
+            correction=correction or (SNAPSHOT if kind == "check_page" else None),
             actor="user:admin",
         )
         return run.id
@@ -275,6 +281,7 @@ async def test_apply_suggestion_adds_a_version_admin_only(api_client_with_seed: 
     admin, read, prn = await _key(["admin"]), await _key(["read"]), await _key(["print"])
     pid = await _printer()
     measured, checked = await _types()
+    await _save(c, pid, measured, admin)
     run_id = await _run(pid, "auto", checked)
     url = f"/api/v1/sheet-types/{checked}/versions/from-suggestion"
     body = {"run_id": str(run_id), "pitch_x_mm": 37.55}
@@ -289,7 +296,7 @@ async def test_apply_suggestion_adds_a_version_admin_only(api_client_with_seed: 
     assert v["version"] == 2
     assert v["geometry"]["pitch_x"] == 37.55
     assert v["geometry"]["margin_left"] == 9.9  # untouched
-    assert "#1" in v["change_note"] and "suggestion" in v["change_note"]
+    assert v["change_note"] == "Pitch and margins from the check print of run #1"
 
     # The run belongs to another type: refused, nothing added.
     r = await c.post(
@@ -320,3 +327,113 @@ async def test_apply_suggestion_adds_a_version_admin_only(api_client_with_seed: 
     r = await c.post(url, json={"run_id": str(fresh), "margin_left_mm": 0}, headers=admin)
     assert r.status_code == 201, r.text
     assert r.json()["geometry"]["margin_left"] == 0
+
+
+# ---------------------------------------------------------------------------- guard branches
+
+
+async def _new_version(key: str) -> None:
+    """Version 2 of ``key``: the same grid, 0.1 mm more top margin."""
+    async with _factory()() as s:
+        await ts.add_version(
+            s, key, replace(CHECKED, margin_top=CHECKED.margin_top + 10), actor="t",
+            change_note="v2",
+        )  # fmt: skip
+
+
+async def _fit(c: Any, pid: UUID, body: dict[str, Any], headers: dict[str, str]) -> Any:
+    return await c.post(f"/api/v1/printers/{pid}/calibration/auto/fit", json=body, headers=headers)
+
+
+async def test_a_correction_from_another_version_of_the_same_type_is_same_type(
+    api_client_with_seed: Any,
+) -> None:
+    """Same type is decided by the sheet type, not the version (deviation b)."""
+    c = api_client_with_seed
+    admin, read = await _key(["admin"]), await _key(["read"])
+    pid = await _printer()
+    _measured, checked = await _types()
+    await _save(c, pid, checked, admin)  # measured on checked v1
+    await _new_version(checked)
+    run_id = await _run(pid, "auto", checked)  # printed on checked v2
+    r = await _fit(
+        c, pid,
+        {"type": checked, "version": 2, "readings": _check_readings(), "run_id": str(run_id)},
+        read,
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert r.json()["suggestion"] is None
+    assert r.json()["suggestion_unavailable"] == "same_type"
+
+
+async def test_the_time_fallback_needs_the_run_s_correction_values(
+    api_client_with_seed: Any,
+) -> None:
+    """An entry before the run with other values than the run printed with is not its entry."""
+    c = api_client_with_seed
+    admin, read = await _key(["admin"]), await _key(["read"])
+    pid = await _printer()
+    measured, checked = await _types()
+    await _save(c, pid, measured, admin)
+    run_id = await _run(pid, "auto", checked, correction={**SNAPSHOT, "dx_hmm": 121})
+    r = await _fit(
+        c, pid, {"type": checked, "readings": _check_readings(), "run_id": str(run_id)}, read
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["suggestion_unavailable"] == "unknown_correction"
+
+
+async def test_the_fit_refuses_a_run_of_another_version(api_client_with_seed: Any) -> None:
+    c = api_client_with_seed
+    read = await _key(["read"])
+    pid = await _printer()
+    _measured, checked = await _types()
+    run_id = await _run(pid, "auto", checked)  # v1
+    await _new_version(checked)
+    r = await _fit(
+        c, pid,
+        {"type": checked, "version": 2, "readings": _check_readings(), "run_id": str(run_id)},
+        read,
+    )  # fmt: skip
+    assert r.status_code == 422, r.text
+    detail = r.json()["detail"]
+    assert detail["error_code"] == "run_version_mismatch"
+    assert "measured_on" not in detail["error_message"]
+
+
+async def test_a_check_print_without_a_correction_is_no_check_run(
+    api_client_with_seed: Any,
+) -> None:
+    c = api_client_with_seed
+    admin, read = await _key(["admin"]), await _key(["read"])
+    pid = await _printer()
+    measured, checked = await _types()
+    await _save(c, pid, measured, admin)
+    identity = {"method": "none", "dx_hmm": 0, "dy_hmm": 0, "sx_ppm": 1_000_000,
+                "sy_ppm": 1_000_000, "rotation_udeg": 0}  # fmt: skip
+    run_id = await _run(pid, "auto", checked, correction=identity)
+    r = await _fit(
+        c, pid, {"type": checked, "readings": _check_readings(), "run_id": str(run_id)}, read
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["suggestion_unavailable"] == "no_check_run"
+
+
+async def test_apply_refuses_a_run_that_gives_no_suggestion(api_client_with_seed: Any) -> None:
+    """The note names the run as the source of a suggestion; a run that cannot give one is
+    refused instead (review M3)."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    _measured, checked = await _types()
+    await _save(c, pid, checked, admin)  # measured on the checked type itself
+    run_id = await _run(pid, "auto", checked)
+    r = await c.post(
+        f"/api/v1/sheet-types/{checked}/versions/from-suggestion",
+        json={"run_id": str(run_id), "pitch_x_mm": 37.55},
+        headers=admin,
+    )
+    assert r.status_code == 422, r.text
+    detail = r.json()["detail"]
+    assert detail["error_code"] == "suggestion_unavailable"
+    assert detail["error_detail"] == {"reason": "same_type"}

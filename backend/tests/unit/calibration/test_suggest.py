@@ -106,3 +106,14 @@ def test_one_column_gap_gives_no_pitch_x() -> None:
     s = _suggest(readings)
     assert s is not None
     assert s.pitch_x_hmm is None and s.margin_left_hmm is None
+
+
+def test_a_pitch_below_the_label_size_is_not_offered() -> None:
+    """A gapless type (pitch_y == label_h) cannot take a smaller pitch: the axis is left out so
+    an apply never fails with invalid_geometry (review M1)."""
+    assert G.pitch_y == G.label_h
+    true = replace(G, pitch_y=G.pitch_y - 7, margin_top=G.margin_top + 20, pitch_x=4755)
+    s = _suggest(_readings(true))
+    assert s is not None
+    assert s.pitch_y_hmm is None and s.margin_top_hmm is None
+    assert s.pitch_x_hmm == pytest.approx(4755, abs=5)  # the other axis stays
