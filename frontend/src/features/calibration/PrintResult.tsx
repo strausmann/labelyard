@@ -12,6 +12,7 @@ import { canRetry } from "../jobs/model";
 import {
   claimJob,
   errorCodeFromMessage,
+  releaseClaimPending,
   replaceWatchedJob,
   useJobLive,
   useWatchedPrints,
@@ -65,8 +66,13 @@ export function PrintResult({ jobId: firstJobId, printerId, subject, label, done
   const phase = live?.phase ?? "queued";
 
   // Claim the job while this line shows it: the stack stops announcing it, and a reconnect still resyncs it
-  // when its card was dismissed. A line on a hidden tab shows nothing, so it leaves the job to the stack.
-  useEffect(() => (jobId && inView ? claimJob(jobId) : undefined), [jobId, inView]);
+  // when its card was dismissed. A line on a hidden tab shows nothing, so it leaves the job to the stack, also
+  // a print that was accepted after the tab was left and still waits for this line's claim (`claimPending`).
+  useEffect(() => {
+    if (!jobId) return;
+    if (inView) return claimJob(jobId);
+    releaseClaimPending(jobId);
+  }, [jobId, inView]);
 
   const mounted = useRef(false);
   useEffect(() => {

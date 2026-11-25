@@ -157,6 +157,25 @@ describe("the live print status line (#239)", () => {
     await waitFor(() => expect(stack().getByText("Failed").closest("[aria-live]")).toBeNull());
   });
 
+  it("switching the tab before the POST answers does not leave the card unannounced (#446 review)", async () => {
+    let answer: (() => void) | undefined;
+    await open(
+      {
+        [`POST ${BASE}/main/page`]: () => new Promise((resolve) => (answer = () => resolve(respond(202, { job_id: JOB })))),
+        [`GET /api/v1/jobs/${JOB}`]: job(JOB, P, "queued", PAGE_JOB),
+      },
+      SIGNED_IN,
+      `/calibration?printer=${P}&tray=main&view=print`,
+    );
+    await printCalibrationAnyway();
+    await waitFor(() => expect(answer).toBeDefined());
+    // Another tab before the hub answered: the line that would have claimed the print is hidden.
+    await userEvent.click(screen.getByRole("tab", { name: "History" }));
+    await act(async () => answer?.());
+    expect(await stack().findByText("Queued")).toBeVisible();
+    await waitFor(() => expect(stack().getByText("Queued").closest("[aria-live]")?.getAttribute("aria-live")).toBe("polite"));
+  });
+
   it("leaving the page before the POST answers does not leave the card unannounced", async () => {
     let answer: (() => void) | undefined;
     await open({
