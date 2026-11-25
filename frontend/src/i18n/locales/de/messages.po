@@ -1245,6 +1245,10 @@ msgstr "Batterie"
 msgid "before 1.8.0"
 msgstr "vor 1.8.0"
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Before you print"
+msgstr "Bevor du druckst"
+
 #: src/features/printers/model.ts
 msgid "Black"
 msgstr "Schwarz"
@@ -1359,6 +1363,7 @@ msgstr "Lässt sich mit dem aktuellen Geheimschlüssel nicht lesen — bitte ern
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/calibration/RestoreDialog.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/printers/IdentityMismatchBanner.tsx
@@ -3032,6 +3037,10 @@ msgstr "Zuletzt benutzt {when}"
 msgid "Later"
 msgstr "Später"
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Later check passes on this sheet will print without their run line."
+msgstr "Spätere Kontrolldurchgänge auf diesem Bogen werden ohne ihre Laufzeile gedruckt."
+
 #: src/features/jobs/JobDetail.tsx
 #: src/features/lookup/ItemView.tsx
 #: src/features/settings/GrocyLabelSettings.tsx
@@ -3208,6 +3217,7 @@ msgstr "Hersteller werden geladen …"
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeSheetsList.tsx
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/JobsPage.tsx
@@ -3455,6 +3465,7 @@ msgstr "Neues Code-Präfix (optional)"
 msgid "New key"
 msgstr "Neuer Schlüssel"
 
+#: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/sheets/print/SheetPreview.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "New sheet"
@@ -4309,6 +4320,10 @@ msgstr "Teil {partNo} von {parts}"
 msgid "Parts of the crossing"
 msgstr "Teile der Kreuzung"
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Pass 1 of {total} on a fresh sheet of labels."
+msgstr "Durchgang 1 von {total} auf einem frischen Etikettenbogen."
+
 #: src/features/archive/ImportDialog.tsx
 msgid "Paste the export file or choose it."
 msgstr "Füge die Exportdatei ein oder wähle sie aus."
@@ -4454,6 +4469,12 @@ msgstr "Jetzt drucken"
 msgid "Print on the back of the liner"
 msgstr "Aufdruck auf der Rückseite des Trägerpapiers"
 
+#. placeholder {0}: sheet.next_pass
+#. placeholder {1}: sheet.passes_total
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Print on the same sheet (pass {0} of {1})"
+msgstr "Auf denselben Bogen drucken (Durchgang {0} von {1})"
+
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Print onto a sheet"
 msgstr "Auf einen Bogen drucken"
@@ -4469,6 +4490,10 @@ msgstr "Auf diesen Bogen drucken"
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Print page"
 msgstr "Seite drucken"
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Print pass {passNo} of {total}"
+msgstr "Durchgang {passNo} von {total} drucken"
 
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Print sheet code"
@@ -4488,6 +4513,7 @@ msgid "Print the calibration page (without correction)"
 msgstr "Kalibrierseite drucken (ohne Korrektur)"
 
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/CheckPrintDialog.tsx
 msgid "Print the check page"
 msgstr "Kontrolle drucken"
 
@@ -4710,9 +4736,17 @@ msgstr "Lege es in {trayLabel} ein und drucke die Testseite."
 msgid "Put the sheet back in the printer the way it went in the first time. Only the code in the margin is printed, no label."
 msgstr "Leg den Bogen so in den Drucker, wie er beim ersten Mal hineinging. Gedruckt wird nur der Code im Rand, kein Etikett."
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Put the sheet back into the tray. The new crosses land beside the earlier ones."
+msgstr "Leg den Bogen wieder ins Fach. Die neuen Kreuze landen neben den früheren."
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Put the sheet in the other way round"
 msgstr "Den Bogen andersherum einlegen"
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Put the sheet of run #{first} back into the tray. The new crosses land beside the earlier ones."
+msgstr "Leg den Bogen von Lauf #{first} wieder ins Fach. Die neuen Kreuze landen neben den früheren."
 
 #: src/features/archive/MarginPlacement.tsx
 msgid "QR + code"
@@ -6021,6 +6055,10 @@ msgstr "Wird getestet…"
 #: src/features/sheets/cellState.ts
 msgid "text shortened"
 msgstr "Text gekürzt"
+
+#: src/features/calibration/errors.ts
+msgid "That check sheet has no free pass left. Print on a new sheet."
+msgstr "Auf diesem Kontrollbogen ist kein Durchgang mehr frei. Druck auf einen neuen Bogen."
 
 #: src/features/jobs/RunControls.tsx
 msgid "That did not work. Try again."
@@ -7389,6 +7427,22 @@ msgstr "Dieses Etikett ist länger, als dieses Band erlaubt. Kürze den Text."
 msgid "This page is not available yet."
 msgstr "Diese Seite ist noch nicht verfügbar."
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page names its run nowhere: no page code and no margin text fit on this printer. Write the run number from the history on the sheet after printing."
+msgstr "Diese Seite nennt ihren Lauf nirgends: Auf diesem Drucker passen weder Seitencodes noch Randtext. Schreib nach dem Druck die Laufnummer aus dem Verlauf auf den Bogen."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page prints without its bottom margin text (the correction); the page codes carry it."
+msgstr "Diese Seite wird ohne ihren unteren Randtext (die Korrektur) gedruckt; die Seitencodes tragen sie."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page prints without its top margin text (run, date, sheet type); the page codes carry them."
+msgstr "Diese Seite wird ohne ihren oberen Randtext (Lauf, Datum, Bogentyp) gedruckt; die Seitencodes tragen diese Angaben."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page prints without margin text; the page codes carry the run and correction."
+msgstr "Diese Seite wird ohne Randtext gedruckt; die Seitencodes tragen Lauf und Korrektur."
+
 #: src/features/settings/IppPrinterFields.tsx
 msgid "This printer cannot print PDF, so the hub cannot use it for sheets."
 msgstr "Dieser Drucker kann kein PDF drucken, der Hub kann ihn deshalb nicht für Bögen nutzen."
@@ -7450,6 +7504,14 @@ msgstr "Dieser Bogen hat keine Lücke zwischen den Zeilen: Die Z-Linien liegen a
 msgid "This sheet is discarded."
 msgstr "Dieser Bogen ist verworfen."
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet takes {total} check passes. This is pass 1, on a fresh sheet: keep the sheet for the next check."
+msgstr "Dieser Bogen nimmt {total} Kontrolldurchgänge. Das ist Durchgang 1 auf einem frischen Bogen: Heb den Bogen für die nächste Kontrolle auf."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet takes one check pass: the check page uses up the sheet."
+msgstr "Dieser Bogen nimmt einen Kontrolldurchgang: Die Kontrollseite verbraucht den Bogen."
+
 #: src/features/calibration/errors.ts
 msgid "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
 msgstr "Dieser Bogentyp hat weniger als zwei Spalten oder zwei Zeilen, seine Kalibrierseite hat daher keine Kreuzungen."
@@ -7461,6 +7523,14 @@ msgstr "Dieser Bogentyp ist archiviert oder existiert nicht mehr. Grocy-Etikette
 #: src/features/sheets/print/SheetSection.tsx
 msgid "This sheet type is archived. It offers no new sheets, but the sheets you have keep printing."
 msgstr "Dieser Bogentyp ist archiviert. Er bietet keine neuen Bögen an, die vorhandenen Bögen lassen sich aber weiter bedrucken."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet type leaves no room for the page codes on this printer; the margin text names the run."
+msgstr "Dieser Bogentyp lässt auf diesem Drucker keinen Platz für Seitencodes; der Randtext nennt den Lauf."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet type leaves room for {codes} of the 4 page codes on this printer."
+msgstr "Dieser Bogentyp lässt auf diesem Drucker Platz für {codes} der 4 Seitencodes."
 
 #: src/features/printers/printErrorText.ts
 msgid "This tape width cannot print this label. Load another tape."
@@ -8018,6 +8088,10 @@ msgstr "Wo der Bogencode hinkommt"
 #: src/features/archive/TypeForm.tsx
 msgid "Where the vendor printed on the front of the sheet. The hub keeps the sheet code, its QR code and the feed mark out of these areas."
 msgstr "Wo der Hersteller auf die Vorderseite des Bogens gedruckt hat. Der Hub hält Bogencode, QR-Code und Einzugsmarke aus diesen Bereichen heraus."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Which sheet?"
+msgstr "Welcher Bogen?"
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "While this is off, the hub refuses labels from Grocy."

@@ -18,7 +18,7 @@ printer.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any, Final, Literal
@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import col
 
 from app.models.calibration_run import (
+    CalibrationCheckSheet,
     CalibrationCheckSheetPass,
     CalibrationRun,
     CalibrationRunCounter,
@@ -40,6 +41,7 @@ from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories.write_lock import write_transaction
 from app.services.page_jobs import PagePayload
 from app.settings_store.registry import SETTINGS
+from app.sheets.errors import CheckSheetFullError
 from app.sheets.text import sanitise_text
 
 logger = logging.getLogger(__name__)
@@ -58,12 +60,32 @@ _RUN_ID_EXPR = json_at("$.detail.run_id")
 _RETRY_OF_EXPR = json_at("$.retry_of")
 
 
+CheckSheetMode = Literal["new", "next"]
+
+
 @dataclass(frozen=True)
 class CheckSheetChoice:
-    """The pass of a check sheet a check print takes (filled by the check-sheet flow)."""
+    """Which check sheet a check print goes on (design 7.2); resolved to a sheet and a pass inside
+    ``allocate_run``'s write transaction, so two prints never take the same pass.
 
-    check_sheet_id: UUID
-    pass_no: int
+    ``new`` starts a sheet (pass 1); ``next`` takes the lowest free pass of the newest open sheet
+    of the printer, tray and ``type_version_id``, else ``CheckSheetFullError`` (409
+    ``check_sheet_full``). ``passes`` are the crossings of each pass
+    (``check_sheet.check_passes``); a grid without passes takes a sheet of one pass, the full
+    check page.
+    """
+
+    mode: CheckSheetMode
+    type_version_id: UUID
+    passes: Sequence[Sequence[tuple[int, int]]] = ()
+
+    @property
+    def passes_total(self) -> int:
+        return max(len(self.passes), 1)
+
+    def crossings(self, pass_no: int) -> list[tuple[int, int]] | None:
+        """The crossings pass ``pass_no`` prints; ``None`` on a grid without passes."""
+        return [tuple(c) for c in self.passes[pass_no - 1]] if self.passes else None  # type: ignore[misc]
 
 
 class CalibrationRunRead(BaseModel):
@@ -108,18 +130,27 @@ async def allocate_run(
     correction: dict[str, Any] | None,
     actor: str | None,
     check_sheet: CheckSheetChoice | None = None,
-    page_codes: list[dict[str, Any]] | None = None,
+    page_codes: PageCodes = None,
 ) -> CalibrationRun:
     """Take the next number of ``(printer_id, tray)``, insert the run and commit.
 
     ``page_codes`` are the page codes the page draws (``PageLayout.page_code_records``), stored
-    for the photo reader; ``None`` for a page without codes.
+    for the photo reader; ``None`` for a page without codes. A callable gets the pass the print
+    took (``None`` without a check sheet): passes 2 and 3 draw no codes.
 
-    One write transaction: the counter is read and raised under the sheet write lock, the run
-    (and its check sheet pass) inserted. Retention is applied by ``submit_with_run`` only after
-    the submit succeeded, so a failed submit never evicts a kept run.
+    One write transaction: the check sheet's pass is taken (``check_sheet``, which may raise
+    ``CheckSheetFullError`` before anything is written), the counter is read and raised under
+    the sheet write lock, the run and its pass row inserted. A sheet whose last pass is taken is
+    closed. Retention is applied by ``submit_with_run`` only after the submit succeeded, so a
+    failed submit never evicts a kept run.
     """
     async with write_transaction(session):
+        sheet_id, pass_no = (
+            await _take_pass(session, printer_id, tray, check_sheet)
+            if check_sheet is not None
+            else (None, None)
+        )
+        codes = page_codes(pass_no) if callable(page_codes) else page_codes
         # Read fresh under the lock: a long-lived session may hold a stale copy (review M2).
         counter = await session.get(
             CalibrationRunCounter, (printer_id, tray), populate_existing=True
@@ -139,24 +170,67 @@ async def allocate_run(
             job_id=job_id,
             type_version_id=type_version_id,
             correction=correction,
-            check_sheet_id=check_sheet.check_sheet_id if check_sheet else None,
-            pass_no=check_sheet.pass_no if check_sheet else None,
+            check_sheet_id=sheet_id,
+            pass_no=pass_no,
             requested_tray=tray,
-            page_codes=page_codes,
+            page_codes=codes,
             actor=actor,
         )
         session.add(run)
         await session.flush()
-        if check_sheet is not None:
+        if sheet_id is not None and pass_no is not None:
             session.add(
-                CalibrationCheckSheetPass(
-                    check_sheet_id=check_sheet.check_sheet_id,
-                    pass_no=check_sheet.pass_no,
-                    run_id=run.id,
-                )
+                CalibrationCheckSheetPass(check_sheet_id=sheet_id, pass_no=pass_no, run_id=run.id)
             )
         await session.commit()
     return run
+
+
+PageCodes = list[dict[str, Any]] | Callable[[int | None], list[dict[str, Any]] | None] | None
+
+
+async def _take_pass(
+    session: AsyncSession, printer_id: UUID, tray: str, choice: CheckSheetChoice
+) -> tuple[UUID, int]:
+    """The sheet and pass a check print takes; inside the caller's write transaction (after the
+    lock), so the free pass read here is still free when the pass row is inserted."""
+    from app.calibration.check_sheet import newest_open_sheet
+
+    if choice.mode == "new":
+        sheet = CalibrationCheckSheet(
+            id=uuid4(),
+            printer_id=printer_id,
+            tray=tray,
+            type_version_id=choice.type_version_id,
+            passes_total=choice.passes_total,
+        )
+        session.add(sheet)
+        pass_no = 1
+        used = {1}
+    else:
+        found = await newest_open_sheet(session, printer_id, tray, choice.type_version_id)
+        if found is None:
+            raise CheckSheetFullError()
+        sheet = found
+        used = set(
+            (
+                await session.execute(
+                    select(col(CalibrationCheckSheetPass.pass_no)).where(
+                        col(CalibrationCheckSheetPass.check_sheet_id) == sheet.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        free = [n for n in range(1, sheet.passes_total + 1) if n not in used]
+        if not free:
+            raise CheckSheetFullError()
+        pass_no = free[0]
+        used.add(pass_no)
+    if len(used) >= sheet.passes_total:
+        sheet.closed_at = datetime.now(UTC)
+    return sheet.id, pass_no
 
 
 def _settled(cutoff: datetime) -> Any:
@@ -207,9 +281,17 @@ def hub_zone(name: str) -> tzinfo:
         return UTC
 
 
-def stamp(payload: PagePayload, run: CalibrationRun, *, time_zone: str = "UTC") -> PagePayload:
+def stamp(
+    payload: PagePayload,
+    run: CalibrationRun,
+    *,
+    time_zone: str = "UTC",
+    crossings: Sequence[tuple[int, int]] | None = None,
+) -> PagePayload:
     """The payload with the run's number, time (``HH:MM`` in the hub's ``time_zone``, the setting
-    ``general.time_zone``; an unknown zone is UTC) and id in ``detail``.
+    ``general.time_zone``; an unknown zone is UTC) and id in ``detail``; for a pass of a check
+    sheet also ``pass_no`` and the pass's ``pass_crossings`` (``crossings``), so a retry draws the
+    same crosses whatever a later release computes.
 
     ``detail`` ignores unknown keys in every release since 1.7.0 (ADR 0034); a retry copies the
     payload and so prints the same number and time.
@@ -220,6 +302,9 @@ def stamp(payload: PagePayload, run: CalibrationRun, *, time_zone: str = "UTC") 
         "time": run.created_at.astimezone(hub_zone(time_zone)).strftime("%H:%M"),
         "run_id": str(run.id),
     }
+    if run.pass_no is not None and crossings is not None:
+        detail["pass_no"] = run.pass_no
+        detail["pass_crossings"] = [list(c) for c in crossings]
     return payload.model_copy(update={"detail": detail})
 
 
@@ -238,7 +323,7 @@ async def submit_with_run(
     check_sheet: CheckSheetChoice | None = None,
     time_zone: str = "UTC",
     retention_days: int = _JOB_RETENTION,
-    page_codes: list[dict[str, Any]] | None = None,
+    page_codes: PageCodes = None,
 ) -> tuple[CalibrationRun, UUID]:
     """Allocate a run, stamp the payload and ``submit(payload, job_id)`` with the run's job id.
 
@@ -266,8 +351,15 @@ async def submit_with_run(
     # A failing retention or compensation rolls the session back, which would expire the run
     # and break every later read of it; the caller keeps a detached, fully loaded copy.
     session.expunge(run)
+    crossings = (
+        check_sheet.crossings(run.pass_no)
+        if check_sheet is not None and run.pass_no is not None
+        else None
+    )
     try:
-        submitted = await submit(stamp(payload, run, time_zone=time_zone), job_id)
+        submitted = await submit(
+            stamp(payload, run, time_zone=time_zone, crossings=crossings), job_id
+        )
     except Exception:
         await _discard_unsubmitted(session, run)
         raise
@@ -300,10 +392,31 @@ async def _discard_unsubmitted(session: AsyncSession, run: CalibrationRun) -> No
                 await session.execute(
                     delete(CalibrationRun).where(col(CalibrationRun.id) == run.id)
                 )
+                if run.check_sheet_id is not None:
+                    await _free_pass(session, run.check_sheet_id)
             await session.commit()
     except Exception:
         # The run stays and is listed as not submitted; the caller's error is the one to report.
         logger.exception("Calibration run %s: compensation after a failed submit failed", run.id)
+
+
+async def _free_pass(session: AsyncSession, sheet_id: UUID) -> None:
+    """After a pass was taken back: a sheet with no pass left goes (its pass 1 never printed),
+    else it is open again, so ``next`` finds the freed pass."""
+    sheet = await session.get(CalibrationCheckSheet, sheet_id, populate_existing=True)
+    if sheet is None:
+        return
+    left = (
+        await session.execute(
+            select(col(CalibrationCheckSheetPass.pass_no)).where(
+                col(CalibrationCheckSheetPass.check_sheet_id) == sheet_id
+            )
+        )
+    ).first()
+    if left is None:
+        await session.delete(sheet)
+    else:
+        sheet.closed_at = None
 
 
 # ---------------------------------------------------------------------------- list

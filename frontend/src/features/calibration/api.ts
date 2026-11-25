@@ -96,6 +96,8 @@ export function usePrintCalibrationPage(printerId: string) {
       void client.invalidateQueries({ queryKey: ["jobs"] });
       // The status names the tray of the newest calibration page (#344).
       void client.invalidateQueries({ queryKey: statusKey(printerId) });
+      // A check print took a pass: the next dialog offers the one after it.
+      void client.invalidateQueries({ queryKey: [...calibrationKey(printerId), "check-sheet"] });
     },
   });
 }
@@ -165,3 +167,31 @@ export function useRestoreCalibration(printerId: string) {
     },
   });
 }
+
+export type PageLayoutSummary = Schemas["PageLayoutSummary"];
+export type CheckSheetOpen = Schemas["CheckSheetOpen"];
+export type CheckSheetMode = NonNullable<CalibrationPageRequest["check_sheet"]>;
+
+/** How a calibration or check page fits this printer and tray: page codes, margin text and run-line slots (nothing is printed). */
+export const usePageLayout = (
+  printerId: string,
+  tray: string,
+  type: { key: string; version: number } | null,
+  kind: "calibration_page" | "check_page",
+  enabled = true,
+) =>
+  useQuery({
+    queryKey: [...calibrationKey(printerId), "layout", tray, type?.key, type?.version, kind] as const,
+    queryFn: () =>
+      apiFetch<PageLayoutSummary>(`${trayPath(printerId, tray)}/page/layout${queryString({ type: type!.key, version: type!.version, kind })}`),
+    enabled: enabled && type !== null,
+  });
+
+/** The newest check sheet of this printer, tray and type version that has a free pass; `null` when there is none. */
+export const useOpenCheckSheet = (printerId: string, tray: string, type: { key: string; version: number } | null, enabled = true) =>
+  useQuery({
+    queryKey: [...calibrationKey(printerId), "check-sheet", tray, type?.key, type?.version] as const,
+    queryFn: () =>
+      apiFetch<CheckSheetOpen | null>(`${trayPath(printerId, tray)}/check-sheets/open${queryString({ type: type!.key, version: type!.version })}`),
+    enabled: enabled && type !== null,
+  });

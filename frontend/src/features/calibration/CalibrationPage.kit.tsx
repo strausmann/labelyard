@@ -43,8 +43,15 @@ export const disabledPrinter = { ...PAGE_PRINTER, id: "55555555-5555-4555-8555-5
 /** The values of backend/app/calibration/scale.py; CalibrationSchematic.scale.test.tsx holds this copy to them. */
 export const SCALE = { half_mm: 2, step_mm: 0.5, line_mm: 0.1, tick_half_mm: 0.8, tick_whole_mm: 1.4, tick_centre_mm: 2 };
 
+/** What the layout summary says by default: four page codes, full margin text, one pass (no notes in the dialog). */
+export const LAYOUT = { page_codes: 4, run_line_slots: 0, passes_total: 1, margin_text: { top: "full", bottom: "full" } };
+/** The open check sheet route answers JSON `null` when there is none. */
+export const noSheet = () => new Response("null", { status: 200, headers: { "Content-Type": "application/json" } });
+
 export function routes(extra: Record<string, unknown> = {}) {
   return {
+    [`GET ${BASE}/main/page/layout`]: LAYOUT,
+    [`GET ${BASE}/main/check-sheets/open`]: noSheet,
     "GET /api/v1/printers": [PAGE_PRINTER, secondPrinter, PRINTER_A, disabledPrinter],
     [`GET /api/v1/printers/${P}/status`]: pageStatus(P),
     [`GET /api/v1/printers/${secondPrinter.id}/status`]: pageStatus(secondPrinter.id),
@@ -72,6 +79,12 @@ export const throws = () => {
   throw new TypeError("Failed to fetch");
 };
 export const button = (name: string | RegExp) => screen.findByRole("button", { name });
+
+/** Presses the check print and confirms it in its dialog (pass 1 on a new sheet unless the dialog offers another). */
+export async function printCheck(confirm = "Print the check page") {
+  await userEvent.click(await button("Print the check page (with correction)"));
+  await userEvent.click(within(await screen.findByRole("dialog", { name: "Print the check page" })).getByRole("button", { name: confirm }));
+}
 
 /** Prints the calibration page on a tray that has a correction: the page asks first, and this answers "Measure again anyway". */
 export async function printCalibrationAnyway() {

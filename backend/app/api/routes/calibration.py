@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.identity_hold import ensure_not_held
@@ -23,6 +23,7 @@ from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin, require_print, require_read
 from app.calibration import history, page, runs, scale, service, suggest
+from app.calibration.check_sheet import CheckSheetOpen, check_passes, open_check_sheet
 from app.calibration.fit import Reading, fit
 from app.calibration.history import CalibrationHistoryRead
 from app.calibration.layout import MarginText
@@ -256,6 +257,22 @@ class PageRequest(BaseModel):
         default=False,
         description="Print with the tray's stored correction, to check it (not to measure).",
     )
+    check_sheet: runs.CheckSheetMode | None = Field(
+        default=None,
+        description=(
+            "Only with `corrected`: print a pass of a check sheet (design 7.2). `new` starts a "
+            "sheet with pass 1, the full check page; `next` prints the lowest free pass of the "
+            "newest open sheet of this printer, tray and sheet type version (passes 2 and 3: "
+            "their crosses and a run line only), else `409 check_sheet_full`. Without it the "
+            "check page is the single full page, as before 1.8.0."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _check_sheet_needs_correction(self) -> PageRequest:
+        if self.check_sheet is not None and not self.corrected:
+            raise ValueError("check_sheet needs corrected: true")
+        return self
 
 
 class PageJobAccepted(BaseModel):
@@ -289,8 +306,9 @@ _DOWNLOAD_RETRY_AFTER_S = 1
         status.HTTP_409_CONFLICT: {
             "description": (
                 "The printer is a tape printer (`media_kind_mismatch`), is not known to the "
-                "print queue (`printer-unavailable`), or the device behind it changed "
-                "(`printer-identity-mismatch`)."
+                "print queue (`printer-unavailable`), the device behind it changed "
+                "(`printer-identity-mismatch`), or `check_sheet` `next` found no open check "
+                "sheet with a free pass (`check_sheet_full`)."
             )
         },
     },
@@ -318,6 +336,18 @@ async def print_calibration_page(
         version = await ts.get_version(
             session, payload.detail["type_key"], payload.detail["version"]
         )
+        choice: runs.CheckSheetChoice | None = None
+        if body.check_sheet is not None:
+            g = ts.version_geometry(version)
+            passes = check_passes(g.cols, g.rows)
+            choice = runs.CheckSheetChoice(body.check_sheet, version.id, passes)
+            if passes:
+                payload.detail["passes_total"] = len(passes)
+
+        def page_codes(pass_no: int | None) -> list[dict[str, Any]]:
+            if pass_no is not None and pass_no > 1:
+                return []  # passes 2 and 3 draw no codes
+            return page.payload_layout(payload).page_code_records()
 
         async def submit(stamped: PagePayload, job_id: UUID) -> UUID:
             # The run number is known now: a page code that no longer fits is refused, never cut.
@@ -340,7 +370,8 @@ async def print_calibration_page(
                 submit=submit,
                 time_zone=time_zone,
                 retention_days=_job_retention_days(request),
-                page_codes=page.payload_layout(payload).page_code_records(),
+                check_sheet=choice,
+                page_codes=page_codes,
             )
         except KeyError:
             raise _printer_unavailable(printer_id) from None
@@ -427,7 +458,10 @@ async def get_calibration_page_layout(
             session, printer_id, tray, type_key=type_key, version=version,
             corrected=kind == "check_page", time_zone=str(_setting(request, "general.time_zone")),
         )  # fmt: skip
-        passes = 1
+        g = ts.version_geometry(
+            await ts.get_version(session, payload.detail["type_key"], payload.detail["version"])
+        )
+        passes = max(len(check_passes(g.cols, g.rows)), 1) if kind == "check_page" else 1
         layout = page.payload_layout(payload, passes=passes)
     return PageLayoutSummary(
         page_codes=len(layout.page_codes),
@@ -437,6 +471,46 @@ async def get_calibration_page_layout(
             top=layout.margin_text["top"], bottom=layout.margin_text["bottom"]
         ),
     )
+
+
+@router.get(
+    "/{printer_id}/calibration/{tray}/check-sheets/open",
+    response_model=CheckSheetOpen | None,
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: _PAGE_UNPROCESSABLE,
+    },
+    summary="The open check sheet of a printer, tray and sheet type version, if any",
+)
+async def get_open_check_sheet(
+    request: Request,
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    session: SessionDep,
+    auth: ReadDep,
+    type_key: Annotated[
+        str, Query(alias="type", min_length=1, max_length=200, description="Sheet type key.")
+    ],
+    version: Annotated[
+        int | None, Query(ge=1, description="Defaults to the current version.")
+    ] = None,
+) -> CheckSheetOpen | None:
+    """The newest check sheet with a free pass, for the print dialog's "Print on the same sheet?
+    (pass 2 of 3)"; `null` when there is none (every pass printed, or no sheet started).
+    `run_line_slots` is computed for the printer and tray as they are now. Nothing is stored."""
+    check_printer_access(auth, printer_id)
+    with mapped():
+        payload = await page.build_payload(
+            session, printer_id, tray, type_key=type_key, version=version, corrected=True,
+            time_zone=str(_setting(request, "general.time_zone")),
+        )  # fmt: skip
+        v = await ts.get_version(session, payload.detail["type_key"], payload.detail["version"])
+        g = ts.version_geometry(v)
+        passes = max(len(check_passes(g.cols, g.rows)), 1)
+        slots = len(page.payload_layout(payload, passes=passes).run_line_slots)
+        return await open_check_sheet(session, printer_id, tray, v.id, run_line_slots=slots)
 
 
 @router.get(

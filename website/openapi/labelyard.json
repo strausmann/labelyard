@@ -2315,6 +2315,89 @@
         "title": "CellRead",
         "type": "object"
       },
+      "CheckSheetOpen": {
+        "description": "A check sheet that still has a free pass (design 7.2).",
+        "properties": {
+          "check_sheet_id": {
+            "format": "uuid",
+            "title": "Check Sheet Id",
+            "type": "string"
+          },
+          "next_pass": {
+            "description": "The pass a print on it takes.",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Next Pass",
+            "type": "integer"
+          },
+          "passes": {
+            "description": "The printed passes, by pass number.",
+            "items": {
+              "$ref": "#/components/schemas/CheckSheetPassRead"
+            },
+            "title": "Passes",
+            "type": "array"
+          },
+          "passes_total": {
+            "description": "Passes the sheet takes.",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Passes Total",
+            "type": "integer"
+          },
+          "passes_used": {
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Passes Used",
+            "type": "integer"
+          },
+          "run_line_slots": {
+            "description": "Run-line slots for passes 2 and 3 on this printer and tray; fewer than `passes_total - 1`: the later passes print without their run line.",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Run Line Slots",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "check_sheet_id",
+          "passes_total",
+          "passes_used",
+          "next_pass",
+          "run_line_slots",
+          "passes"
+        ],
+        "title": "CheckSheetOpen",
+        "type": "object"
+      },
+      "CheckSheetPassRead": {
+        "properties": {
+          "pass_no": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Pass No",
+            "type": "integer"
+          },
+          "run_id": {
+            "description": "The run id; readings of this pass are saved against it.",
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "run_no": {
+            "description": "The run of the pass (per printer and tray).",
+            "title": "Run No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pass_no",
+          "run_no",
+          "run_id"
+        ],
+        "title": "CheckSheetPassRead",
+        "type": "object"
+      },
       "CheckStatus": {
         "properties": {
           "detail": {
@@ -4453,6 +4536,22 @@
       },
       "PageRequest": {
         "properties": {
+          "check_sheet": {
+            "anyOf": [
+              {
+                "enum": [
+                  "new",
+                  "next"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only with `corrected`: print a pass of a check sheet (design 7.2). `new` starts a sheet with pass 1, the full check page; `next` prints the lowest free pass of the newest open sheet of this printer, tray and sheet type version (passes 2 and 3: their crosses and a run line only), else `409 check_sheet_full`. Without it the check page is the single full page, as before 1.8.0.",
+            "title": "Check Sheet"
+          },
           "corrected": {
             "default": false,
             "description": "Print with the tray's stored correction, to check it (not to measure).",
@@ -13820,6 +13919,106 @@
         ]
       }
     },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/check-sheets/open": {
+      "get": {
+        "description": "The newest check sheet with a free pass, for the print dialog's \"Print on the same sheet?\n(pass 2 of 3)\"; `null` when there is none (every pass printed, or no sheet started).\n`run_line_slots` is computed for the printer and tray as they are now. Nothing is stored.",
+        "operationId": "get_open_check_sheet_api_v1_printers__printer_id__calibration__tray__check_sheets_open_get",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sheet type key.",
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Sheet type key.",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Defaults to the current version.",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to the current version.",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CheckSheetOpen"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Open Check Sheet Api V1 Printers  Printer Id  Calibration  Tray  Check Sheets Open Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+          },
+          "422": {
+            "description": "The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "The open check sheet of a printer, tray and sheet type version, if any",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
     "/api/v1/printers/{printer_id}/calibration/{tray}/fit": {
       "post": {
         "operationId": "fit_calibration_api_v1_printers__printer_id__calibration__tray__fit_post",
@@ -14127,7 +14326,7 @@
             "description": "Successful Response"
           },
           "409": {
-            "description": "The printer is a tape printer (`media_kind_mismatch`), is not known to the print queue (`printer-unavailable`), or the device behind it changed (`printer-identity-mismatch`)."
+            "description": "The printer is a tape printer (`media_kind_mismatch`), is not known to the print queue (`printer-unavailable`), the device behind it changed (`printer-identity-mismatch`), or `check_sheet` `next` found no open check sheet with a free pass (`check_sheet_full`)."
           },
           "422": {
             "description": "The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes. The run code would not fit its QR symbol at 0.25 mm modules (`calibration_qr_too_large`, with `length`, `version_needed` and `max_version`); it is never shortened."

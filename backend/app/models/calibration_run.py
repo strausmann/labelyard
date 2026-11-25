@@ -67,6 +67,9 @@ class CalibrationRun(SQLModel, table=True):
     correction: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON, nullable=True))
     """The correction applied (the payload's calibration snapshot); null for a calibration page."""
     check_sheet_id: UUID | None = Field(default=None, sa_column=Column(Uuid, nullable=True))
+    """The check sheet of a pass. No foreign key (#240, 14c): ``calibration_check_sheet_passes``
+    holds the link with foreign keys both ways; a sheet goes only with its printer (whose runs go
+    too) or when its only pass is taken back, together with that run."""
     pass_no: int | None = Field(default=None, sa_column=Column(Integer, nullable=True))
     requested_tray: str = Field(sa_column=Column(String, nullable=False))
     actual_media_source: str | None = Field(default=None, sa_column=Column(String, nullable=True))

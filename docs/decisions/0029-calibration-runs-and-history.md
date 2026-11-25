@@ -80,6 +80,11 @@ the first entry of its tray (action `imported`). Retention: 500 entries per prin
 **Check sheets take passes.** `calibration_check_sheets` holds a sheet that is printed in up to three
 passes; `calibration_check_sheet_passes` links each pass to its run (one pass per run, one run per
 pass). Readings of pass 2 and 3 are attributed through this table, not through codes on the paper.
+The pass of a check print is taken in the same write transaction as its run number (a
+`check_sheet` of `new` or `next` on the page request), so two prints never share a pass; a failed
+submit takes the pass back with its run, removes a sheet left without a pass and opens a closed one
+again. `calibration_runs.check_sheet_id` is a copy of that link without a foreign key: the pass row
+carries the foreign keys, and a sheet only goes with its printer or together with its one run.
 
 **The codes on a calibration page use the `LYC1` grammar (D35).** QR alphanumeric mode, a page code
 `LYC1:<run>:0:<PREFIX>:<version>:<dx_hmm>:<dy_hmm>:<sx_ppm_dev>:<sy_ppm_dev>:<rot_udeg>[:K1][:PX…][:PY…][:MT…][:ML…]`

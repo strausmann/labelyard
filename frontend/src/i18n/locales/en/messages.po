@@ -1245,6 +1245,10 @@ msgstr "Battery"
 msgid "before 1.8.0"
 msgstr "before 1.8.0"
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Before you print"
+msgstr "Before you print"
+
 #: src/features/printers/model.ts
 msgid "Black"
 msgstr "Black"
@@ -1359,6 +1363,7 @@ msgstr "Can't be read with the current secret key — enter it again"
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/calibration/RestoreDialog.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/printers/IdentityMismatchBanner.tsx
@@ -3032,6 +3037,10 @@ msgstr "Last used {when}"
 msgid "Later"
 msgstr "Later"
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Later check passes on this sheet will print without their run line."
+msgstr "Later check passes on this sheet will print without their run line."
+
 #: src/features/jobs/JobDetail.tsx
 #: src/features/lookup/ItemView.tsx
 #: src/features/settings/GrocyLabelSettings.tsx
@@ -3208,6 +3217,7 @@ msgstr "Loading vendors…"
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeSheetsList.tsx
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/JobsPage.tsx
@@ -3455,6 +3465,7 @@ msgstr "New code prefix (optional)"
 msgid "New key"
 msgstr "New key"
 
+#: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/sheets/print/SheetPreview.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "New sheet"
@@ -4309,6 +4320,10 @@ msgstr "Part {partNo} of {parts}"
 msgid "Parts of the crossing"
 msgstr "Parts of the crossing"
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Pass 1 of {total} on a fresh sheet of labels."
+msgstr "Pass 1 of {total} on a fresh sheet of labels."
+
 #: src/features/archive/ImportDialog.tsx
 msgid "Paste the export file or choose it."
 msgstr "Paste the export file or choose it."
@@ -4454,6 +4469,12 @@ msgstr "Print now"
 msgid "Print on the back of the liner"
 msgstr "Print on the back of the liner"
 
+#. placeholder {0}: sheet.next_pass
+#. placeholder {1}: sheet.passes_total
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Print on the same sheet (pass {0} of {1})"
+msgstr "Print on the same sheet (pass {0} of {1})"
+
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Print onto a sheet"
 msgstr "Print onto a sheet"
@@ -4469,6 +4490,10 @@ msgstr "Print onto this sheet"
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Print page"
 msgstr "Print page"
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Print pass {passNo} of {total}"
+msgstr "Print pass {passNo} of {total}"
 
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Print sheet code"
@@ -4488,6 +4513,7 @@ msgid "Print the calibration page (without correction)"
 msgstr "Print the calibration page (without correction)"
 
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/CheckPrintDialog.tsx
 msgid "Print the check page"
 msgstr "Print the check page"
 
@@ -4710,9 +4736,17 @@ msgstr "Put it into {trayLabel} and print the test page."
 msgid "Put the sheet back in the printer the way it went in the first time. Only the code in the margin is printed, no label."
 msgstr "Put the sheet back in the printer the way it went in the first time. Only the code in the margin is printed, no label."
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Put the sheet back into the tray. The new crosses land beside the earlier ones."
+msgstr "Put the sheet back into the tray. The new crosses land beside the earlier ones."
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Put the sheet in the other way round"
 msgstr "Put the sheet in the other way round"
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Put the sheet of run #{first} back into the tray. The new crosses land beside the earlier ones."
+msgstr "Put the sheet of run #{first} back into the tray. The new crosses land beside the earlier ones."
 
 #: src/features/archive/MarginPlacement.tsx
 msgid "QR + code"
@@ -6021,6 +6055,10 @@ msgstr "Testing…"
 #: src/features/sheets/cellState.ts
 msgid "text shortened"
 msgstr "text shortened"
+
+#: src/features/calibration/errors.ts
+msgid "That check sheet has no free pass left. Print on a new sheet."
+msgstr "That check sheet has no free pass left. Print on a new sheet."
 
 #: src/features/jobs/RunControls.tsx
 msgid "That did not work. Try again."
@@ -7389,6 +7427,22 @@ msgstr "This label is longer than this tape allows. Shorten the text."
 msgid "This page is not available yet."
 msgstr "This page is not available yet."
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page names its run nowhere: no page code and no margin text fit on this printer. Write the run number from the history on the sheet after printing."
+msgstr "This page names its run nowhere: no page code and no margin text fit on this printer. Write the run number from the history on the sheet after printing."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page prints without its bottom margin text (the correction); the page codes carry it."
+msgstr "This page prints without its bottom margin text (the correction); the page codes carry it."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page prints without its top margin text (run, date, sheet type); the page codes carry them."
+msgstr "This page prints without its top margin text (run, date, sheet type); the page codes carry them."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This page prints without margin text; the page codes carry the run and correction."
+msgstr "This page prints without margin text; the page codes carry the run and correction."
+
 #: src/features/settings/IppPrinterFields.tsx
 msgid "This printer cannot print PDF, so the hub cannot use it for sheets."
 msgstr "This printer cannot print PDF, so the hub cannot use it for sheets."
@@ -7450,6 +7504,14 @@ msgstr "This sheet has no gap between its rows: the Z lines sit on the cuts. Pee
 msgid "This sheet is discarded."
 msgstr "This sheet is discarded."
 
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet takes {total} check passes. This is pass 1, on a fresh sheet: keep the sheet for the next check."
+msgstr "This sheet takes {total} check passes. This is pass 1, on a fresh sheet: keep the sheet for the next check."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet takes one check pass: the check page uses up the sheet."
+msgstr "This sheet takes one check pass: the check page uses up the sheet."
+
 #: src/features/calibration/errors.ts
 msgid "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
 msgstr "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
@@ -7461,6 +7523,14 @@ msgstr "This sheet type is archived or no longer exists. Grocy labels for it are
 #: src/features/sheets/print/SheetSection.tsx
 msgid "This sheet type is archived. It offers no new sheets, but the sheets you have keep printing."
 msgstr "This sheet type is archived. It offers no new sheets, but the sheets you have keep printing."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet type leaves no room for the page codes on this printer; the margin text names the run."
+msgstr "This sheet type leaves no room for the page codes on this printer; the margin text names the run."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This sheet type leaves room for {codes} of the 4 page codes on this printer."
+msgstr "This sheet type leaves room for {codes} of the 4 page codes on this printer."
 
 #: src/features/printers/printErrorText.ts
 msgid "This tape width cannot print this label. Load another tape."
@@ -8018,6 +8088,10 @@ msgstr "Where the sheet code goes"
 #: src/features/archive/TypeForm.tsx
 msgid "Where the vendor printed on the front of the sheet. The hub keeps the sheet code, its QR code and the feed mark out of these areas."
 msgstr "Where the vendor printed on the front of the sheet. The hub keeps the sheet code, its QR code and the feed mark out of these areas."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "Which sheet?"
+msgstr "Which sheet?"
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "While this is off, the hub refuses labels from Grocy."

@@ -79,6 +79,15 @@ Auf einem Bogen mit nur zwei Spalten oder zwei Zeilen liegen alle Kreuzungen auf
 
 Drucke die Kontrollseite. Es ist dieselbe Seite, jetzt mit der Korrektur. Liegt jede Kreuzung innerhalb von ±0,5 mm, bist du fertig. Wenn nicht, miss noch einmal und stell nach.
 
+Ein Etikettenbogen reicht für bis zu drei Kontrolldrucke. Vor einem Kontrolldruck fragt Labelyard, auf welchen Bogen du druckst:
+
+- **Auf denselben Bogen drucken (Durchgang 2 von 3)**: Leg den Bogen der letzten Kontrolle wieder ins Fach. Dieser Durchgang druckt nur seine eigenen Kreuze, jeweils mit `K2` oder `K3` beschriftet, an Kreuzungen, die die früheren nie berühren, und dazu eine kurze Zeile mit seiner Laufnummer, wo der Rand Platz hat.
+- **Neuer Bogen**: Durchgang 1 auf einem frischen Bogen. Das ist die vollständige Kontrollseite mit Zellnummern und Codes; ihre Kreuze tragen `K1`.
+
+Der Dialog sagt, wie viele Durchgänge der Bogen nimmt („Dieser Bogen nimmt 2 Kontrolldurchgänge“). Er sagt auch vor dem Druck, was der Seite auf diesem Drucker fehlt: weniger als vier Seitencodes, Randtext, der nicht passt, oder spätere Durchgänge ohne ihre Laufzeile. Ein Bogentyp mit weniger als fünf Kreuzungen nimmt einen Durchgang, die vollständige Kontrollseite.
+
+Wenn du die Messwerte eines späteren Durchgangs eingibst, nimm die Kreuzungen mit dem `K` dieses Durchgangs.
+
 ## Drucker oder Bogentyp?
 
 Liegt die Seite danach immer noch daneben, sagt dir die Abweichung, wo du suchen musst. Vergleiche, was du siehst, mit dieser Tabelle:

@@ -435,6 +435,8 @@ test.describe.serial("calibration", () => {
 
       // The check print is offered now, and goes to the queue.
       await page.getByRole("button", { name: "Print the check page (with correction)" }).click();
+      // It asks first which sheet: L4736 takes two check passes, this is pass 1 of a new sheet (#240).
+      await page.getByRole("dialog", { name: "Print the check page" }).getByRole("button", { name: "Print pass 1 of 2" }).click();
       await expect(around(page.getByRole("status", { name: "Check page status" })).getByRole("link", { name: "Show the job" })).toBeVisible();
 
       // Back to no correction, through the page.

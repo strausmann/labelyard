@@ -57,6 +57,7 @@ __all__ = [
     "CHECKERBOARD_SENTENCE",
     "CORNER_LEG_INNER_HMM",
     "CORNER_LEG_OUTER_HMM",
+    "K_LABEL_PT",
     "MIN_BLOCK_PT",
     "RUN_LINE_PT",
     "Box",
@@ -75,6 +76,7 @@ __all__ = [
     "correction_line",
     "geometry_line",
     "needs_checkerboard",
+    "pass_run_line",
     "printable_area",
     "run_line",
     "text_box_mm",
@@ -105,6 +107,10 @@ CORNER_RESERVE_HMM: Final = PAGE_QR_HMM + math.ceil(PAGE_QUIET_HMM) + GAP_HMM
 """Width a margin block leaves at each end for the page code at the printable corner."""
 WORST_RUN_LINE: Final = "#999999 · 2026-11-21 14:05 · K3 · without correction"
 """The widest run line of a later check pass: a slot is reserved this wide."""
+K_LABEL_PT: Final = 5.0
+"""Size of the ``K1``/``K2``/``K3`` label next to each cross of a check pass."""
+_K_LABEL_GAP_MM: Final = 1.2
+"""The ``K`` label keeps this far from its crossing on both axes: clear of the scale's ticks."""
 
 _PT_MM: Final = 25.4 / 72
 _EPS: Final = 1e-6
@@ -236,6 +242,10 @@ class PageLayout:
     """The bottom block carries the checkerboard sentence (a sheet without a gap on one axis)."""
     margin_text: dict[str, MarginText]
     """Per block (``top``, ``bottom``): drawn at 6 pt, smaller, or left out for lack of margin."""
+    pass_no: int | None = None
+    """The pass of a check sheet this page prints; ``None`` for a full calibration or check page."""
+    run_line: Box | None = None
+    """Pass 2 or 3: the slot its run line is drawn in; ``None`` when pass 1 left no slot."""
 
     def block(self, edge: Literal["top", "bottom"]) -> MarginBlock | None:
         """The block at ``edge``; ``None`` when the margin had no room for it."""
@@ -393,6 +403,9 @@ class _Marks:
     def allowed(self, r: _Rect) -> bool:
         return _inside(r, self.area) and not any(_overlap(r, k) for k in self.keep_out)
 
+    def allowed_all(self, segs: Sequence[_Seg]) -> bool:
+        return all(self.allowed(_seg_rect(s)) for s in segs)
+
     def add(self, segs: Sequence[_Seg], dash: tuple[float, ...] | None = None) -> None:
         """One element; left out as a whole unless every stroke lies in the area, clear of the
         margin blocks and slots."""
@@ -438,19 +451,78 @@ DASHED: Final = (1.0, 0.5)
 DOTTED: Final = (0.2, 0.4)
 
 
-def _corner_mark(m: _Marks, x: float, y: float, dx: int, dy: int, *, ticks: Sequence[_Seg]) -> None:
+def _corner_mark(
+    m: _Marks,
+    x: float,
+    y: float,
+    dx: int,
+    dy: int,
+    *,
+    ticks: Sequence[_Seg],
+    inner: bool | None = None,
+) -> None:
     """An L at a label corner whose legs run along the label's two edges, inwards.
 
     Next to a crossing (``ticks`` not empty) the legs are 0.9 mm, at the grid's outer edge
-    1.8 mm. Left out as a whole when a leg would come nearer than ``scale.MIN_GAP_MM`` of white to
+    1.8 mm; ``inner`` overrides "next to a crossing" on a check pass, where most crossings carry
+    no scale. Left out as a whole when a leg would come nearer than ``scale.MIN_GAP_MM`` of white to
     a tick of a mini scale (#348): a leg cannot be shortened out of the way, it starts at the
     corner, which lies inside the scale.
     """
-    leg = (CORNER_LEG_INNER_HMM if ticks else CORNER_LEG_OUTER_HMM) / 100
+    near = bool(ticks) if inner is None else inner
+    leg = (CORNER_LEG_INNER_HMM if near else CORNER_LEG_OUTER_HMM) / 100
     legs = [(x, y, x + dx * leg, y), (x, y, x, y + dy * leg)]
     if any(white_between(a, b) < scale.MIN_GAP_MM - _EPS for a in legs for b in ticks):
         return
     m.add(legs)
+
+
+def _k_label(m: _Marks, x: float, y: float, text: str, centre: tuple[float, float]) -> None:
+    """The pass label next to a cross, in the quarter towards the page's centre first (so it
+    stays out of the corner cells, where the page codes and their moved numbers go), then the
+    other quarters; left out when none is free (the cross alone still reads)."""
+    gap = _K_LABEL_GAP_MM
+    em = K_LABEL_PT * _PT_MM
+    right: tuple[float, Anchor] = (x + gap, "start")
+    left: tuple[float, Anchor] = (x - gap, "end")
+    up = y - gap - 0.25 * em
+    down = y + gap + em
+    xs = (right, left) if centre[0] >= x else (left, right)
+    ys = (down, up) if centre[1] >= y else (up, down)
+    spots = [(sx, sy, anchor) for sy in ys for sx, anchor in xs]
+    for sx, sy, anchor in spots:
+        if m.allowed(text_box_mm(sx, sy, text, K_LABEL_PT, anchor)):
+            m.labels.append(TextMark(sx, sy, text, K_LABEL_PT, anchor))
+            return
+
+
+def _pass_marks(g: Geometry, m: _Marks, crossings: Sequence[tuple[int, int]], pass_no: int) -> None:
+    """A check pass (design 7.2): the mini scale and a ``K<pass>`` label at each of its crossings,
+    never gap lines or edge rulers; pass 1 adds the corner marks of every label."""
+    scales: dict[tuple[int, int], list[_Seg]] = {}
+    for col_gap, row_gap in crossings:
+        x, y = crossing_point(g, col_gap, row_gap)
+        along_x = scale_segments(x, y, along_x=True)
+        along_y = scale_segments(x, y, along_x=False)
+        if m.allowed_all(along_x) and m.allowed_all(along_y):
+            m.add(along_x)
+            m.add(along_y)
+            scales[col_gap - 1, row_gap - 1] = along_x + along_y
+            _k_label(m, x, y, f"K{pass_no}", (g.page_w / 200, g.page_h / 200))
+    if pass_no != 1:
+        return
+    for r in range(g.rows):
+        for c in range(g.cols):
+            lx0, ly0, lx1, ly1 = _label_rect(g, c, r)
+            left, top = c - 1, r - 1
+            for (cx, cy), (x, y, dx, dy) in (
+                ((left, top), (lx0, ly0, 1, 1)),
+                ((c, top), (lx1, ly0, -1, 1)),
+                ((left, r), (lx0, ly1, 1, -1)),
+                ((c, r), (lx1, ly1, -1, -1)),
+            ):
+                inner = 0 <= cx < g.cols - 1 and 0 <= cy < g.rows - 1
+                _corner_mark(m, x, y, dx, dy, ticks=scales.get((cx, cy), []), inner=inner)
 
 
 def _grid_marks(g: Geometry, m: _Marks) -> None:
@@ -532,11 +604,32 @@ def _outcome(corrected: bool) -> str:
     return "check print with correction" if corrected else "printed without correction"
 
 
-def run_line(run_no: int | None, day: str, time: str | None, *, corrected: bool) -> str:
-    """The first line of the top block: run, date and time, and what the page is. Never cut."""
+def run_line(
+    run_no: int | None,
+    day: str,
+    time: str | None,
+    *,
+    corrected: bool,
+    pass_of: tuple[int, int] | None = None,
+) -> str:
+    """The first line of the top block: run, date and time, and what the page is. Never cut.
+
+    ``pass_of`` is ``(pass, passes)`` on pass 1 of a check sheet that takes more than one pass.
+    """
     run = f"Run #{run_no}" if run_no is not None else "No run (downloaded PDF)"
     when = f"{day} {time}" if time else day
-    return f"{run} · {when} · Calibration page — {_outcome(corrected)}"
+    line = f"{run} · {when} · Calibration page — {_outcome(corrected)}"
+    return f"{line} · pass {pass_of[0]} of {pass_of[1]}" if pass_of else line
+
+
+def pass_run_line(
+    run_no: int | None, day: str, time: str | None, *, pass_no: int, corrected: bool
+) -> str:
+    """The one line pass 2 or 3 prints in its slot (design 7.2), e.g.
+    ``#14 · 2026-11-21 14:05 · K2 · with correction``. Never cut."""
+    run = f"#{run_no}" if run_no is not None else "No run"
+    when = f"{day} {time}" if time else day
+    return f"{run} · {when} · K{pass_no} · {'with' if corrected else 'without'} correction"
 
 
 def type_line(type_key: str, version: int, printer_name: str, tray: str) -> str:
@@ -575,12 +668,14 @@ _WORST_DEV: Final = Deviation(-1000, -1000, 950_000, 950_000, -2_000_000)
 _WORST_DIFF: Final = dict.fromkeys(GEOMETRY_FIELDS, 100000)
 
 
-def top_block_width_mm(size_pt: float = BLOCK_PT) -> float:
-    """The width the top block reserves: its longest fixed line (the run line, run 999999)."""
+def top_block_width_mm(size_pt: float = BLOCK_PT, *, passes: int = 1) -> float:
+    """The width the top block reserves: its longest fixed line (the run line, run 999999; on a
+    check sheet of several passes with its ``pass 1 of n``)."""
+    pass_of = (1, passes) if passes > 1 else None
     return _widest(
         size_pt,
         [
-            run_line(n, "2026-11-21", t, corrected=c)
+            run_line(n, "2026-11-21", t, corrected=c, pass_of=pass_of)
             for n, t in ((999_999, "23:59"), (None, None))
             for c in (False, True)
         ],
@@ -604,7 +699,7 @@ def _block_height_mm(lines: int, size_pt: float = BLOCK_PT) -> float:
 
 
 def _blocks(
-    area: _Rect, grid: _Rect, *, bottom_lines: int
+    area: _Rect, grid: _Rect, *, bottom_lines: int, passes: int = 1
 ) -> tuple[tuple[MarginBlock, ...], dict[str, MarginText]]:
     """The top and the bottom block, each in its margin between the area's edge and the grid
     (spec 7.2: nothing across the grid, no label and no gap between labels).
@@ -623,7 +718,10 @@ def _blocks(
         "top": (area[1], grid[1] - gap),
         "bottom": (grid[3] + gap, area[3]),
     }
-    widths = {"top": top_block_width_mm, "bottom": bottom_block_width_mm}
+    widths = {
+        "top": lambda pt: top_block_width_mm(pt, passes=passes),
+        "bottom": bottom_block_width_mm,
+    }
     lines = {"top": 2, "bottom": bottom_lines}
     blocks: list[MarginBlock] = []
     text: dict[str, MarginText] = {}
@@ -783,6 +881,8 @@ def check_page_layout(
     allow_qr: bool,
     passes: int,
     bottom_lines: int | None = None,
+    pass_no: int | None = None,
+    crossings: Sequence[tuple[int, int]] | None = None,
 ) -> PageLayout:
     """The calibration page (or pass 1 of a check sheet that takes ``passes`` passes) for ``g``.
 
@@ -793,6 +893,12 @@ def check_page_layout(
     count (``bottom_line_count``); unknown, it reserves room for every line that may appear.
     The page codes carry the run, the sheet type, its version and the correction, so a page
     without margin blocks still names its run.
+
+    ``pass_no`` and ``crossings`` lay out one pass of a check sheet (``check_sheet.check_passes``):
+    pass 1 is the full page with crosses (mini scale and ``K1``) only at its crossings and no gap
+    lines or rulers; passes 2 and 3 are their crosses and, in their run-line slot of pass 1's
+    layout (``run_line``), one run line, and nothing else. Without them the page is the full
+    calibration or check page.
     """
     if g.cols < 2 or g.rows < 2:
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
@@ -807,18 +913,43 @@ def check_page_layout(
     )
     if bottom_lines is None:
         bottom_lines = bottom_line_count(geometry_diff=True, checkerboard=checker)
-    blocks, margin_text = _blocks(a, grid, bottom_lines=bottom_lines)
+    blocks, margin_text = _blocks(a, grid, bottom_lines=bottom_lines, passes=passes)
     slots = _slots(min(max(passes - 1, 0), 2), a, blocks, grid)
     keep_out = [b.box.rect_mm() for b in blocks] + [s.rect_mm() for s in slots]
 
     marks = _Marks(a, keep_out)
-    _grid_marks(g, marks)
+    if crossings is None:
+        _grid_marks(g, marks)
+    else:
+        if pass_no is None:
+            raise ValueError("check pass: crossings without a pass number")
+        _pass_marks(g, marks, crossings, pass_no)
+    if pass_no is not None and pass_no > 1:
+        # Nothing of pass 1 again: printed after a correction it would land offset over it.
+        return PageLayout(
+            area=area,
+            margin_blocks=(),
+            page_codes=(),
+            cell_codes=(),
+            cell_numbers=(),
+            run_line_slots=slots,
+            marks=tuple(marks.marks),
+            labels=tuple(marks.labels),
+            checkerboard=checker,
+            margin_text=margin_text,
+            pass_no=pass_no,
+            run_line=slots[pass_no - 2] if len(slots) >= pass_no - 1 else None,
+        )
+    # A cross's K label is ink the cell content keeps clear of.
+    cell_keep_out = list(keep_out)
+    if crossings is not None:
+        cell_keep_out += [text_box_mm(t.x, t.y, t.text, t.size_pt, t.anchor) for t in marks.labels]
 
     codes: dict[int, CellCode] = {}
     numbers: dict[int, CellNumber] = {}
     for r in range(g.rows):
         for c in range(g.cols):
-            code, num = _cell_content(g, c, r, allow_qr=allow_qr, area=a, keep_out=keep_out)
+            code, num = _cell_content(g, c, r, allow_qr=allow_qr, area=a, keep_out=cell_keep_out)
             cell = r * g.cols + c + 1
             if code is not None:
                 codes[cell] = code
@@ -891,6 +1022,7 @@ def check_page_layout(
         labels=tuple(marks.labels),
         checkerboard=checker,
         margin_text=margin_text,
+        pass_no=pass_no,
     )
 
 
