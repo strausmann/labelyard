@@ -12,6 +12,7 @@ import { canRetry } from "../jobs/model";
 import {
   claimJob,
   errorCodeFromMessage,
+  releaseClaimPending,
   replaceWatchedJob,
   useJobLive,
   useWatchedPrints,
@@ -35,6 +36,11 @@ interface PrintResultProps {
   label: string;
   /** The next step once the page is out of the printer. */
   doneHint: string;
+  /**
+   * False while the line sits on a tab that is not open (hidden and inert): it then does not claim the job, so the
+   * notification stack announces it instead of nobody.
+   */
+  inView?: boolean;
 }
 
 /**
@@ -46,7 +52,7 @@ interface PrintResultProps {
  * It reads the job from the same store as the notification stack (`useJobLive`), so the two always agree, and
  * it claims the job so the stack shows its card without announcing it a second time.
  */
-export function PrintResult({ jobId: firstJobId, printerId, subject, label, doneHint }: PrintResultProps) {
+export function PrintResult({ jobId: firstJobId, printerId, subject, label, doneHint, inView = true }: PrintResultProps) {
   const { t } = useLingui();
   const stateWords = useStateWords();
   // The print was registered with the stack by the mutation hook; the stack's entry decides which job is current.
@@ -60,8 +66,13 @@ export function PrintResult({ jobId: firstJobId, printerId, subject, label, done
   const phase = live?.phase ?? "queued";
 
   // Claim the job while this line shows it: the stack stops announcing it, and a reconnect still resyncs it
-  // when its card was dismissed.
-  useEffect(() => (jobId ? claimJob(jobId) : undefined), [jobId]);
+  // when its card was dismissed. A line on a hidden tab shows nothing, so it leaves the job to the stack, also
+  // a print that was accepted after the tab was left and still waits for this line's claim (`claimPending`).
+  useEffect(() => {
+    if (!jobId) return;
+    if (inView) return claimJob(jobId);
+    releaseClaimPending(jobId);
+  }, [jobId, inView]);
 
   const mounted = useRef(false);
   useEffect(() => {

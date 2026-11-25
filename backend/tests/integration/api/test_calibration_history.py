@@ -404,6 +404,26 @@ async def test_restore_writes_a_revert_entry_with_the_old_values(api_client_with
     assert wrong_tray.status_code == 404
 
 
+async def test_restore_keeps_the_note_cleaned(api_client_with_seed: Any) -> None:
+    """The restore confirmation asks for an optional note (M7); it lands on the revert entry."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    _second, first = await _two_saves(c, pid, admin)
+    url = f"/api/v1/printers/{pid}/calibration/auto/history/{first['id']}/restore"
+    r = await c.post(url, headers=admin, json={"note": "  Back to the values of 11-15\x07 "})
+    assert r.status_code == 200, r.text
+    newest = (await _history(c, pid, "auto", admin))[0]
+    assert newest["action"] == "revert" and newest["note"] == "Back to the values of 11-15"
+    # Without a body, and with an empty note, the entry has no note.
+    assert (await c.post(url, headers=admin)).status_code == 200
+    assert (await _history(c, pid, "auto", admin))[0]["note"] is None
+    assert (await c.post(url, headers=admin, json={"note": "   "})).status_code == 200
+    assert (await _history(c, pid, "auto", admin))[0]["note"] is None
+    too_long = await c.post(url, headers=admin, json={"note": "x" * 501})
+    assert too_long.status_code == 422
+
+
 async def test_restore_twice_writes_two_entries_with_equal_values(
     api_client_with_seed: Any,
 ) -> None:

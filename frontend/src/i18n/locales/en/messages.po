@@ -41,6 +41,11 @@ msgstr "{0, plural, one {# free label} other {# free labels}}"
 msgid "{0, plural, one {# item will not print.} other {# items will not print.}}"
 msgstr "{0, plural, one {# item will not print.} other {# items will not print.}}"
 
+#. placeholder {0}: entry.jobs_count
+#: src/features/calibration/HistoryPanel.tsx
+msgid "{0, plural, one {# job printed with it} other {# jobs printed with it}}"
+msgstr "{0, plural, one {# job printed with it} other {# jobs printed with it}}"
+
 #. placeholder {0}: p.cells.length
 #: src/features/sheets/print/SheetSection.tsx
 msgid "{0, plural, one {# label → cells {cells} on {sheet}} other {# labels → cells {cells} on {sheet}}}"
@@ -68,6 +73,11 @@ msgstr "{0, plural, one {# printer is not wired} other {# printers are not wired
 #: src/features/archive/TypeDetail.tsx
 msgid "{0, plural, one {# product code} other {# product codes}}"
 msgstr "{0, plural, one {# product code} other {# product codes}}"
+
+#. placeholder {0}: readings.length
+#: src/features/calibration/HistoryPanel.tsx
+msgid "{0, plural, one {# reading} other {# readings}}"
+msgstr "{0, plural, one {# reading} other {# readings}}"
 
 #. placeholder {0}: g.rows
 #: src/features/sheets/GeometryDiagram.tsx
@@ -291,6 +301,10 @@ msgstr "{finished} of {total} items"
 msgid "{finished} of {total} pages"
 msgstr "{finished} of {total} pages"
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "{fit} · largest residual {residual} mm."
+msgstr "{fit} · largest residual {residual} mm."
+
 #: src/features/sheets/print/SheetSection.tsx
 msgid "{fitPlaced} of {needed} labels fit on this sheet. The rest can go onto the next sheet."
 msgstr "{fitPlaced} of {needed} labels fit on this sheet. The rest can go onto the next sheet."
@@ -351,6 +365,10 @@ msgstr "{item}: printed before on {sheet} on {when}, cell {cells}"
 #: src/features/overview/OverviewPage.tsx
 msgid "{job} is waiting"
 msgstr "{job} is waiting"
+
+#: src/features/calibration/RunsTable.tsx
+msgid "{kind} (retry)"
+msgstr "{kind} (retry)"
 
 #: src/features/lookup/CartPage.tsx
 msgid "{kind}, for example {name}."
@@ -495,6 +513,10 @@ msgstr "{printer}: Not wired: {reason}"
 #: src/features/notifications/useEntryText.ts
 msgid "{printer}: Unsupported roll loaded: {inline}"
 msgstr "{printer}: Unsupported roll loaded: {inline}"
+
+#: src/features/calibration/RestoreDialog.tsx
+msgid "{printerName} · {trayLabel}. This adds a new entry; nothing is deleted."
+msgstr "{printerName} · {trayLabel}. This adds a new entry; nothing is deleted."
 
 #: src/features/sheets/PurgeDialog.tsx
 msgid "{purged, plural, one {# sheet purged.} other {# sheets purged.}}"
@@ -723,10 +745,6 @@ msgstr "A print was refused"
 msgid "A printer list is stored on this key. Ignored for admin keys: an admin key acts on every printer."
 msgstr "A printer list is stored on this key. Ignored for admin keys: an admin key acts on every printer."
 
-#: src/features/calibration/CalibrationPage.tsx
-msgid "A printer rarely prints exactly where the page says. Measure how far it is off on a real sheet, and the hub moves every print by the opposite."
-msgstr "A printer rarely prints exactly where the page says. Measure how far it is off on a real sheet, and the hub moves every print by the opposite."
-
 #. placeholder {0}: MAX.code
 #: src/features/archive/TypeForm.tsx
 msgid "A product code is at most {0} characters."
@@ -747,6 +765,14 @@ msgstr "A sheet type with the key {existingKey} already exists. Add this geometr
 #: src/features/archive/errors.ts
 msgid "A sheet type with this key already exists."
 msgstr "A sheet type with this key already exists."
+
+#: src/features/archive/TypeVersions.tsx
+msgid "A sheet uses a newer version, so this one can only be shown."
+msgstr "A sheet uses a newer version, so this one can only be shown."
+
+#: src/features/archive/errors.ts
+msgid "A sheet uses a newer version, so this one cannot be restored."
+msgstr "A sheet uses a newer version, so this one cannot be restored."
 
 #: src/features/archive/errors.ts
 msgid "A text is too long."
@@ -799,7 +825,9 @@ msgstr "above 1 = printed too large"
 msgid "Access and keys"
 msgstr "Access and keys"
 
+#: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/ReadingsHelper.tsx
+#: src/features/calibration/RestoreDialog.tsx
 #: src/features/layout/LayoutPicker.tsx
 msgid "Across"
 msgstr "Across"
@@ -1213,6 +1241,10 @@ msgstr "Bar shows"
 msgid "Battery"
 msgstr "Battery"
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "before 1.8.0"
+msgstr "before 1.8.0"
+
 #: src/features/printers/model.ts
 msgid "Black"
 msgstr "Black"
@@ -1282,6 +1314,7 @@ msgid "Calibration is held until an admin settles the device swap."
 msgstr "Calibration is held until an admin settles the device swap."
 
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/RunsTable.tsx
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx
 #: src/shell/PrintToasts.tsx
@@ -1326,6 +1359,7 @@ msgstr "Can't be read with the current secret key — enter it again"
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/RestoreDialog.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/printers/IdentityMismatchBanner.tsx
 #: src/features/printers/PrinterDetail.tsx
@@ -1455,6 +1489,10 @@ msgstr "Change colour"
 msgid "Changed here; the catalog has a newer version ({0})."
 msgstr "Changed here; the catalog has a newer version ({0})."
 
+#: src/features/archive/TypeVersions.tsx
+msgid "Changed measurements"
+msgstr "Changed measurements"
+
 #: src/features/scan/GrocycodePage.tsx
 msgid "Charge cycles"
 msgstr "Charge cycles"
@@ -1468,6 +1506,7 @@ msgid "Check on tray"
 msgstr "Check on tray"
 
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/RunsTable.tsx
 msgid "Check page"
 msgstr "Check page"
 
@@ -1657,7 +1696,7 @@ msgstr "Colour modes"
 msgid "colour not given"
 msgstr "colour not given"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 #: src/features/archive/TypeForm.tsx
 msgid "Columns"
 msgstr "Columns"
@@ -1775,7 +1814,7 @@ msgstr "Copy key"
 msgid "Copy lines"
 msgstr "Copy lines"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Corner radius"
 msgstr "Corner radius"
@@ -1787,6 +1826,10 @@ msgstr "Corner radius (mm)"
 #: src/features/calibration/guide/StillOff.tsx
 msgid "Correct that sheet type (add a new version), not the printer."
 msgstr "Correct that sheet type (add a new version), not the printer."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Corrections for this tray"
+msgstr "Corrections for this tray"
 
 #: src/features/lookup/CartPage.tsx
 msgid "Could not check the items; the print still checks them."
@@ -1867,11 +1910,12 @@ msgstr "Created the type {0} as a new key."
 msgid "Created the type {0}."
 msgstr "Created the type {0}."
 
+#: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Crossing"
 msgstr "Crossing"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeVersions.tsx
 msgid "current"
 msgstr "current"
 
@@ -2093,7 +2137,9 @@ msgstr "Done"
 msgid "door open"
 msgstr "door open"
 
+#: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/ReadingsHelper.tsx
+#: src/features/calibration/RestoreDialog.tsx
 msgid "Down"
 msgstr "Down"
 
@@ -2260,6 +2306,10 @@ msgstr "Enter what the printer did wrong; the hub applies the opposite itself."
 msgid "Error"
 msgstr "Error"
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Every calibration, check and probe page has a run number. A retry keeps its number."
+msgstr "Every calibration, check and probe page has a run number. A retry keeps its number."
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Every crossing should be within 0.5 mm of the cut."
 msgstr "Every crossing should be within 0.5 mm of the cut."
@@ -2267,6 +2317,10 @@ msgstr "Every crossing should be within 0.5 mm of the cut."
 #: src/features/archive/RemoveUnusedDialog.tsx
 msgid "Every installed type has sheets. There is nothing to remove."
 msgstr "Every installed type has sheets. There is nothing to remove."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Every save is kept. Restoring an entry adds a new one; nothing is overwritten or deleted."
+msgstr "Every save is kept. Restoring an entry adds a new one; nothing is overwritten or deleted."
 
 #: src/features/sheets/SheetsPage.tsx
 msgid "Every sheet is used up."
@@ -2297,7 +2351,7 @@ msgid "Export file contents"
 msgstr "Export file contents"
 
 #. placeholder {0}: v.version
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeVersions.tsx
 msgid "Export version {0}"
 msgstr "Export version {0}"
 
@@ -2387,13 +2441,22 @@ msgstr "First free cells"
 msgid "First missing label"
 msgstr "First missing label"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeVersions.tsx
 msgid "first version"
 msgstr "first version"
 
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Fit"
 msgstr "Fit"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Fit from {count} readings"
+msgstr "Fit from {count} readings"
+
+#. placeholder {0}: entry.run_no
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Fit from {count} readings of print #{0}"
+msgstr "Fit from {count} readings of print #{0}"
 
 #: src/features/archive/MarginPlacement.tsx
 msgid "Fits"
@@ -2427,6 +2490,10 @@ msgstr "free"
 #: src/features/archive/TypeDetail.tsx
 msgid "Free labels"
 msgstr "Free labels"
+
+#: src/features/archive/TypeVersions.tsx
+msgid "from the catalog"
+msgstr "from the catalog"
 
 #: src/features/archive/TypeForm.tsx
 msgid "From the left edge of one label to the left edge of the next."
@@ -2551,6 +2618,7 @@ msgstr "Hide used-up sheets"
 msgid "Hides entries nobody has checked on a real sheet."
 msgstr "Hides entries nobody has checked on a real sheet."
 
+#: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/JobDetail.tsx
 msgid "History"
 msgstr "History"
@@ -2559,7 +2627,7 @@ msgstr "History"
 msgid "Hold a label's code inside the corners. QR, Code 128 and Data Matrix are read."
 msgstr "Hold a label's code inside the corners. QR, Code 128 and Data Matrix are read."
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 msgid "Horizontal pitch"
 msgstr "Horizontal pitch"
 
@@ -2634,6 +2702,10 @@ msgstr "Import with the new key"
 msgid "imported"
 msgstr "imported"
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Imported"
+msgstr "Imported"
+
 #: src/features/sheets/SheetCodePanel.tsx
 msgctxt "sheet code placement"
 msgid "In a cell"
@@ -2686,6 +2758,10 @@ msgstr "In use"
 #: src/features/sheets/SheetsPage.tsx
 msgid "In use by a running job"
 msgstr "In use by a running job"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "In use now"
+msgstr "In use now"
 
 #: src/features/archive/IdPositionControls.tsx
 msgid "Increase the offset by 0.5 mm"
@@ -2799,6 +2875,10 @@ msgstr "Keep them"
 msgid "Kept / Hangar / Grocy"
 msgstr "Kept / Hangar / Grocy"
 
+#: src/features/calibration/RestoreDialog.tsx
+msgid "Kept in the history with who restored it."
+msgstr "Kept in the history with who restored it."
+
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Kept only in this browser. Print adds the label to the cart."
 msgstr "Kept only in this browser. Print adds the label to the cart."
@@ -2848,7 +2928,7 @@ msgstr "Label counter — IPP is not tried: the printer did not finish a test pr
 msgid "Label fields"
 msgstr "Label fields"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 msgid "Label height"
 msgstr "Label height"
 
@@ -2865,7 +2945,7 @@ msgstr "Label layout on 62 mm tape"
 msgid "Label preview"
 msgstr "Label preview"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 #: src/features/archive/TypeForm.tsx
 msgid "Label shape"
 msgstr "Label shape"
@@ -2874,7 +2954,7 @@ msgstr "Label shape"
 msgid "Label size"
 msgstr "Label size"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 msgid "Label width"
 msgstr "Label width"
 
@@ -2987,7 +3067,7 @@ msgstr "Left half of the top band, enlarged"
 msgid "left margin"
 msgstr "left margin"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Left margin"
 msgstr "Left margin"
@@ -3128,6 +3208,7 @@ msgstr "Loading vendors…"
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeSheetsList.tsx
 #: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/HistoryPanel.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/JobsPage.tsx
 #: src/features/lookup/ItemView.tsx
@@ -3245,6 +3326,14 @@ msgstr "Measure with the readings helper"
 #: src/features/archive/FeedbackLinks.tsx
 msgid "Measured a sheet? Tell us what you found. The link opens a prepared issue on GitHub that holds this sheet type's data only: no address of your hub, no printer, no keys."
 msgstr "Measured a sheet? Tell us what you found. The link opens a prepared issue on GitHub that holds this sheet type's data only: no address of your hub, no printer, no keys."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Measured on {name} v{version}."
+msgstr "Measured on {name} v{version}."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Measured on a sheet type version that was deleted since."
+msgstr "Measured on a sheet type version that was deleted since."
 
 #: src/features/archive/TypeDetail.tsx
 msgid "Measurement"
@@ -3415,6 +3504,10 @@ msgstr "No"
 #: src/features/sheets/print/PrinterRow.tsx
 msgid "No answer yet"
 msgstr "No answer yet"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "No calibration, check or probe page printed from this tray yet."
+msgstr "No calibration, check or probe page printed from this tray yet."
 
 #: src/features/scan/CameraScanner.tsx
 msgid "No camera"
@@ -3707,6 +3800,10 @@ msgstr "Not ready"
 msgid "Not reported"
 msgstr "Not reported"
 
+#: src/features/calibration/RunsTable.tsx
+msgid "not reported by the printer"
+msgstr "not reported by the printer"
+
 #: src/features/settings/Integrations.tsx
 msgid "Not saved"
 msgstr "Not saved"
@@ -3724,6 +3821,10 @@ msgstr "Not set"
 #: src/features/settings/Integrations.tsx
 msgid "Not set up"
 msgstr "Not set up"
+
+#: src/features/calibration/RunsTable.tsx
+msgid "not submitted"
+msgstr "not submitted"
 
 #: src/features/printers/printConfirmation.ts
 msgid "Not tested yet — a test print finds out"
@@ -3759,6 +3860,15 @@ msgstr "Not yet validated"
 #: src/features/sheets/SheetDetail.tsx
 msgid "Note"
 msgstr "Note"
+
+#: src/features/calibration/RestoreDialog.tsx
+msgid "Note (optional)"
+msgstr "Note (optional)"
+
+#. placeholder {0}: entry.note
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Note: {0}"
+msgstr "Note: {0}"
 
 #: src/features/archive/TypeForm.tsx
 msgid "Notes"
@@ -3812,6 +3922,10 @@ msgstr "Nothing new."
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Nothing opened yet."
 msgstr "Nothing opened yet."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Nothing saved for this tray yet."
+msgstr "Nothing saved for this tray yet."
 
 #: src/features/archive/TypeForm.tsx
 msgid "Nothing was saved"
@@ -3987,6 +4101,10 @@ msgstr "Only the first {listed} of {reported} trays are listed."
 msgid "Only the first 500 sheets are listed here; the sheets list shows them all."
 msgstr "Only the first 500 sheets are listed here; the sheets list shows them all."
 
+#: src/features/jobs/JobsPage.tsx
+msgid "Only the jobs printed with one saved calibration."
+msgstr "Only the jobs printed with one saved calibration."
+
 #: src/features/printers/printErrorText.ts
 msgid "Only the spool label prints on {tapeMm} mm tape. Remove the other labels from the cart or load 62 mm tape."
 msgstr "Only the spool label prints on {tapeMm} mm tape. Remove the other labels from the cart or load 62 mm tape."
@@ -4112,6 +4230,7 @@ msgid "Package"
 msgstr "Package"
 
 #: src/features/archive/CatalogTab.tsx
+#: src/features/calibration/RunsTable.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Page"
 msgstr "Page"
@@ -4150,13 +4269,18 @@ msgid "Page printers"
 msgstr "Page printers"
 
 #: src/features/archive/ArchivePage.tsx
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 msgid "Page size"
 msgstr "Page size"
 
 #: src/shell/PhoneMenu.tsx
 msgid "Pages"
 msgstr "Pages"
+
+#: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/RunsTable.tsx
+msgid "Pages printed from this tray"
+msgstr "Pages printed from this tray"
 
 #: src/features/archive/TypeForm.tsx
 #: src/features/jobs/PageJobInfo.tsx
@@ -4279,6 +4403,20 @@ msgstr "Print"
 msgid "Print {0}"
 msgstr "Print {0}"
 
+#. placeholder {0}: mismatch.run_no
+#. placeholder {1}: labelOf(mismatch.actual_media_source!)
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Print #{0} came from {1}"
+msgstr "Print #{0} came from {1}"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "print #{n}"
+msgstr "print #{n}"
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Print a test page, read how far the ink landed from each crossing, and save the correction for this printer and tray."
+msgstr "Print a test page, read how far the ink landed from each crossing, and save the correction for this printer and tray."
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Print again"
 msgstr "Print again"
@@ -4327,6 +4465,10 @@ msgstr "Print onto sheet"
 #: src/features/sheets/SheetDetail.tsx
 msgid "Print onto this sheet"
 msgstr "Print onto this sheet"
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Print page"
+msgstr "Print page"
 
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Print sheet code"
@@ -4377,10 +4519,18 @@ msgstr "Print without correction?"
 msgid "printed"
 msgstr "printed"
 
+#: src/features/calibration/RunsTable.tsx
+msgid "Printed"
+msgstr "Printed"
+
 #: src/features/sheets/SheetDetail.tsx
 msgctxt "resolve an unconfirmed cell"
 msgid "Printed"
 msgstr "Printed"
+
+#: src/features/calibration/RunsTable.tsx
+msgid "Printed from"
+msgstr "Printed from"
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Printed in black only: lines are told apart by number and line style, never by colour."
@@ -4403,7 +4553,6 @@ msgstr "Printed, cell {n}"
 msgid "Printer"
 msgstr "Printer"
 
-#: src/features/calibration/CalibrationPage.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "Printer and tray"
 msgstr "Printer and tray"
@@ -4507,6 +4656,10 @@ msgstr "prints on the side facing up"
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Prints the code in the free band around the labels. No extra pass through the printer."
 msgstr "Prints the code in the free band around the labels. No extra pass through the printer."
+
+#: src/features/calibration/RunsTable.tsx
+msgid "Probe page"
+msgstr "Probe page"
 
 #: src/features/overview/OverviewPage.tsx
 #: src/features/printers/model.ts
@@ -4662,6 +4815,11 @@ msgstr "Reading {n} names a gap that this sheet does not have."
 msgid "Reading the printer…"
 msgstr "Reading the printer…"
 
+#: src/features/calibration/CalibrationPage.tsx
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Readings"
+msgstr "Readings"
+
 #: src/features/settings/PrinterForm.tsx
 msgid "Reads the printer's state and tape over SNMP. Printing works without it."
 msgstr "Reads the printer's state and tape over SNMP. Printing works without it."
@@ -4800,10 +4958,18 @@ msgstr "Reprint from label {choice}"
 msgid "Reprint margin code"
 msgstr "Reprint margin code"
 
+#: src/features/calibration/RunsTable.tsx
+msgid "Requested tray"
+msgstr "Requested tray"
+
 #: src/features/sheets/cellState.ts
 msgctxt "sheet cell state"
 msgid "reserved"
 msgstr "reserved"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Reset"
+msgstr "Reset"
 
 #: src/features/printers/IdentityMismatchBanner.tsx
 msgid "Reset calibration and accept"
@@ -4813,9 +4979,17 @@ msgstr "Reset calibration and accept"
 msgid "Reset to no correction"
 msgstr "Reset to no correction"
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Reset to no correction."
+msgstr "Reset to no correction."
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Reset. This tray prints without correction."
 msgstr "Reset. This tray prints without correction."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Residual"
+msgstr "Residual"
 
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Resolutions"
@@ -4841,6 +5015,41 @@ msgstr "Resolve as printed"
 msgid "Resolve the unconfirmed cells first; the sheet code waits for them"
 msgstr "Resolve the unconfirmed cells first; the sheet code waits for them"
 
+#: src/features/archive/TypeVersions.tsx
+msgid "Restore as new version"
+msgstr "Restore as new version"
+
+#. placeholder {0}: v.version
+#: src/features/archive/TypeVersions.tsx
+msgid "Restore as new version (version {0})"
+msgstr "Restore as new version (version {0})"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Restore these values"
+msgstr "Restore these values"
+
+#. placeholder {0}: entry.seq
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Restore these values (entry {0})"
+msgstr "Restore these values (entry {0})"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Restored from an earlier entry."
+msgstr "Restored from an earlier entry."
+
+#. placeholder {0}: from.seq
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Restored from entry {0}."
+msgstr "Restored from entry {0}."
+
+#: src/features/archive/TypeVersions.tsx
+msgid "Restoring…"
+msgstr "Restoring…"
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Result"
+msgstr "Result"
+
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Result of the fit"
 msgstr "Result of the fit"
@@ -4864,6 +5073,10 @@ msgstr "Retrying and cancelling need a print or admin key."
 #: src/features/jobs/RetryError.tsx
 msgid "Retrying needs a print or admin key."
 msgstr "Retrying needs a print or admin key."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Revert"
+msgstr "Revert"
 
 #: src/features/about/BuildRows.tsx
 msgid "Revision"
@@ -4920,6 +5133,8 @@ msgid "Roll not supported"
 msgstr "Roll not supported"
 
 #: src/features/calibration/errors.ts
+#: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/RestoreDialog.tsx
 msgid "Rotation"
 msgstr "Rotation"
 
@@ -4943,7 +5158,7 @@ msgstr "Round"
 msgid "Round labels must be as high as they are wide."
 msgstr "Round labels must be as high as they are wide."
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 #: src/features/archive/TypeForm.tsx
 msgid "Rows"
 msgstr "Rows"
@@ -4951,6 +5166,10 @@ msgstr "Rows"
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Rulers with a tick every 0.5 mm run along every gap line on all four edges of the grid."
 msgstr "Rulers with a tick every 0.5 mm run along every gap line on all four edges of the grid."
+
+#: src/features/calibration/RunsTable.tsx
+msgid "Run"
+msgstr "Run"
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "S1, S2 … number the gaps between columns (solid lines)."
@@ -4965,6 +5184,7 @@ msgid "Same device"
 msgstr "Same device"
 
 #: src/features/archive/IdPlacementSection.tsx
+#: src/features/calibration/HistoryPanel.tsx
 #: src/features/printers/RollColourPrompt.tsx
 #: src/features/settings/GrocyLabelSettings.tsx
 #: src/features/settings/Integrations.tsx
@@ -5045,6 +5265,18 @@ msgstr "Saving needs an admin key, because it changes every print on this tray."
 #: src/features/printers/wiring.tsx
 msgid "Saving tries the connection again, you do not need to restart the hub."
 msgstr "Saving tries the connection again, you do not need to restart the hub."
+
+#: src/features/calibration/RestoreDialog.tsx
+msgid "Scale"
+msgstr "Scale"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Scale across"
+msgstr "Scale across"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Scale down"
+msgstr "Scale down"
 
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/errors.ts
@@ -5320,6 +5552,7 @@ msgid "Sheet types could not be linked to the catalog. The hub tries again on it
 msgstr "Sheet types could not be linked to the catalog. The hub tries again on its next start."
 
 #: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeVersions.tsx
 #: src/features/overview/SheetTiles.tsx
 #: src/features/sheets/SheetsPage.tsx
 #: src/shell/labels.ts
@@ -5355,6 +5588,10 @@ msgstr "Show all {0} packages"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Show all {count}"
 msgstr "Show all {count}"
+
+#: src/features/jobs/JobsPage.tsx
+msgid "Show all jobs"
+msgstr "Show all jobs"
 
 #: src/features/sheets/SheetTypeCombobox.tsx
 msgid "Show all sheet types"
@@ -5394,6 +5631,10 @@ msgctxt "action"
 msgid "Show licence text of {0}"
 msgstr "Show licence text of {0}"
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Show older entries"
+msgstr "Show older entries"
+
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "Show the ID label job"
 msgstr "Show the ID label job"
@@ -5413,6 +5654,17 @@ msgstr "Show the unconfirmed cells"
 #: src/features/sheets/SheetsPage.tsx
 msgid "Show them"
 msgstr "Show them"
+
+#. placeholder {0}: entries.length
+#. placeholder {1}: entries.length
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Showing {0} of {1} entries. The hub keeps the newest {HISTORY_KEPT} per printer and tray."
+msgstr "Showing {0} of {1} entries. The hub keeps the newest {HISTORY_KEPT} per printer and tray."
+
+#. placeholder {0}: entries.length
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Showing the newest {0} entries. The hub keeps the newest {HISTORY_KEPT} per printer and tray."
+msgstr "Showing the newest {0} entries. The hub keeps the newest {HISTORY_KEPT} per printer and tray."
 
 #: src/shell/SignIn.tsx
 msgid "Sign in"
@@ -6023,6 +6275,10 @@ msgstr "The correction could not be reset."
 msgid "The correction could not be saved."
 msgstr "The correction could not be saved."
 
+#: src/features/calibration/HistoryPanel.tsx
+msgid "The correction this tray had when 1.8.0 was installed. It had no readings."
+msgstr "The correction this tray had when 1.8.0 was installed. It had no readings."
+
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The crossings to read"
 msgstr "The crossings to read"
@@ -6098,6 +6354,10 @@ msgstr "The Grocy label settings use {key}. Choose another sheet type there firs
 #: src/features/archive/errors.ts
 msgid "The Grocy label settings use this type. Choose another sheet type there first."
 msgstr "The Grocy label settings use this type. Choose another sheet type there first."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "The history could not be loaded."
+msgstr "The history could not be loaded."
 
 #: src/features/archive/errors.ts
 msgid "The horizontal pitch"
@@ -6502,6 +6762,10 @@ msgstr "The print stopped before this label was sent."
 #: src/features/jobs/jobErrorText.ts
 msgid "The print stopped while this label was being sent. It may or may not have printed."
 msgstr "The print stopped while this label was being sent. It may or may not have printed."
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "The printed pages could not be loaded."
+msgstr "The printed pages could not be loaded."
 
 #: src/features/jobs/jobErrorText.ts
 msgid "The printer aborted the job before printing."
@@ -6938,6 +7202,10 @@ msgstr "The unconfirmed cells changed. Check the list and try again."
 msgid "The values are filled in below. Nothing is saved yet."
 msgstr "The values are filled in below. Nothing is saved yet."
 
+#: src/features/calibration/RestoreDialog.tsx
+msgid "The values could not be restored."
+msgstr "The values could not be restored."
+
 #: src/features/archive/errors.ts
 msgid "The vendor"
 msgstr "The vendor"
@@ -6945,6 +7213,10 @@ msgstr "The vendor"
 #: src/features/archive/ArchivePage.tsx
 msgid "The vendors could not be loaded."
 msgstr "The vendors could not be loaded."
+
+#: src/features/archive/TypeVersions.tsx
+msgid "The version could not be restored."
+msgstr "The version could not be restored."
 
 #: src/features/archive/errors.ts
 msgid "The vertical pitch"
@@ -7299,7 +7571,7 @@ msgstr "Top edge goes in first. A wrongly loaded sheet still works, the QR code 
 msgid "top margin"
 msgstr "top margin"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Top margin"
 msgstr "Top margin"
@@ -7389,6 +7661,10 @@ msgstr "Turn the sheet over along the long edge, then load it top edge first, {s
 #: src/features/sheets/SheetsPage.tsx
 msgid "Type"
 msgstr "Type"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "Typed by hand, no readings."
+msgstr "Typed by hand, no readings."
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "Un-mark cells"
@@ -7506,6 +7782,14 @@ msgstr "Use an http or https address without a user name or password."
 msgid "Use at most 2048 characters."
 msgstr "Use at most 2048 characters."
 
+#: src/features/calibration/RestoreDialog.tsx
+msgid "Use these values"
+msgstr "Use these values"
+
+#: src/features/calibration/RestoreDialog.tsx
+msgid "Use these values again?"
+msgstr "Use these values again?"
+
 #. placeholder {0}: type.key
 #: src/features/archive/FeedbackLinks.tsx
 msgid "Use this when you measured a sheet and the numbers match. It only marks {0} as verified in this hub; nothing is sent to GitHub."
@@ -7577,7 +7861,7 @@ msgid "Verify the printer certificate"
 msgstr "Verify the printer certificate"
 
 #: src/features/about/BuildRows.tsx
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeVersions.tsx
 msgid "Version"
 msgstr "Version"
 
@@ -7591,10 +7875,11 @@ msgid "Version {version}"
 msgstr "Version {version}"
 
 #: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeVersions.tsx
 msgid "Versions"
 msgstr "Versions"
 
-#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/geometryRows.ts
 msgid "Vertical pitch"
 msgstr "Vertical pitch"
 
@@ -7613,6 +7898,10 @@ msgstr "View job for page {number}"
 #: src/features/lookup/ItemView.tsx
 msgid "View the job"
 msgstr "View the job"
+
+#: src/features/calibration/HistoryPanel.tsx
+msgid "vs. before"
+msgstr "vs. before"
 
 #: src/shell/PhoneMenu.tsx
 msgid "Wait until the current action has finished."
@@ -7664,8 +7953,8 @@ msgstr "Webhooks"
 msgid "What a print uses when it names no layout. The print dialog starts from this and can still change it."
 msgstr "What a print uses when it names no layout. The print dialog starts from this and can still change it."
 
-#: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
+#: src/features/archive/TypeVersions.tsx
 msgid "What changed"
 msgstr "What changed"
 
@@ -7804,6 +8093,13 @@ msgstr "Yes, reset"
 #: src/features/sheets/SheetCodePanel.tsx
 msgid "Yes, the back side is printed"
 msgstr "Yes, the back side is printed"
+
+#. placeholder {0}: labelOf(mismatch.requested_tray)
+#. placeholder {1}: labelOf(mismatch.actual_media_source!)
+#. placeholder {2}: labelOf(mismatch.actual_media_source!)
+#: src/features/calibration/HistoryPanel.tsx
+msgid "You asked for {0} but the printer reported that the page was fed from {1}. The correction you save from it belongs to {2}."
+msgstr "You asked for {0} but the printer reported that the page was fed from {1}. The correction you save from it belongs to {2}."
 
 #: src/features/printers/RollColourPrompt.tsx
 msgid "You can set the colour later on this page."

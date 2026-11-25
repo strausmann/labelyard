@@ -77,3 +77,25 @@ describe("JobsPage", () => {
     expect(link).toHaveAttribute("href", "/jobs/eeeeeeee-0000-4000-8000-000000000001");
   });
 });
+
+describe("JobsPage filtered by a calibration entry (#336)", () => {
+  const ENTRY = "e2e2e2e2-0000-4000-8000-000000000002";
+
+  it("asks the API for the jobs printed with the entry and offers the full list", async () => {
+    const { calls } = mockApi({ "GET /api/v1/printers": [PRINTER_A], "GET /api/v1/jobs": [mk(1, "done", "2026-11-04T08:00:00Z")] });
+    const { router } = await renderApp({ path: `/jobs?calibration=${ENTRY}` });
+    await screen.findByRole("list", { name: "Jobs" });
+    expect(calls.some((c) => c.path === "/api/v1/jobs" && new URLSearchParams(c.search).get("calibration") === ENTRY)).toBe(true);
+    expect(screen.getByText("Only the jobs printed with one saved calibration.")).toBeVisible();
+    await userEvent.click(screen.getByRole("link", { name: "Show all jobs" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    await waitFor(() => expect(calls.some((c) => c.path === "/api/v1/jobs" && !c.search.includes("calibration"))).toBe(true));
+  });
+
+  it("an address that is not an entry id lists every job", async () => {
+    const { calls } = mockApi({ "GET /api/v1/printers": [PRINTER_A], "GET /api/v1/jobs": [] });
+    await renderApp({ path: "/jobs?calibration=x%20y" });
+    await screen.findByText("No jobs.");
+    expect(calls.filter((c) => c.path === "/api/v1/jobs").every((c) => !c.search.includes("calibration"))).toBe(true);
+  });
+});

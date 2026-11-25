@@ -12,15 +12,18 @@ export type { Job };
  * Every key starts with `["jobs"]`, the prefix the live-event hook invalidates, so a job
  * event refreshes the list and the open job without any extra wiring.
  */
-export const jobsListKey = (state: string | null) => ["jobs", "list", state ?? "all"] as const;
+export const jobsListKey = (state: string | null, calibration?: string) =>
+  calibration ? (["jobs", "list", state ?? "all", { calibration }] as const) : (["jobs", "list", state ?? "all"] as const);
 export const jobKey = (id: string) => ["jobs", id] as const;
 
 export const JOB_LIMIT = 100;
 
-export function useJobs(state: string | null) {
+/** `calibration`: only the jobs printed with that calibration history entry (#336). */
+export function useJobs(state: string | null, calibration?: string) {
   const query = new URLSearchParams({ limit: String(JOB_LIMIT) });
   if (state) query.set("state", state);
-  return useQuery({ queryKey: jobsListKey(state), queryFn: () => apiFetch<Job[]>(`/api/v1/jobs?${query}`) });
+  if (calibration) query.set("calibration", calibration);
+  return useQuery({ queryKey: jobsListKey(state, calibration), queryFn: () => apiFetch<Job[]>(`/api/v1/jobs?${query}`) });
 }
 
 export const useJob = (id: string, enabled = true) =>

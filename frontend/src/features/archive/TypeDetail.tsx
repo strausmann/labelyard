@@ -29,26 +29,9 @@ import { IdPlacementSection } from "./IdPlacementSection";
 import { TypeForm } from "./TypeForm";
 import { httpUrl, linkHost } from "./search";
 import { TypeSheetsList } from "./TypeSheetsList";
+import { TypeVersions } from "./TypeVersions";
+import { useGeometryRows } from "./geometryRows";
 
-type Geometry = SheetTypeDetail["geometry"];
-
-/** The measurements an update can change, in the order the diff lists them. */
-function useGeometryRows(): { field: keyof Geometry; label: string; mm: boolean }[] {
-  const { t } = useLingui();
-  return [
-    { field: "page_size", label: t`Page size`, mm: false },
-    { field: "cols", label: t`Columns`, mm: false },
-    { field: "rows", label: t`Rows`, mm: false },
-    { field: "label_w", label: t`Label width`, mm: true },
-    { field: "label_h", label: t`Label height`, mm: true },
-    { field: "pitch_x", label: t`Horizontal pitch`, mm: true },
-    { field: "pitch_y", label: t`Vertical pitch`, mm: true },
-    { field: "margin_top", label: t`Top margin`, mm: true },
-    { field: "margin_left", label: t`Left margin`, mm: true },
-    { field: "corner_radius", label: t`Corner radius`, mm: true },
-    { field: "shape", label: t`Label shape`, mm: false },
-  ];
-}
 
 /** Numbers in the usage of a type: what is left to print on, and how much it is used (#335, spec 6.1.5). */
 function UsageTiles({ type }: { type: SheetTypeDetail }) {
@@ -223,42 +206,6 @@ function Source({ type }: { type: SheetTypeDetail }) {
   );
 }
 
-function Versions({ type }: { type: SheetTypeDetail }) {
-  const { t, i18n } = useLingui();
-  const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(i18n.locale) : "");
-  return (
-    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <table aria-label={t`Versions`} className="w-full min-w-0 border-collapse text-left">
-        <thead>
-          <tr className="text-small text-ink-2">
-            <th scope="col" className="py-2 pr-3 font-bold">{t`Version`}</th>
-            <th scope="col" className="py-2 pr-3 font-bold">{t`What changed`}</th>
-            <th scope="col" className="py-2 text-right font-bold">{t`Sheets`}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...type.versions].sort((a, b) => b.version - a.version).map((v) => (
-            <tr key={v.version} className="border-t border-line align-top">
-              <th scope="row" className="py-2 pr-3 whitespace-nowrap">
-                {v.version}
-                {v.version === type.current_version ? <span className="ml-2 text-small font-normal text-ink-2">{t`current`}</span> : null}
-              </th>
-              <td className="min-w-0 py-2 pr-3 [overflow-wrap:anywhere]">
-                {v.change_note ?? <span className="text-ink-2">{t`first version`}</span>}
-                {v.created_at ? <span className="block text-small text-ink-2">{date(v.created_at)}</span> : null}
-                <a href={exportTypeUrl(type.key, v.version)} download className="inline-flex min-h-11 items-center text-small text-link underline underline-offset-2">
-                  {t`Export version ${v.version}`}
-                </a>
-              </td>
-              <td className="py-2 text-right tabular-nums">{v.sheets}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /** One type in full: measurements, versions, provenance and (for admins) the actions. */
 export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin: boolean; onLeave: () => void }) {
   const { t, i18n } = useLingui();
@@ -380,7 +327,7 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
           <TabPanel id="versions" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
             <section aria-labelledby="versions-heading" className="flex flex-col gap-3">
               <h3 id="versions-heading" className={SECTION_HEADING}>{t`Versions`}</h3>
-              <Versions type={type} />
+              <TypeVersions type={type} admin={admin} />
             </section>
           </TabPanel>
           <TabPanel id="sheets" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">

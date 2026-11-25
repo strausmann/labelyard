@@ -5,7 +5,7 @@ import { useLingui } from "@lingui/react/macro";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { NoTypesInstalled } from "../archive/NoTypesInstalled";
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { Button } from "react-aria-components";
+import { Button, Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 import { ApiError } from "../../api/client";
 import { useSession } from "../../app/session";
 import { PRIMARY_BUTTON } from "../../shell/SignIn";
@@ -33,8 +33,16 @@ import { PrintResult } from "./PrintResult";
 import { ReadingGuide } from "./guide/ReadingGuide";
 import { StillOff } from "./guide/StillOff";
 import { ReadingsHelper } from "./ReadingsHelper";
+import { HistoryPanel } from "./HistoryPanel";
+import { CALIBRATION_TABS, type CalibrationTab } from "./tabs";
 
 const calibrationApi = getRouteApi("/calibration");
+
+/** A tab of the page, as the type detail draws them (mockups M7, M8). */
+const TAB =
+  "-mb-px inline-flex min-h-11 cursor-pointer items-center whitespace-nowrap border-b-2 border-transparent px-3 font-bold text-ink-2 transition-colors duration-150 data-[selected]:border-accent data-[selected]:text-ink data-[focus-visible]:outline-3 data-[focus-visible]:-outline-offset-3 data-[focus-visible]:outline-link [@media(hover:hover)]:hover:text-ink";
+/** Print, readings and result keep their state (a print in flight, typed readings) while another tab is open. */
+const PANEL_TAB = "flex min-w-0 flex-col gap-6 rounded-r2 data-[inert]:hidden data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 
 type MeasuredOn = { type_key: string; version: number };
 
@@ -85,25 +93,37 @@ export function CalibrationPage() {
   useEffect(() => {
     if (!printer || choosing || (calibration.isSuccess && !tray)) return;
     if (search.printer !== printer.id || (tray && search.tray !== tray)) {
-      void navigate({ to: "/calibration", search: { printer: printer.id, tray, type: search.type }, replace: true });
+      void navigate({ to: "/calibration", search: { printer: printer.id, tray, type: search.type, view: search.view }, replace: true });
     }
-  }, [printer, tray, choosing, calibration.isSuccess, search.printer, search.tray, search.type, navigate]);
+  }, [printer, tray, choosing, calibration.isSuccess, search.printer, search.tray, search.type, search.view, navigate]);
 
   // The chosen sheet type belongs to the page, not to one tray: all three keep it in the address.
-  const choosePrinter = (id: string) => void navigate({ to: "/calibration", search: { printer: id, tray: undefined, type: search.type }, replace: true });
-  const chooseTray = (key: string) => void navigate({ to: "/calibration", search: { printer: printer?.id, tray: key, type: search.type }, replace: true });
+  const choosePrinter = (id: string) => void navigate({ to: "/calibration", search: { printer: id, tray: undefined, type: search.type, view: search.view }, replace: true });
+  const chooseTray = (key: string) => void navigate({ to: "/calibration", search: { printer: printer?.id, tray: key, type: search.type, view: search.view }, replace: true });
   const printerId = printer?.id;
   const chooseType = useCallback(
-    (key: string | undefined) => void navigate({ to: "/calibration", search: { printer: printerId, tray, type: key }, replace: true }),
-    [navigate, printerId, tray],
+    (key: string | undefined) => void navigate({ to: "/calibration", search: { printer: printerId, tray, type: key, view: search.view }, replace: true }),
+    [navigate, printerId, tray, search.view],
   );
+  const chooseTab = (next: CalibrationTab) =>
+    void navigate({ to: "/calibration", search: { printer: printerId, tray, type: search.type, view: next }, replace: true });
+
+  // The sheet type belongs to the page head (mockups M7, M8): every tab works on it.
+  const types = useSheetTypes();
+  const usable = useMemo(() => usableTypes(types.data ?? []), [types.data]);
+  const type: SheetTypeRead | undefined = usable.find((x) => x.key === search.type) ?? usable[0];
+  // The address always names what the page shows: a type that is gone, archived or too small is taken out of it.
+  const unknownChoice = types.isSuccess && search.type !== undefined && !usable.some((x) => x.key === search.type);
+  useEffect(() => {
+    if (unknownChoice) chooseType(undefined);
+  }, [unknownChoice, chooseType]);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-title font-bold">{t`Calibration`}</h1>
-        <p className={`${HINT} mt-1 max-w-prose`}>
-          {t`A printer rarely prints exactly where the page says. Measure how far it is off on a real sheet, and the hub moves every print by the opposite.`}
+        <p className="mt-1 mb-0 max-w-prose text-ink-2">
+          {t`Print a test page, read how far the ink landed from each crossing, and save the correction for this printer and tray.`}
         </p>
       </div>
 
@@ -115,18 +135,18 @@ export function CalibrationPage() {
         <p className={PANEL}>{t`There is no page printer yet. Add one under Settings › Printers.`}</p>
       ) : (
         <>
-          <section aria-labelledby="cal-printer-h" className={`${PANEL} flex flex-col gap-4`}>
-            <h2 id="cal-printer-h" className={SECTION_HEADING}>{t`Printer and tray`}</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-3">
+            <div className="grid gap-4 lg:grid-cols-3">
               <SelectField label={t`Printer`} value={printer.id} options={pagePrinters.map((p) => ({ id: p.id, label: p.name }))} onChange={choosePrinter} />
               {trays.length > 1 && tray ? (
                 <SelectField label={t`Tray`} value={tray} options={trays.map((x) => ({ id: x.key, label: x.label }))} onChange={chooseTray} />
               ) : (
                 <p className={`${HINT} self-end`}>{calibration.isPending || choosing ? t`Loading…` : trays[0] ? trays[0].label : t`This printer has no tray to calibrate.`}</p>
               )}
+              {type ? <SheetTypeCombobox label={t`Sheet type`} types={usable} value={type.key} onChange={chooseType} /> : null}
             </div>
             <PrinterRow printer={printer} status={status.data} />
-          </section>
+          </div>
 
           {calibration.isPending || choosing ? (
             <p role="status" className="text-ink-2">{t`Loading…`}</p>
@@ -141,8 +161,10 @@ export function CalibrationPage() {
               key={`${printer.id}/${tray}`}
               printer={printer}
               tray={tray}
-              typeChoice={search.type}
-              onTypeChange={chooseType}
+              tab={search.view}
+              onTabChange={chooseTab}
+              type={type}
+              types={types}
               trayLabel={trays.find((x) => x.key === tray)?.label ?? tray}
               labelOf={(key) => trays.find((x) => x.key === key)?.label ?? key}
               lastSheetTray={status.data?.last_sheet_tray ?? null}
@@ -167,26 +189,20 @@ interface WorkbenchProps {
   /** The tray and time of the newest calibration page. */
   lastCalibrationPrint: PrinterStatus["last_calibration_print"];
   stored: CalibrationRead | undefined;
-  /** The type key from the address; one that is unknown or archived means the default type. */
-  typeChoice: string | undefined;
-  /** `undefined` takes the type out of the address. */
-  onTypeChange: (key: string | undefined) => void;
+  /** The open tab, from the address; undefined opens Result when a correction is stored, else Print page. */
+  tab: CalibrationTab | undefined;
+  onTabChange: (tab: CalibrationTab) => void;
+  /** The sheet type of the page head; undefined while the types load or when none fits. */
+  type: SheetTypeRead | undefined;
+  types: ReturnType<typeof useSheetTypes>;
 }
 
 /** Everything for one printer and tray; it is rebuilt when either changes (the type lives in the address). */
-function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalibrationPrint, stored, typeChoice, onTypeChange }: WorkbenchProps) {
+function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalibrationPrint, stored, tab, onTabChange, type, types }: WorkbenchProps) {
   const { t } = useLingui();
   const session = useSession();
   const canPrint = session.scope === "print" || session.scope === "admin";
   const admin = session.scope === "admin";
-  const types = useSheetTypes();
-  const usable = useMemo(() => usableTypes(types.data ?? []), [types.data]);
-  const type: SheetTypeRead | undefined = usable.find((x) => x.key === typeChoice) ?? usable[0];
-  // The address always names what the page shows: a type that is gone, archived or too small is taken out of it.
-  const unknownChoice = types.isSuccess && typeChoice !== undefined && !usable.some((x) => x.key === typeChoice);
-  useEffect(() => {
-    if (unknownChoice) onTypeChange(undefined);
-  }, [unknownChoice, onTypeChange]);
 
   // The values of step 2 live here: the form edits them and the readings helper fills them.
   const text = useNumberText();
@@ -221,8 +237,18 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
     if (type && !print.isPending) print.mutate({ tray, request: { type: type.key, version: type.current_version, corrected } });
   };
 
+  const active: CalibrationTab = tab ?? (hasStored ? "result" : "print");
+
   return (
     <>
+    <Tabs selectedKey={active} onSelectionChange={(key) => onTabChange(CALIBRATION_TABS.find((x) => x === key) ?? "print")} className="flex min-w-0 flex-col gap-6">
+      <TabList aria-label={t`Calibration`} className="flex gap-1 overflow-x-auto border-b border-line">
+        <Tab id="print" className={TAB}>{t`Print page`}</Tab>
+        <Tab id="readings" className={TAB}>{t`Readings`}</Tab>
+        <Tab id="result" className={TAB}>{t`Result`}</Tab>
+        <Tab id="history" className={TAB}>{t`History`}</Tab>
+      </TabList>
+      <TabPanel id="result" shouldForceMount className={PANEL_TAB}>
       <CurrentValues stored={stored}>
         <div className="flex flex-col gap-5">
         {type && (
@@ -236,6 +262,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
             label={t`Print the check page (with correction)`}
             subject={t`Check page`}
             statusLabel={t`Check page status`}
+            inView={active === "result"}
             doneHint={t`The check page printed. Measure the crossings again: each one should be within 0.5 mm.`}
             hint={hasStored ? t`Every crossing should be within 0.5 mm of the cut.` : t`Measure and save values first, then check.`}
             primary={hasStored}
@@ -244,7 +271,9 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
         <StillOff />
         </div>
       </CurrentValues>
+      </TabPanel>
 
+      <TabPanel id="print" shouldForceMount className={PANEL_TAB}>
       <section aria-labelledby="cal-step1-h" className={`${PANEL} flex flex-col gap-4`}>
         <h2 id="cal-step1-h" className={SECTION_HEADING}>{hasStored ? t`Measure again` : t`Step 1: Print the calibration page`}</h2>
         <TrayLine kind="prints" label={trayLabel} />
@@ -261,7 +290,6 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           <p className="text-ink-2">{t`There is no sheet type with at least two columns and two rows.`}</p>
         ) : (
           <>
-            <SheetTypeCombobox label={t`Sheet type`} types={usable} value={type.key} onChange={onTypeChange} />
             <CalibrationSchematic geometry={type.geometry} typeName={typeLabelWithKey(type)} />
             <GapCrossing colGap={Math.min(2, type.geometry.cols - 1)} rowGap={Math.min(6, type.geometry.rows - 1)} />
             <PrintAction
@@ -278,6 +306,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
               label={t`Print the calibration page (without correction)`}
               subject={t`Calibration page`}
               statusLabel={t`Calibration page status`}
+              inView={active === "print"}
               doneHint={t`The calibration page printed. Now measure the crossings.`}
               primary={!hasStored}
               noKey={!canPrint}
@@ -296,6 +325,9 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
         )}
       </section>
 
+      </TabPanel>
+
+      <TabPanel id="readings" shouldForceMount className={PANEL_TAB}>
       <section aria-labelledby="cal-step2-h" className={`${PANEL} flex flex-col gap-5`}>
         <h2 id="cal-step2-h" className={SECTION_HEADING}>{t`Step 2: Enter the deviation`}</h2>
         <TrayLine kind="saves" label={trayLabel} />
@@ -328,6 +360,20 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           admin={admin}
         />
       </section>
+      </TabPanel>
+
+      <TabPanel id="history" className={PANEL_TAB}>
+        <HistoryPanel
+          printerId={printer.id}
+          printerName={printer.name}
+          tray={tray}
+          trayLabel={trayLabel}
+          labelOf={labelOf}
+          types={types.data ?? []}
+          admin={admin}
+        />
+      </TabPanel>
+    </Tabs>
 
       <ModalDialog title={t`Print without correction?`} isOpen={asking} onClose={() => setAsking(false)} alert dismissable>
         <p className="m-0 [overflow-wrap:anywhere]">
@@ -430,9 +476,11 @@ interface PrintActionProps {
   lockWhilePending?: boolean;
   /** More controls for the row next to the print button. */
   children?: ReactNode;
+  /** False while its tab is not open: the status line then leaves the announcement to the notification stack. */
+  inView?: boolean;
 }
 
-function PrintAction({ printerId, type, print, onPress, disabled, label, subject, statusLabel, doneHint, hint, busyNote, primary, noKey, lockWhilePending = true, children }: PrintActionProps) {
+function PrintAction({ printerId, type, print, onPress, disabled, label, subject, statusLabel, doneHint, hint, busyNote, primary, noKey, lockWhilePending = true, children, inView = true }: PrintActionProps) {
   const { t } = useLingui();
   const hintId = useId();
   const noteId = useId();
@@ -473,6 +521,7 @@ function PrintAction({ printerId, type, print, onPress, disabled, label, subject
         subject={subject}
         label={statusLabel}
         doneHint={doneHint}
+        inView={inView}
       />
     </div>
   );

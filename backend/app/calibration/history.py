@@ -27,6 +27,7 @@ from sqlalchemy.orm import aliased
 from sqlmodel import col
 
 from app.calibration.model import (
+    NOTE_MAX,
     CalibrationIn,
     CalibrationRead,
     MeasuredOn,
@@ -38,6 +39,7 @@ from app.models.printer_calibration import PrinterCalibration
 from app.models.sheet import SheetType, SheetTypeVersion
 from app.page_render.transform import IDENTITY, Deviation
 from app.repositories.write_lock import write_transaction
+from app.sheets import type_service as ts
 from app.sheets.errors import SheetApiError
 
 HISTORY_RETENTION: Final = 500
@@ -220,7 +222,13 @@ async def latest_id(session: AsyncSession, printer_id: UUID, tray: str) -> UUID 
 
 
 async def restore(
-    session: AsyncSession, printer_id: UUID, tray: str, entry_id: UUID, *, actor: str
+    session: AsyncSession,
+    printer_id: UUID,
+    tray: str,
+    entry_id: UUID,
+    *,
+    actor: str,
+    note: str | None = None,
 ) -> CalibrationRead:
     """Make an entry's values the tray's calibration again, as a new ``revert`` entry.
 
@@ -228,6 +236,8 @@ async def restore(
     version that was deleted since is restored without it (``measured_on_deleted``).
     """
     from app.calibration import service  # the service writes entries through this module
+
+    clean_note = None if note is None else ts.clean_text("note", note, NOTE_MAX) or None
 
     await service.page_printer(session, printer_id)
     await service.check_tray(session, printer_id, tray)
@@ -266,7 +276,7 @@ async def restore(
             residuals=None,
             reverted_from_id=entry.id,
             actor=actor,
-            note=None,
+            note=clean_note,
             source=None,
         )
         await session.commit()

@@ -177,10 +177,14 @@ describe.skipIf(!built)("built output", () => {
         // `x.textContent=`...`` (maybe followed by .trim()): a template in the minified bundle.
         const quoted = /textContent=`([^`]*)`(\.trim\(\))?/.exec(window);
         if (quoted) {
-          // `${name}` is a constant of the bundle (the attribute the rule targets): look its text up.
+          // `${name}` is a constant of the bundle (the attribute the rule targets): look its text up. A minified name
+          // can be declared more than once in a chunk (different scopes), so the declaration nearest before the use
+          // is the one in scope; the first one in the file can belong to another module.
           const filled = quoted[1]!.replace(/\$\{(\w+)\}/g, (_all, name: string) => {
-            const value = new RegExp(`\\b${name}=\`([^\`]*)\``).exec(code);
-            expect(value, `constant ${name} used in an inline style could not be resolved`).not.toBeNull();
+            const declarations = [...code.matchAll(new RegExp(`\\b${name}=\`([^\`]*)\``, "g"))];
+            const before = declarations.filter((d) => d.index < m.index);
+            const value = before.at(-1) ?? declarations[0];
+            expect(value, `constant ${name} used in an inline style could not be resolved`).toBeDefined();
             return value![1]!;
           });
           found.push({ file, text: quoted[2] ? filled.trim() : filled });

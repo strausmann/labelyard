@@ -278,7 +278,8 @@ const VIEWS: View[] = [
     name: "calibration",
     phone: false,
     open: async (page, text) => {
-      await page.goto(`/calibration?printer=${await id(page, "Office page printer")}&tray=main-tray`);
+      // Step 1 with the schematic; a tray with a stored correction would open on Result.
+      await page.goto(`/calibration?printer=${await id(page, "Office page printer")}&tray=main-tray&view=print`);
       await expect(page.getByRole("heading", { level: 1, name: text.calibration })).toBeVisible();
       await expect(page.getByRole("img", { name: text.calibrationPage })).toBeVisible();
     },
@@ -290,7 +291,8 @@ const VIEWS: View[] = [
     phone: true,
     only: "phone",
     open: async (page, text) => {
-      await page.goto(`/calibration?printer=${await id(page, "Office page printer")}&tray=main-tray`);
+      // The guide sits on the Readings tab (mockups M7, M8).
+      await page.goto(`/calibration?printer=${await id(page, "Office page printer")}&tray=main-tray&view=readings`);
       await expect(page.getByRole("heading", { level: 1, name: text.calibration })).toBeVisible();
       const trigger = page.getByRole("button", { name: text.guide });
       await trigger.click();

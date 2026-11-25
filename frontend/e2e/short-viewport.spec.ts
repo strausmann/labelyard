@@ -465,6 +465,48 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await page.keyboard.press("Escape");
       });
 
+      test("restore dialog footer stays in view", async () => {
+        await prepare(mode);
+        // Two saves on the page printer's main tray: the older one offers "Restore these values" (#336, M7).
+        const printers = (await (await page.request.get("/api/v1/printers")).json()) as Array<{ id: string; name: string }>;
+        const printer = printers.find((p) => p.name === "Office page printer")!.id;
+        const path = `/api/v1/printers/${printer}/calibration/main-tray`;
+        const put = (offset: number) =>
+          page.evaluate(
+            async ([url, body]) => {
+              const session = await (await fetch("/api/v1/auth/session")).json();
+              const response = await fetch(url as string, {
+                method: body ? "PUT" : "DELETE",
+                headers: { "X-CSRF-Token": session.csrf_token, ...(body ? { "Content-Type": "application/json" } : {}) },
+                body: body ? JSON.stringify(body) : undefined,
+              });
+              return response.status;
+            },
+            [path, offset === 0 ? null : { offset_x_mm: offset, offset_y_mm: -0.66, scale_x: 1.00012, scale_y: 0.99992, rotation_deg: 0.021 }] as const,
+          );
+        try {
+          expect(await put(0.41)).toBe(200);
+          expect(await put(0.38)).toBe(200);
+          await page.goto(`/calibration?printer=${printer}&tray=main-tray&view=history`);
+          await page.getByRole("button", { name: /^Restore these values/ }).first().click();
+          const dialog = dialogOf(page);
+          await expect(dialog).toBeVisible();
+          const note = dialog.getByRole("textbox", { name: "Note (optional)" });
+          await note.click();
+          await keyboard(mode);
+          await page.keyboard.type("Back to the values of 11-15");
+          await expectInSight(page, frameOf(dialog), "the dialog");
+          await expectInSightOnceSettled(page, note, "the note field");
+          // The buttons sit in a sticky footer: in sight without scrolling.
+          await expectInSightOnceSettled(page, buttonIn(dialog, "Cancel"), "the Cancel button");
+          await expectInSightOnceSettled(page, buttonIn(dialog, "Use these values"), "the Use these values button");
+          await buttonIn(dialog, "Cancel").click();
+          await expect(dialog).toHaveCount(0);
+        } finally {
+          await put(0);
+        }
+      });
+
       test("zone editor fields and sticky Save stay in view", async () => {
         await prepare(mode);
         await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { StatusBadge } from "../../shell/StatusBadge";
@@ -13,6 +13,8 @@ import { HeldRuns } from "./HeldRuns";
 import { formatTime, JOB_FILTERS, type JobFilter } from "./model";
 import { usePageJobStatus } from "./pageJobText";
 import { useJobTitle } from "./useJobTitle";
+
+const jobsApi = getRouteApi("/jobs");
 
 const CHIP =
   "press inline-flex h-11 items-center rounded-r2 border border-line-strong px-4 text-small font-bold text-ink hover:bg-sunken data-[selected]:border-ink data-[selected]:bg-ink data-[selected]:text-bg data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
@@ -26,7 +28,8 @@ export function JobsPage() {
   const { t } = useLingui();
   const [filter, setFilter] = useState<JobFilter>("all");
   const labels = useFilterLabels();
-  const jobs = useJobs(filter === "all" ? null : filter);
+  const { calibration } = jobsApi.useSearch();
+  const jobs = useJobs(filter === "all" ? null : filter, calibration);
   const printers = usePrinters();
   const printerName = (id: string) => printers.data?.find((p) => p.id === id)?.name ?? t`Unknown printer`;
   // The API does not promise an order; the newest job comes first.
@@ -35,6 +38,14 @@ export function JobsPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-title font-bold">{t`Jobs`}</h1>
+      {calibration ? (
+        <p className="m-0 flex flex-wrap items-center gap-x-3 text-ink-2">
+          {t`Only the jobs printed with one saved calibration.`}
+          <Link to="/jobs" search={{}} className="inline-flex min-h-11 items-center text-link underline underline-offset-2">
+            {t`Show all jobs`}
+          </Link>
+        </p>
+      ) : null}
       <HeldRuns />
       <ToggleButtonGroup
         aria-label={t`Filter by state`}

@@ -9,7 +9,7 @@ import Screenshot from "../../../components/Screenshot.astro";
 
 A page printer rarely prints exactly where the page says. The paper moves a little in the tray, the print is a fraction too large or too small, and a sheet of labels leaves no room for that: a print that is half a millimetre off already touches the edge of a label. **Calibration** measures how far a tray is off. Labelyard then moves every print from that tray by the opposite.
 
-You do this once per printer and tray, and again when you change the paper or the tray. It takes about ten minutes. Open **Calibration** in the web app; it walks you through three steps: print the calibration page, enter the deviation, check the result.
+You do this once per printer and tray, and again when you change the paper or the tray. It takes about ten minutes. Open **Calibration** in the web app and choose the printer, the tray and the sheet type at the top. The page has four tabs: **Print page** (step 1), **Readings** (step 2), **Result** (step 3, the stored values and the check page) and **History**. A tray with a stored correction opens on **Result**, any other on **Print page**.
 
 ## What you need
 
@@ -108,3 +108,13 @@ The check print follows the same rule: every crossing within ±0.5 mm is done. A
 - If the scale is hard to read, the known gap width (column pitch minus label width) works as a ruler.
 - Vendor data sheets can be off. Measure a pitch with a ruler over ten labels and divide by ten.
 - For photos: full resolution, zoom into each crossing, and low-angle light makes the cut visible. Bent paper makes lines look curved, so judge at the crossing only.
+
+## History
+
+Every save is kept. The **History** tab lists the corrections of the tray, newest first, with the one in use now marked. Each entry shows its values, how much each one changed against the entry before (**vs. before**), where the values came from (a fit from readings of a numbered print, typed by hand, or restored from an earlier entry), the sheet type it was measured on and an optional note. The correction a tray had when you upgraded to 1.8.0 is the first entry, marked **Imported**. Labelyard keeps the newest 500 entries per printer and tray.
+
+**N jobs printed with it** opens the jobs list with only the jobs printed with that correction.
+
+**Restore these values** (admins only) uses an earlier entry again. The confirmation names the values and takes an optional note. Restoring adds a new entry; nothing is overwritten or deleted.
+
+Below the corrections, **Pages printed from this tray** lists every calibration, check and probe page with its run number. A retry keeps the number of its run and says **(retry)**; a page that was never handed to the printer is marked **not submitted**. **Printed from** is the tray the printer reported. When it is not the tray you asked for, the tab warns at the top: a correction measured on such a page belongs to the tray the page really came from. Some printers do not report it; the column then says so.

@@ -112,6 +112,23 @@ export const useAddVersion = () =>
     (v) => v.key,
   );
 
+export type VersionHistoryRead = Schemas["VersionHistoryRead"];
+
+/** The versions with what changed against the one before, newest first. Under the type's key: a type write refreshes it. */
+export const useTypeVersions = (key: string) =>
+  useQuery({
+    queryKey: [...typeKey(key), "versions"] as const,
+    queryFn: () => apiFetch<VersionHistoryRead[]>(`${typePath(key)}/versions`),
+  });
+
+/** Adds a version with version `n`'s geometry ("Restored from version n"); refused while a sheet uses a newer one. */
+export const useRestoreVersion = () =>
+  useTypeWrite(
+    ({ key, version }: { key: string; version: number }) =>
+      apiFetch<VersionRead>(`${typePath(key)}/versions/${version}/restore`, { method: "POST" }),
+    (v) => v.key,
+  );
+
 /** Archives a type, or brings it back with `unarchive: true`. */
 export const useArchiveType = () =>
   useTypeWrite(
