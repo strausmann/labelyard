@@ -123,7 +123,10 @@ cell:  LYC1:<run>:<cell>
   does not fit is left out and the cell prints its number only.
 - **No code a scanner acts on by itself:** no payload may contain `@`, `://`, `mailto:`, `tel:`,
   `sms:`, `WIFI:`, `geo:`, `BEGIN:` or start with `+` and a digit; a test checks every catalog
-  type, correction, page kind and cell.
+  type, correction, page kind and cell. Scanner apps recognise a content type (`tel:`, `geo:`,
+  `WIFI:`, `BEGIN:VCARD`, `mailto:`, `sms:`) at the **start** of the content, and every `LYC1`
+  payload starts with `LYC1:`, so a custom prefix such as `TEL` or `GEO` inside the payload does
+  not change how it is detected (a second test checks those prefixes at the start).
 
 ## Options considered
 

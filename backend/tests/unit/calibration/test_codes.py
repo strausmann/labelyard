@@ -10,6 +10,7 @@ the QR version and error correction floors, and that a payload is never truncate
 from __future__ import annotations
 
 import dataclasses
+import re
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -292,6 +293,26 @@ def _assert_not_detected(payload: str) -> None:
 )  # fmt: skip
 def test_the_auto_detect_patterns_catch_what_a_scanner_acts_on(bad: str) -> None:
     assert any(p.search(bad) for p in AUTO_DETECT_PATTERNS), bad
+
+
+@pytest.mark.parametrize("prefix", ["TEL", "ATEL", "GEO", "SMS", "WIFI", "BEGIN", "MAILTO"])
+def test_a_custom_prefix_like_a_scheme_does_not_change_detection(prefix: str) -> None:
+    # A scanner app picks the content type from the start of the content; every payload starts
+    # with LYC1:, so a custom prefix inside it is never read as tel:, geo:, WIFI: and the like.
+    payloads = [
+        page_payload(
+            run_no=run_no, prefix=prefix, version=1, dev=dev, check=check, geometry_diff=diff
+        )
+        for run_no in (1, 999999)
+        for dev in (IDENTITY, WORST_DEV)
+        for check in (False, True)
+        for diff in ({}, WORST_DIFF)
+    ]
+    payloads += [cell_payload(1, 1), cell_payload(999999, 400)]
+    for payload in payloads:
+        assert payload.startswith("LYC1:"), payload
+        hits = [p.pattern for p in AUTO_DETECT_PATTERNS if re.match(p.pattern, payload, re.I)]
+        assert not hits, (payload, hits)
 
 
 def test_a_leading_plus_only_counts_at_the_start() -> None:
