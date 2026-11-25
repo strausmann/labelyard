@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 import qrcode
+import qrcode.exceptions
 import qrcode.util
 from app.calibration import codes
 from app.calibration.codes import (
@@ -67,7 +68,7 @@ def _encodes_at(payload: str, version: int) -> bool:
     qr.add_data(qrcode.util.QRData(payload, mode=qrcode.util.MODE_ALPHA_NUM))
     try:
         qr.make(fit=False)
-    except Exception:  # DataOverflowError: the payload does not fit this version
+    except qrcode.exceptions.DataOverflowError:  # the payload does not fit this version
         return False
     return qr.modules_count == 17 + 4 * version
 
@@ -225,9 +226,11 @@ def test_run_past_capacity_grows_then_refuses_never_truncates() -> None:
     huger = long_page(10**60)
     with pytest.raises(CalibrationQrTooLargeError):
         page_qr_version(huger, symbol_hmm=1100)
-    # Past the largest QR version at all: still the same refusal, not a library error.
-    with pytest.raises(CalibrationQrTooLargeError):
+    # Past the largest QR version at all: still the same refusal, not a library error, and the
+    # detail names no version that does not exist.
+    with pytest.raises(CalibrationQrTooLargeError) as past_40:
         page_qr_version("LYC1:" + "1" * 5000)
+    assert past_40.value.detail == {"length": 5005, "version_needed": None, "max_version": 5}
 
 
 def test_a_cell_code_past_capacity_prints_the_number_only() -> None:
@@ -345,6 +348,8 @@ async def test_custom_type_has_no_geometry_fields(session: AsyncSession) -> None
     edited = dataclasses.replace(G_CUSTOM, pitch_x=4900)
     v2 = await ts.add_version(session, "acme-custom", edited, actor="admin", change_note="wider")
     assert await catalog_geometry_diff(session, v2) == {}
+    # v1 again, now that a newer version exists: still no reference, so still no fields.
+    assert await catalog_geometry_diff(session, v1) == {}
 
 
 async def test_type_installed_under_a_new_key_has_no_geometry_fields(
@@ -382,3 +387,24 @@ async def test_locally_edited_pitch_prints_px(
     assert await catalog_geometry_diff(session, v2) == {"PX": v1.pitch_x + 10}
     # Printing the catalog version itself carries none.
     assert await catalog_geometry_diff(session, v1) == {}
+
+
+async def test_the_reference_is_the_newest_catalog_written_version(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    t = (await cs.install(session, K6121, as_new_key=None, prefix=None, actor="admin")).type
+    v1 = await ts.current_version(session, t.id)
+    g1 = ts.version_geometry(v1)
+    # The catalog's revision 2 moves the top margin; the update writes a catalog version.
+    _offer_newer_geometry(monkeypatch, K6121, margin_top=g1.margin_top / 100 + 1.0)
+    await cs.apply_update(session, K6121, actor="admin")
+    v2 = await ts.current_version(session, t.id)
+    assert v2.version == v1.version + 1 and v2.margin_top == v1.margin_top + 100
+    # Then a local edit of the pitch only.
+    g2 = ts.version_geometry(v2)
+    v3 = await ts.add_version(
+        session, K6121, dataclasses.replace(g2, pitch_x=g2.pitch_x + 10), actor="admin",
+        change_note="measured",
+    )  # fmt: skip
+    # Against revision 2 only the pitch differs; against revision 1 MT would appear too.
+    assert await catalog_geometry_diff(session, v3) == {"PX": v2.pitch_x + 10}

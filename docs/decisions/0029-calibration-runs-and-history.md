@@ -114,11 +114,13 @@ cell:  LYC1:<run>:<cell>
 - **QR floors:** error correction M. Page codes are drawn as a 10 mm symbol at version 5 at least
   (the longest payload of the bounds, 106 characters, fits 5-M); cell codes as an 8 mm symbol with
   its quiet zone, at version 1 (the longest, `LYC1:999999:400`, fits 1-M). A module is never below
-  0.25 mm.
+  0.25 mm. The page code's 4-module quiet zone lies **outside** the 10 mm symbol (blank paper
+  around it), so its 37 modules span the full 10 mm.
 - **Never truncated.** A page code that needs a version whose module would drop below 0.25 mm is
   refused with `422 calibration_qr_too_large` (`error_detail`: `length`, `version_needed`,
-  `max_version`); at 10 mm no version above 5 keeps 0.25 mm modules, so in practice a page code
-  never grows. A cell code that does not fit is left out and the cell prints its number only.
+  `max_version`; `version_needed` is `null` when no QR version holds the payload); at 10 mm no
+  version above 5 keeps 0.25 mm modules, so in practice a page code never grows. A cell code that
+  does not fit is left out and the cell prints its number only.
 - **No code a scanner acts on by itself:** no payload may contain `@`, `://`, `mailto:`, `tel:`,
   `sms:`, `WIFI:`, `geo:`, `BEGIN:` or start with `+` and a digit; a test checks every catalog
   type, correction, page kind and cell.

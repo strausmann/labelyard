@@ -163,12 +163,15 @@ def page_qr_version(payload: str, *, symbol_hmm: int = PAGE_QR_HMM) -> int:
     """The QR version a page code is drawn at: ``PAGE_MIN_VERSION`` or the smallest that fits.
 
     A version is allowed while its module, ``symbol_hmm`` over the module count, stays at
-    ``MIN_MODULE_HMM`` or more; otherwise ``CalibrationQrTooLargeError`` (422). At the drawn
+    ``MIN_MODULE_HMM`` or more; otherwise ``CalibrationQrTooLargeError`` (422, ``version_needed``
+    ``None`` when no QR version holds the payload at all). At the drawn
     10 mm that is version 5 only: a page code does not grow, it is refused.
     """
     fit = _fit_version(payload)
     limit = _max_version(symbol_hmm, 0)
-    needed = _MAX_QR_VERSION + 1 if fit is None else max(PAGE_MIN_VERSION, fit)
+    if fit is None:  # past QR version 40: no version holds it at all
+        raise CalibrationQrTooLargeError(len(payload), None, limit)
+    needed = max(PAGE_MIN_VERSION, fit)
     if needed > limit:
         raise CalibrationQrTooLargeError(len(payload), needed, limit)
     return needed
