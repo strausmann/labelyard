@@ -217,6 +217,34 @@ class PreviewPage(BaseModel):
     feed_mark_end: Literal["top_right", "top_left"] | None = Field(
         default=None, description="The end of the top band the feed mark takes, or `null`."
     )
+    id_pending: bool = Field(
+        default=False,
+        description=(
+            "The sheet code is not printed yet and not on this page because another job carries "
+            "it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). "
+            "`id_not_printed` is for no room; the two are never both true."
+        ),
+    )
+    id_pending_reason: Literal["in_flight", "unconfirmed"] | None = Field(
+        default=None,
+        description=(
+            "Why the sheet code waits: `in_flight`, a page still in the queue carries it; "
+            "`unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits "
+            "until they are resolved. `null` when `id_pending` is false."
+        ),
+    )
+    feed_mark_pending: bool = Field(
+        default=False,
+        description="The feed-direction mark is due but not on this page (see `feed_mark_reason`).",
+    )
+    feed_mark_reason: Literal["in_flight", "no_free_place"] | None = Field(
+        default=None,
+        description=(
+            "Why the mark is not on this page: `in_flight`, another job carries it; "
+            "`no_free_place`, no end of the top band is free of zones and the code. It stays due "
+            "for a later page. `null` when the mark is printed or not due."
+        ),
+    )
 
 
 class ReprintHint(BaseModel):
@@ -291,6 +319,34 @@ class PrintedPage(BaseModel):
         description=(
             "The sheet's code goes on the back of the liner and is not confirmed yet: offer "
             "`POST /api/v1/sheets/{code}/back-side`."
+        ),
+    )
+    id_pending: bool = Field(
+        default=False,
+        description=(
+            "The sheet code is not printed yet and not on this page because another job carries "
+            "it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). "
+            "`id_not_printed` is for no room; the two are never both true."
+        ),
+    )
+    id_pending_reason: Literal["in_flight", "unconfirmed"] | None = Field(
+        default=None,
+        description=(
+            "Why the sheet code waits: `in_flight`, a page still in the queue carries it; "
+            "`unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits "
+            "until they are resolved. `null` when `id_pending` is false."
+        ),
+    )
+    feed_mark_pending: bool = Field(
+        default=False,
+        description="The feed-direction mark is due but not on this page (see `feed_mark_reason`).",
+    )
+    feed_mark_reason: Literal["in_flight", "no_free_place"] | None = Field(
+        default=None,
+        description=(
+            "Why the mark is not on this page: `in_flight`, another job carries it; "
+            "`no_free_place`, no end of the top band is free of zones and the code. It stays due "
+            "for a later page. `null` when the mark is printed or not due."
         ),
     )
 

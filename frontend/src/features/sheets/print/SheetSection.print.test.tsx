@@ -39,6 +39,28 @@ describe("after printing", () => {
     expect(within(done).getByText("Sheet code in the bottom margin")).toBeVisible();
   });
 
+  it("the result says the sheet code waits for the page still in the queue", async () => {
+    const pages = [
+      { job_id: JOB, sheet_code: "L4736-0001", cells: [18], id_cell: null, margin_id: false, margin_band: null, id_not_printed: false, feed_mark: false, id_pending: true, id_pending_reason: "in_flight" },
+    ];
+    await itemView(routes({ print: { batch_id: BATCH, pages } }));
+    await pressPrint();
+    const done = await screen.findByRole("status", { name: "Sent to the print queue" });
+    expect(within(done).getByText("The sheet code will be printed with the page that is still in the queue.")).toBeVisible();
+    expect(within(done).queryByText("Sheet code not printed, add it by hand")).toBeNull();
+  });
+
+  it("the result says the sheet code waits for the unconfirmed page to be resolved", async () => {
+    const pages = [
+      { job_id: JOB, sheet_code: "L4736-0001", cells: [18], id_cell: null, margin_id: false, margin_band: null, id_not_printed: false, feed_mark: false, id_pending: true, id_pending_reason: "unconfirmed" },
+    ];
+    await itemView(routes({ print: { batch_id: BATCH, pages } }));
+    await pressPrint();
+    const done = await screen.findByRole("status", { name: "Sent to the print queue" });
+    expect(within(done).getByText("The sheet code waits until the unconfirmed page is resolved.")).toBeVisible();
+    expect(within(done).queryByText("The sheet code will be printed with the page that is still in the queue.")).toBeNull();
+  });
+
   it("a new back-side sheet offers Print back side", async () => {
     const pages = [
       { job_id: JOB, sheet_code: "A3490-0001", cells: [1], id_cell: null, margin_id: false, margin_band: null, id_not_printed: false, feed_mark: true, back_side_pending: true },

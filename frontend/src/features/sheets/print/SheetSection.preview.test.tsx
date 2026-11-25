@@ -302,6 +302,33 @@ describe("the preview", () => {
     expect(await screen.findByText("Sheet code not printed, add it by hand")).toBeVisible();
   });
 
+  it("dialog shows the queue sentence for id_pending", async () => {
+    // #403: the sheet code waits for a page still in the queue; it is not missing.
+    await itemView(routes({ preview: previewFor("L4736-0001", NEW_9, USED_17, {}, { id_pending: true, id_pending_reason: "in_flight", id_not_printed: false, margin_id: false }) }));
+    expect(await screen.findByText("The sheet code will be printed with the page that is still in the queue.")).toBeVisible();
+    expect(screen.queryByText("Sheet code not printed, add it by hand")).toBeNull();
+  });
+
+  it("dialog says the sheet code waits for the unconfirmed page, not for the queue", async () => {
+    // Operator ruling on #443: the job owning unconfirmed cells has ended; nothing prints on its own.
+    await itemView(routes({ preview: previewFor("L4736-0001", NEW_9, USED_17, {}, { id_pending: true, id_pending_reason: "unconfirmed", id_not_printed: false, margin_id: false }) }));
+    expect(await screen.findByText("The sheet code waits until the unconfirmed page is resolved.")).toBeVisible();
+    expect(screen.queryByText("The sheet code will be printed with the page that is still in the queue.")).toBeNull();
+  });
+
+  it('preview shows "Feed mark: no free place on this sheet"', async () => {
+    await itemView(routes({ preview: previewFor("L4736-0001", NEW_9, USED_17, {}, { feed_mark: false, feed_mark_pending: true, feed_mark_reason: "no_free_place" }) }));
+    expect(await screen.findByText("Feed mark: no free place on this sheet")).toBeVisible();
+    expect(screen.queryByText("Top-edge mark")).toBeNull();
+  });
+
+  it("a feed mark still in the queue gets no no-free-place note", async () => {
+    await itemView(routes({ preview: previewFor("L4736-0001", NEW_9, USED_17, {}, { feed_mark: false, feed_mark_pending: true, feed_mark_reason: "in_flight" }) }));
+    await screen.findByRole("grid", { name: /L4736-0001/ });
+    expect(screen.queryByText("Feed mark: no free place on this sheet")).toBeNull();
+    expect(screen.queryByText("The sheet code will be printed with the page that is still in the queue.")).toBeNull();
+  });
+
   it("a back-side sheet shows no \"Sheet ID not printed\" warning", async () => {
     // #350: the server plans no margin ID for a sheet whose code goes on the back, and says so.
     await itemView(routes({ preview: previewFor("L4736-0001", NEW_9, USED_17, {}, { id_not_printed: false, margin_id: false }) }));

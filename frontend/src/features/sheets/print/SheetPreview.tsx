@@ -224,6 +224,14 @@ function PageView({
         {page.margin_id && <li>{sheetIdBand(page.margin_band)}</li>}
       </ul>
       {page.id_not_printed && <p className="font-bold text-warn">{t`Sheet code not printed, add it by hand`}</p>}
+      {page.id_pending && (
+        <p className="text-small text-ink-2">
+          {page.id_pending_reason === "unconfirmed"
+            ? t`The sheet code waits until the unconfirmed page is resolved.`
+            : t`The sheet code will be printed with the page that is still in the queue.`}
+        </p>
+      )}
+      {page.feed_mark_reason === "no_free_place" && <p className="text-small text-ink-2">{t`Feed mark: no free place on this sheet`}</p>}
 
       {rows.length > LONG_LIST ? (
         <details>

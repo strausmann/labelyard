@@ -4437,6 +4437,28 @@
             "description": "The end of the top band the feed mark takes, or `null`.",
             "title": "Feed Mark End"
           },
+          "feed_mark_pending": {
+            "default": false,
+            "description": "The feed-direction mark is due but not on this page (see `feed_mark_reason`).",
+            "title": "Feed Mark Pending",
+            "type": "boolean"
+          },
+          "feed_mark_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "in_flight",
+                  "no_free_place"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the mark is not on this page: `in_flight`, another job carries it; `no_free_place`, no end of the top band is free of zones and the code. It stays due for a later page. `null` when the mark is printed or not due.",
+            "title": "Feed Mark Reason"
+          },
           "geometry": {
             "$ref": "#/components/schemas/GeometryMm"
           },
@@ -4444,6 +4466,28 @@
             "description": "No margin band is deep enough: no ID on this page.",
             "title": "Id Not Printed",
             "type": "boolean"
+          },
+          "id_pending": {
+            "default": false,
+            "description": "The sheet code is not printed yet and not on this page because another job carries it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). `id_not_printed` is for no room; the two are never both true.",
+            "title": "Id Pending",
+            "type": "boolean"
+          },
+          "id_pending_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "in_flight",
+                  "unconfirmed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the sheet code waits: `in_flight`, a page still in the queue carries it; `unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits until they are resolved. `null` when `id_pending` is false.",
+            "title": "Id Pending Reason"
           },
           "load_hint": {
             "anyOf": [
@@ -4762,6 +4806,28 @@
             "title": "Feed Mark",
             "type": "boolean"
           },
+          "feed_mark_pending": {
+            "default": false,
+            "description": "The feed-direction mark is due but not on this page (see `feed_mark_reason`).",
+            "title": "Feed Mark Pending",
+            "type": "boolean"
+          },
+          "feed_mark_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "in_flight",
+                  "no_free_place"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the mark is not on this page: `in_flight`, another job carries it; `no_free_place`, no end of the top band is free of zones and the code. It stays due for a later page. `null` when the mark is printed or not due.",
+            "title": "Feed Mark Reason"
+          },
           "id_cell": {
             "anyOf": [
               {
@@ -4778,6 +4844,28 @@
             "description": "No margin band is deep enough: no ID on this page.",
             "title": "Id Not Printed",
             "type": "boolean"
+          },
+          "id_pending": {
+            "default": false,
+            "description": "The sheet code is not printed yet and not on this page because another job carries it (a margin code in flight, an ID cell `reserved` or `unconfirmed`). `id_not_printed` is for no room; the two are never both true.",
+            "title": "Id Pending",
+            "type": "boolean"
+          },
+          "id_pending_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "in_flight",
+                  "unconfirmed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the sheet code waits: `in_flight`, a page still in the queue carries it; `unconfirmed`, a page that has ended owns unconfirmed cells, and the code waits until they are resolved. `null` when `id_pending` is false.",
+            "title": "Id Pending Reason"
           },
           "job_id": {
             "format": "uuid",

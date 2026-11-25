@@ -2312,6 +2312,10 @@ msgstr "Failed"
 msgid "Feed mark printed"
 msgstr "Feed mark printed"
 
+#: src/features/sheets/print/SheetPreview.tsx
+msgid "Feed mark: no free place on this sheet"
+msgstr "Feed mark: no free place on this sheet"
+
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Filament name"
 msgstr "Filament name"
@@ -6774,6 +6778,16 @@ msgstr "The sheet code identifies a sheet when you scan it. Choose where the hub
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "The sheet code is in the print queue."
 msgstr "The sheet code is in the print queue."
+
+#: src/features/sheets/print/PrintResult.tsx
+#: src/features/sheets/print/SheetPreview.tsx
+msgid "The sheet code waits until the unconfirmed page is resolved."
+msgstr "The sheet code waits until the unconfirmed page is resolved."
+
+#: src/features/sheets/print/PrintResult.tsx
+#: src/features/sheets/print/SheetPreview.tsx
+msgid "The sheet code will be printed with the page that is still in the queue."
+msgstr "The sheet code will be printed with the page that is still in the queue."
 
 #: src/features/archive/MarginPlacement.tsx
 msgid "The sheet code, enlarged"
