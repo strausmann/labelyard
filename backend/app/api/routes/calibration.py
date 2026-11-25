@@ -10,7 +10,7 @@ key's printer restriction (``403 printer_not_allowed`` for another printer's cal
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Response, status
@@ -25,6 +25,7 @@ from app.auth.scope_deps import require_admin, require_print, require_read
 from app.calibration import history, page, runs, scale, service
 from app.calibration.fit import Reading, fit
 from app.calibration.history import CalibrationHistoryRead
+from app.calibration.layout import MarginText
 from app.calibration.model import (
     READINGS_MAX,
     CalibrationIn,
@@ -223,6 +224,14 @@ _PAGE_UNPROCESSABLE = {
         "`max_cells`). Other errors of the type, printer and tray lookups carry their own codes."
     )
 }
+_PRINT_UNPROCESSABLE = {
+    "description": (
+        _PAGE_UNPROCESSABLE["description"]
+        + " The run code would not fit its QR symbol at 0.25 mm modules "
+        "(`calibration_qr_too_large`, with `length`, `version_needed` and `max_version`); it is "
+        "never shortened."
+    )
+}
 _DOWNLOAD_RETRY_AFTER_S = 1
 
 
@@ -231,7 +240,7 @@ _DOWNLOAD_RETRY_AFTER_S = 1
     response_model=PageJobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     responses={
-        status.HTTP_422_UNPROCESSABLE_CONTENT: _PAGE_UNPROCESSABLE,
+        status.HTTP_422_UNPROCESSABLE_CONTENT: _PRINT_UNPROCESSABLE,
         status.HTTP_409_CONFLICT: {
             "description": (
                 "The printer is a tape printer (`media_kind_mismatch`), is not known to the "
@@ -266,6 +275,8 @@ async def print_calibration_page(
         )
 
         async def submit(stamped: PagePayload, job_id: UUID) -> UUID:
+            # The run number is known now: a page code that no longer fits is refused, never cut.
+            page.check_run_codes(stamped)
             new_id: UUID = await queue.submit_page_job(
                 printer_id, stamped, api_key_id=auth.api_key_id, source_ip=auth.ip, job_id=job_id
             )
@@ -284,10 +295,103 @@ async def print_calibration_page(
                 submit=submit,
                 time_zone=time_zone,
                 retention_days=_job_retention_days(request),
+                page_codes=page.payload_layout(payload).page_code_records(),
             )
         except KeyError:
             raise _printer_unavailable(printer_id) from None
     return PageJobAccepted(job_id=job_id)
+
+
+class MarginTextSummary(BaseModel):
+    """Per margin block: `full` (6 pt), `reduced` (smaller, at least 4.5 pt) or `omitted`."""
+
+    top: MarginText = Field(description="The run, its date and time, the sheet type and tray.")
+    bottom: MarginText = Field(
+        description="The correction, the values not as shipped, the checkerboard hint."
+    )
+
+
+class PageLayoutSummary(BaseModel):
+    """What the print dialog says before a calibration or check page is printed (design 7.2)."""
+
+    page_codes: int = Field(
+        ge=0,
+        le=4,
+        description=(
+            "How many of the four page codes the page carries on this printer and tray; fewer "
+            'than 4: "This sheet type leaves room for 2 of the 4 page codes on this printer".'
+        ),
+    )
+    run_line_slots: int = Field(
+        ge=0,
+        le=2,
+        description=(
+            "Run-line slots reserved for the later passes of a check sheet; fewer than "
+            "`passes_total - 1`: the later passes print without their run line."
+        ),
+    )
+    passes_total: int = Field(ge=1, description="Passes the sheet takes.")
+    margin_text: MarginTextSummary = Field(
+        description=(
+            "How the run information fits the margins above and below the grid. It never goes "
+            "across the labels: a block that does not fit at 6 pt is printed smaller (down to "
+            "4.5 pt), and one that does not fit even then is left out, so the dialog can say "
+            "before printing that the page prints without that margin text. The page codes "
+            "carry the run, the sheet type, its version and the correction either way."
+        )
+    )
+
+
+PageKindQuery = Literal["calibration_page", "check_page"]
+
+
+@router.get(
+    "/{printer_id}/calibration/{tray}/page/layout",
+    response_model=PageLayoutSummary,
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: _PAGE_UNPROCESSABLE,
+    },
+    summary="How a calibration or check page fits the printable area of a printer and tray",
+)
+async def get_calibration_page_layout(
+    request: Request,
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    session: SessionDep,
+    auth: ReadDep,
+    type_key: Annotated[
+        str, Query(alias="type", min_length=1, max_length=200, description="Sheet type key.")
+    ],
+    version: Annotated[
+        int | None, Query(ge=1, description="Defaults to the current version.")
+    ] = None,
+    kind: Annotated[
+        PageKindQuery,
+        Query(description="`check_page` is printed with the tray's stored correction."),
+    ] = "calibration_page",
+) -> PageLayoutSummary:
+    """The layout the page would get now: the printer's hardware margins (5 mm per side when it
+    reports none) and the tray's stored offset decide the printable area, as when it is printed.
+    Nothing is stored and no run is taken."""
+    check_printer_access(auth, printer_id)
+    with mapped():
+        payload = await page.build_payload(
+            session, printer_id, tray, type_key=type_key, version=version,
+            corrected=kind == "check_page", time_zone=str(_setting(request, "general.time_zone")),
+        )  # fmt: skip
+        passes = 1
+        layout = page.payload_layout(payload, passes=passes)
+    return PageLayoutSummary(
+        page_codes=len(layout.page_codes),
+        run_line_slots=len(layout.run_line_slots),
+        passes_total=passes,
+        margin_text=MarginTextSummary(
+            top=layout.margin_text["top"], bottom=layout.margin_text["bottom"]
+        ),
+    )
 
 
 @router.get(

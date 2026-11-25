@@ -217,6 +217,21 @@ async def _printed(env: _Env, job_id: str) -> None:
         await env.queue.wait_for_job(job_id, timeout_s=10)
 
 
+async def _without_run(env: _Env, job_id: str) -> bytes:
+    """The job's page as a download draws it: the same payload without its run (OC-35; a
+    downloaded PDF belongs to no run and carries no codes)."""
+    from app.models.job import Job
+    from app.services.page_jobs import PagePayload
+
+    async with env.factory() as s:
+        row = await s.get(Job, UUID(job_id))
+    assert row is not None
+    payload = PagePayload.model_validate(row.payload)
+    for key in ("run_no", "time", "run_id"):
+        del payload.detail[key]
+    return render_calibration_page(payload)
+
+
 async def test_post_queues_a_page_job_the_printer_receives(env: _Env) -> None:
     async with env.client() as c:
         r = await c.post(
@@ -237,7 +252,8 @@ async def test_post_queues_a_page_job_the_printer_receives(env: _Env) -> None:
 
     assert sent.attributes["job-name"] == [wire_job_name("Calibration page · cal-job v1", job_id)]
     assert pdf_resp.status_code == 200
-    assert pdf_resp.content == sent.document  # OC-35: the download is what the job sent
+    # OC-35: the download is what the job sent, less the run (its number, time and codes).
+    assert pdf_resp.content == await _without_run(env, job_id) != sent.document
     job = await env.queue.get(job_id)
     assert job.kind == "calibration_page"
     from app.models.job import Job
@@ -288,7 +304,8 @@ async def test_corrected_page_uses_the_stored_calibration_and_matches_the_downlo
     body = {"type": "cal-job", "corrected": True}
     async with env.client() as c:
         r = await c.post(f"/api/v1/printers/{env.printer_id}/calibration/auto/page", json=body)
-        await _printed(env, r.json()["job_id"])
+        job_id = r.json()["job_id"]
+        await _printed(env, job_id)
         dl = await c.get(
             f"/api/v1/printers/{env.printer_id}/calibration/auto/page/pdf?type=cal-job&corrected=true"
         )
@@ -296,7 +313,8 @@ async def test_corrected_page_uses_the_stored_calibration_and_matches_the_downlo
             f"/api/v1/printers/{env.printer_id}/calibration/auto/page/pdf?type=cal-job"
         )
     [sent] = env.documents()
-    assert dl.content == sent.document != plain.content
+    assert dl.content == await _without_run(env, job_id) != plain.content
+    assert sent.document != dl.content  # the job carries its run
 
 
 async def test_corrected_page_of_an_uncalibrated_tray_does_not_crash(env: _Env) -> None:

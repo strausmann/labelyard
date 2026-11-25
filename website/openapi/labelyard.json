@@ -3960,6 +3960,37 @@
         "title": "MarginRectMm",
         "type": "object"
       },
+      "MarginTextSummary": {
+        "description": "Per margin block: `full` (6 pt), `reduced` (smaller, at least 4.5 pt) or `omitted`.",
+        "properties": {
+          "bottom": {
+            "description": "The correction, the values not as shipped, the checkerboard hint.",
+            "enum": [
+              "full",
+              "reduced",
+              "omitted"
+            ],
+            "title": "Bottom",
+            "type": "string"
+          },
+          "top": {
+            "description": "The run, its date and time, the sheet type and tray.",
+            "enum": [
+              "full",
+              "reduced",
+              "omitted"
+            ],
+            "title": "Top",
+            "type": "string"
+          }
+        },
+        "required": [
+          "top",
+          "bottom"
+        ],
+        "title": "MarginTextSummary",
+        "type": "object"
+      },
       "Margins": {
         "description": "Smallest unprintable margin per side, hundredths of mm.",
         "properties": {
@@ -4233,6 +4264,43 @@
           "job_id"
         ],
         "title": "PageJobQueued",
+        "type": "object"
+      },
+      "PageLayoutSummary": {
+        "description": "What the print dialog says before a calibration or check page is printed (design 7.2).",
+        "properties": {
+          "margin_text": {
+            "$ref": "#/components/schemas/MarginTextSummary",
+            "description": "How the run information fits the margins above and below the grid. It never goes across the labels: a block that does not fit at 6 pt is printed smaller (down to 4.5 pt), and one that does not fit even then is left out, so the dialog can say before printing that the page prints without that margin text. The page codes carry the run, the sheet type, its version and the correction either way."
+          },
+          "page_codes": {
+            "description": "How many of the four page codes the page carries on this printer and tray; fewer than 4: \"This sheet type leaves room for 2 of the 4 page codes on this printer\".",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Page Codes",
+            "type": "integer"
+          },
+          "passes_total": {
+            "description": "Passes the sheet takes.",
+            "minimum": 1.0,
+            "title": "Passes Total",
+            "type": "integer"
+          },
+          "run_line_slots": {
+            "description": "Run-line slots reserved for the later passes of a check sheet; fewer than `passes_total - 1`: the later passes print without their run line.",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Run Line Slots",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page_codes",
+          "run_line_slots",
+          "passes_total",
+          "margin_text"
+        ],
+        "title": "PageLayoutSummary",
         "type": "object"
       },
       "PageMedia": {
@@ -13888,7 +13956,7 @@
             "description": "The printer is a tape printer (`media_kind_mismatch`), is not known to the print queue (`printer-unavailable`), or the device behind it changed (`printer-identity-mismatch`)."
           },
           "422": {
-            "description": "The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes."
+            "description": "The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes. The run code would not fit its QR symbol at 0.25 mm modules (`calibration_qr_too_large`, with `length`, `version_needed` and `max_version`); it is never shortened."
           }
         },
         "security": [
@@ -13897,6 +13965,114 @@
           }
         ],
         "summary": "Print the calibration page (no sheet is created)",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/page/layout": {
+      "get": {
+        "description": "The layout the page would get now: the printer's hardware margins (5 mm per side when it\nreports none) and the tray's stored offset decide the printable area, as when it is printed.\nNothing is stored and no run is taken.",
+        "operationId": "get_calibration_page_layout_api_v1_printers__printer_id__calibration__tray__page_layout_get",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sheet type key.",
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Sheet type key.",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Defaults to the current version.",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to the current version.",
+              "title": "Version"
+            }
+          },
+          {
+            "description": "`check_page` is printed with the tray's stored correction.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "calibration_page",
+              "description": "`check_page` is printed with the tray's stored correction.",
+              "enum": [
+                "calibration_page",
+                "check_page"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageLayoutSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+          },
+          "422": {
+            "description": "The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "How a calibration or check page fits the printable area of a printer and tray",
         "tags": [
           "calibration"
         ]

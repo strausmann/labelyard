@@ -1,36 +1,55 @@
 # SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""The printable calibration page (spec 13.2): a test grid the user measures.
+"""The printable calibration page (spec 13.2, design 7.2): a test grid the user measures.
 
 The page shows the sheet type's cut lines with a ruler and a millimetre scale at every crossing
 of four labels. The user prints it on the real paper, reads how far the ink landed from each
 crossing, and enters the readings; ``fit`` turns them into the printer's deviation.
 
-Only the page drawing, its footer and the payload renderer live here. The routes build the
-payload with ``build_payload`` and then both the job and the PDF download call
-``render_calibration_page`` on it, so they cannot drift apart (OC-35). No sheet record is
-created or touched.
+Where everything goes is decided by ``layout.check_page_layout`` inside the printer's printable
+area; this module turns a payload into that layout, the texts of the two margin blocks and the
+run codes, and draws them. The routes build the payload with ``build_payload`` and then both the
+job and the PDF download call ``render_calibration_page`` on it, so they cannot drift apart
+(OC-35). No sheet record is created or touched.
 
-The four 15 x 15 mm squares at the page corners are reserved for the registration markers of
-the scan (Part B). Nothing is drawn in them: a mark, tick, scale or text whose bounding box
-overlaps the inside of a square is left out as a whole, and a gap line that runs into one is
-clipped at it.
+A page that belongs to a run (``detail.run_no``, set at submit) carries the run's ``LYC1`` codes:
+up to four page codes and a code in every cell that holds one. A downloaded PDF belongs to no run
+and carries no codes; its cell numbers and margin blocks are the same.
 """
 
 from __future__ import annotations
 
-import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, cast
 from uuid import UUID
 
-from app.calibration import scale
-from app.calibration.fit import crossing_point
+import qrcode
+import qrcode.util
+from PIL import Image
+
+from app.calibration import codes
+from app.calibration.layout import (
+    BLOCK_PT,
+    CELL_NUMBER_PT,
+    CHECKERBOARD_SENTENCE,
+    PageLayout,
+    PrintableArea,
+    bottom_line_count,
+    check_page_layout,
+    correction_line,
+    geometry_line,
+    needs_checkerboard,
+    printable_area,
+    run_line,
+    scale_segments,
+    type_line,
+)
 from app.calibration.scale import LINE_MM
-from app.page_render.pdf import VectorPen, text_width_mm, write_pdf
+from app.page_render.pdf import PageImage, VectorPen, text_width_mm, write_pdf
+from app.page_render.transform import IDENTITY
 from app.services.page_jobs import PagePayload, snapshot_to_deviation
 from app.sheets.errors import CalibrationGridTooLargeError, CalibrationTypeUnsuitableError
 from app.sheets.geometry import Geometry
@@ -38,35 +57,23 @@ from app.sheets.geometry import Geometry
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+__all__ = [
+    "CHECKERBOARD_SENTENCE",
+    "MAX_CALIBRATION_CELLS",
+    "block_lines",
+    "build_payload",
+    "check_run_codes",
+    "draw_calibration_page",
+    "fit_type_line",
+    "payload_layout",
+    "render_calibration_page",
+    "scale_segments",
+]
+
 #: Most cells (columns x rows) a calibration page draws; a bigger grid is refused (#358).
 #: A second line of defence: every API, import and seed path already caps a type at
 #: ``geometry.MAX_CELLS`` (400) in ``validate_geometry``; this bound covers rows stored past it.
 MAX_CALIBRATION_CELLS: Final = 2500
-
-#: Plan 2 decision: the page size the squares are measured on is the sheet's own.
-CORNER_SQUARE_MM = 15.0
-DASHED = (1.0, 0.5)
-DOTTED = (0.2, 0.4)
-LABEL_PT = 2.5
-FOOTER_PT = 6.0
-FOOTER_BASELINE_MM = 7.0
-CHECKERBOARD_SENTENCE = "Peel every other label (checkerboard) if the cut is hard to see."
-_SENTENCE_BASELINE_FROM_BOTTOM_MM = 11.0
-_PT_MM = 25.4 / 72
-#: Float noise (a coordinate that is 15 mm up to rounding) must not turn "touching" into "inside".
-_EPS = 1e-9
-#: Room kept between the footer and a corner square, so rounding in the PDF cannot touch it.
-_FOOTER_SLACK_MM = 0.01
-
-# Mini scale at a crossing (±2 mm, a tick every 0.5 mm): its numbers are in ``scale``.
-# Ruler on a grid edge at a gap line: ±3 mm, a tick every 0.5 mm, drawn outwards.
-_RULER_HALF_MM = 3.0
-_RULER_STEP_MM = 0.5
-_RULER_TICK_MM = 1.0
-_CORNER_LEG_MM = 1.5
-
-_Box = tuple[float, float, float, float]
-_Seg = tuple[float, float, float, float]
 
 
 def today_iso(time_zone: str = "UTC") -> str:
@@ -77,337 +84,226 @@ def today_iso(time_zone: str = "UTC") -> str:
     return datetime.now(hub_zone(time_zone)).date().isoformat()
 
 
+# ---------------------------------------------------------------------------- margin block texts
+
+
 def _short(text: str, limit: int) -> str:
     if limit >= len(text):
         return text
     return text[: limit - 3] + "..." if limit > 3 else text[: max(limit, 0)]
 
 
-def footer_text(
-    type_key: str, version: int, printer_name: str, tray: str, day: str, *, corrected: bool
-) -> str:
-    """The footer line, in full."""
-    outcome = "check print with correction" if corrected else "printed without correction"
-    return (
-        f"{type_key} v{version} · {printer_name}"
-        f" · tray {tray} · {day} · Calibration page — {outcome}"
-    )
-
-
-def footer_room_mm(page_w_mm: float) -> float:
-    """The width between the two bottom corner squares that the footer may take."""
-    return page_w_mm - 2 * CORNER_SQUARE_MM - _FOOTER_SLACK_MM * 2
-
-
-def fit_footer_text(
+def fit_type_line(
     type_key: str,
     version: int,
     printer_name: str,
     tray: str,
-    day: str,
     *,
-    corrected: bool,
     room_mm: float,
+    size_pt: float = BLOCK_PT,
 ) -> str:
-    """The footer line, with the variable fields shortened until it fits in ``room_mm``.
+    """The second line of the top block, shortened until it fits ``room_mm``.
 
-    Measured with the embedded font. The version, the date and the outcome are never touched;
-    the printer name, the type key and the tray give way (down to nothing) in order of their
-    current length. Raises ``ValueError`` if even the bare line is too wide.
+    Measured with the embedded font. The printer name gives way first (down to nothing), then the
+    type key, then the tray; the version never shortens. Raises ``ValueError`` when even the bare
+    line is too wide.
     """
-    fields = [type_key, printer_name, tray]
+    fields = [printer_name, type_key, tray]
     keep = [len(f) for f in fields]
 
     def build() -> str:
-        k, n, t = (_short(f, m) for f, m in zip(fields, keep, strict=True))
-        return footer_text(k, version, n, t, day, corrected=corrected)
+        n, k, t = (_short(f, m) for f, m in zip(fields, keep, strict=True))
+        return type_line(k, version, n, t)
 
-    while text_width_mm(build(), FOOTER_PT) > room_mm:
-        shown = [min(m, len(f)) for f, m in zip(fields, keep, strict=True)]
-        longest = max(range(3), key=lambda i: shown[i])
-        if shown[longest] == 0:
-            raise ValueError("footer: the fixed part alone does not fit between the corner squares")
-        keep[longest] = shown[longest] - 1
-    return build()
-
-
-def _hits_open_square(seg: tuple[float, float, float, float], square: _Box) -> bool:
-    """True if some point of the segment lies strictly inside the open ``square``.
-
-    Liang-Barsky against the square shrunk by ``_EPS``: a segment that only touches the edge
-    (or ends on it) leaves an empty interval and does not count.
-    """
-    x1, y1, x2, y2 = seg
-    sx0, sy0, sx1, sy1 = square
-    dx, dy = x2 - x1, y2 - y1
-    t0, t1 = 0.0, 1.0
-    for p, q in (
-        (-dx, x1 - (sx0 + _EPS)),
-        (dx, (sx1 - _EPS) - x1),
-        (-dy, y1 - (sy0 + _EPS)),
-        (dy, (sy1 - _EPS) - y1),
-    ):
-        if p == 0:
-            if q <= 0:
-                return False
-        else:
-            r = q / p
-            if p < 0:
-                t0 = max(t0, r)
-            else:
-                t1 = min(t1, r)
-    return t0 < t1 or (t0 == t1 and dx == 0 and dy == 0)
+    for i in range(3):
+        while text_width_mm(build(), size_pt) > room_mm and keep[i] > 0:
+            keep[i] = min(keep[i], len(fields[i])) - 1
+    line = build()
+    if text_width_mm(line, size_pt) > room_mm:
+        raise ValueError("margin block: the fixed part alone does not fit the printable area")
+    return line
 
 
-class _Page:
-    """The pen plus the corner-square rule; every drawing call goes through here."""
-
-    def __init__(self, pen: VectorPen, width_mm: float, height_mm: float) -> None:
-        self._pen = pen
-        self._w = width_mm
-        self._h = height_mm
-        s = CORNER_SQUARE_MM
-        self._squares: tuple[_Box, ...] = (
-            (0, 0, s, s),
-            (width_mm - s, 0, width_mm, s),
-            (0, height_mm - s, s, height_mm),
-            (width_mm - s, height_mm - s, width_mm, height_mm),
-        )
-
-    def clear(self, box: _Box) -> bool:
-        """True if the open interior of no corner square overlaps ``box`` (used for text)."""
-        x0, y0, x1, y1 = box
-        return not any(
-            x0 < sx1 - _EPS and x1 > sx0 + _EPS and y0 < sy1 - _EPS and y1 > sy0 + _EPS
-            for sx0, sy0, sx1, sy1 in self._squares
-        )
-
-    def segments(
-        self,
-        segs: Sequence[tuple[float, float, float, float]],
-        dash: tuple[float, ...] | None = None,
-    ) -> None:
-        """One element made of segments; omitted as a whole if any point of any of them lies
-        strictly inside a corner square."""
-        if any(_hits_open_square(seg, sq) for seg in segs for sq in self._squares):
-            return
-        for x1, y1, x2, y2 in segs:
-            self._pen.line(x1, y1, x2, y2, width_mm=LINE_MM, dash=dash)
-
-    def run(
-        self, x: float, y1: float, y2: float, *, vertical: bool, dash: tuple[float, ...] | None
-    ) -> None:
-        """A long axis-parallel line, clipped at the corner squares instead of dropped."""
-        s = CORNER_SQUARE_MM
-        lo, hi = (s, self._h - s) if vertical else (s, self._w - s)
-        across = self._w if vertical else self._h
-        in_band = x < s or x > across - s
-        a, b = min(y1, y2), max(y1, y2)
-        if in_band:
-            a, b = max(a, lo), min(b, hi)
-        if b <= a:
-            return
-        if vertical:
-            self._pen.line(x, a, x, b, width_mm=LINE_MM, dash=dash)
-        else:
-            self._pen.line(a, x, b, x, width_mm=LINE_MM, dash=dash)
-
-    def text(
-        self,
-        x: float,
-        y: float,
-        s: str,
-        *,
-        size_pt: float,
-        anchor: Literal["start", "middle", "end"],
-    ) -> None:
-        left, right, top, bottom = self._text_box(x, y, s, size_pt, anchor)
-        if self.clear((left, top, right, bottom)):
-            self._pen.text(x, y, s, size_pt=size_pt, anchor=anchor)
-
-    @staticmethod
-    def _text_box(
-        x: float, y: float, s: str, size_pt: float, anchor: str
-    ) -> tuple[float, float, float, float]:
-        width = text_width_mm(s, size_pt)
-        em = size_pt * _PT_MM
-        left = {"start": x, "middle": x - width / 2, "end": x - width}[anchor]
-        return left, left + width, y - em, y + em * 0.25
-
-    def footer(self, x: float, y: float, s: str) -> None:
-        """The footer is never dropped: if it does not fit between the squares, that is a bug."""
-        left, right, top, bottom = self._text_box(x, y, s, FOOTER_PT, "middle")
-        if not self.clear((left, top, right, bottom)):
-            raise ValueError("footer does not fit between the corner squares")
-        self._pen.text(x, y, s, size_pt=FOOTER_PT, anchor="middle")
+def _fixed(line: str, room_mm: float, size_pt: float) -> str:
+    if text_width_mm(line, size_pt) > room_mm:
+        raise ValueError("margin block: the fixed part alone does not fit the printable area")
+    return line
 
 
-def _scale_segments(cx: float, cy: float, *, along_x: bool) -> list[_Seg]:
-    """The ticks of the mini scale at a crossing, as (x1, y1, x2, y2)."""
-    segs: list[_Seg] = []
-    ticks = round(scale.HALF_MM / scale.STEP_MM)
-    per_mm = round(1 / scale.STEP_MM)
-    for k in range(-ticks, ticks + 1):
-        off = k * scale.STEP_MM
-        length = (
-            scale.TICK_CENTRE_MM
-            if k == 0
-            else scale.TICK_WHOLE_MM
-            if k % per_mm == 0
-            else scale.TICK_HALF_MM
-        )
-        h = length / 2
-        segs.append(
-            (cx + off, cy - h, cx + off, cy + h)
-            if along_x
-            else (cx - h, cy + off, cx + h, cy + off)
-        )
-    return segs
+def bottom_lines_of(payload: PagePayload) -> int:
+    """How many lines the payload's bottom block draws (``layout.bottom_line_count``)."""
+    d = payload.detail
+    g = Geometry(**d["geometry"])
+    return bottom_line_count(
+        geometry_diff=geometry_line(d.get("geometry_diff") or {}) is not None,
+        checkerboard=needs_checkerboard(g),
+    )
 
 
-def _mini_scale(page: _Page, cx: float, cy: float, *, along_x: bool) -> None:
-    """The ±2 mm scale of a crossing, a tick every 0.5 mm (``app.calibration.scale``).
-
-    Deliberately all or nothing: a scale with some ticks missing would be counted wrongly by
-    whoever reads it, so one tick touching a corner square omits the whole scale.
-    """
-    page.segments(_scale_segments(cx, cy, along_x=along_x))
-
-
-def _white_between(a: _Seg, b: _Seg) -> float:
-    """The white (mm) between two straight strokes of ``LINE_MM``, edge to edge."""
-
-    def box(s: _Seg) -> _Box:
-        h = LINE_MM / 2
-        return min(s[0], s[2]) - h, min(s[1], s[3]) - h, max(s[0], s[2]) + h, max(s[1], s[3]) + h
-
-    (ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1) = box(a), box(b)
-    return math.hypot(max(ax0 - bx1, bx0 - ax1, 0.0), max(ay0 - by1, by0 - ay1, 0.0))
-
-
-def _ruler(page: _Page, pos: float, edge: float, *, horizontal: bool, outward: int) -> None:
-    """Half-millimetre ticks around ``pos`` along one grid edge; every tick is its own element."""
-    for k in range(-6, 7):
-        t = pos + k * _RULER_STEP_MM
-        a, b = edge, edge + outward * _RULER_TICK_MM
-        page.segments([(t, a, t, b)] if horizontal else [(a, t, b, t)])
-
-
-def _corner_mark(
-    page: _Page, x: float, y: float, dx: int, dy: int, *, ticks: Sequence[_Seg] = ()
-) -> None:
-    """An L at a label corner whose legs run along the label's two edges, inwards.
-
-    Left out as a whole when a leg would come nearer than ``scale.MIN_GAP_MM`` of white to a
-    tick of a mini scale: on a sheet whose gap is as narrow as the scale (2.5 mm, say) the legs
-    run between two ticks (0.15 mm of white) or continue the centre tick, and a colour laser
-    fills that in (#348). A leg cannot be shortened out of the way, it starts at the corner,
-    which lies inside the scale; the scale and the gap lines still show the cut there.
-    """
-    leg = _CORNER_LEG_MM
-    legs = [(x, y, x + dx * leg, y), (x, y, x, y + dy * leg)]
-    if any(_white_between(a, b) < scale.MIN_GAP_MM - _EPS for a in legs for b in ticks):
-        return
-    page.segments(legs)
+def block_lines(payload: PagePayload, layout: PageLayout) -> dict[str, list[str]]:
+    """The lines of each margin block the layout holds, fitted to its box and size; a block the
+    margin had no room for has none (``layout.margin_text``)."""
+    d = payload.detail
+    corrected = bool(d["corrected"])
+    out: dict[str, list[str]] = {}
+    top = layout.block("top")
+    if top is not None:
+        room, pt = top.box.w / 100, top.size_pt
+        run = run_line(d.get("run_no"), d["date"], d.get("time"), corrected=corrected)
+        out["top"] = [
+            _fixed(run, room, pt),
+            fit_type_line(
+                d["type_key"], d["version"], d["printer_name"], payload.tray, room_mm=room,
+                size_pt=pt,
+            ),
+        ]  # fmt: skip
+    bottom = layout.block("bottom")
+    if bottom is not None:
+        room, pt = bottom.box.w / 100, bottom.size_pt
+        dev = snapshot_to_deviation(payload.calibration) if corrected else None
+        lines = [_fixed(correction_line(dev), room, pt)]
+        geometry = geometry_line(d.get("geometry_diff") or {})
+        if geometry is not None:
+            lines.append(_fixed(geometry, room, pt))
+        if layout.checkerboard:
+            lines.append(_fixed(CHECKERBOARD_SENTENCE, room, pt))
+        out["bottom"] = lines
+    return out
 
 
-def draw_calibration_page(pen: VectorPen, g: Geometry, *, footer: str) -> None:
-    """Draw the page for ``g`` (everything in black, 0.1 mm lines); see the module docstring."""
+# ---------------------------------------------------------------------------- layout of a payload
+
+
+def payload_area(payload: PagePayload) -> PrintableArea:
+    """The printable area stored at build time; a payload from before 1.8.0 assumes 5 mm."""
+    d = payload.detail
+    stored = d.get("printable_area")
+    if isinstance(stored, Mapping):
+        return PrintableArea(**{k: int(stored[k]) for k in ("left", "top", "right", "bottom")})
+    return printable_area(Geometry(**d["geometry"]), None, IDENTITY)
+
+
+def payload_layout(payload: PagePayload, *, passes: int = 1) -> PageLayout:
+    d = payload.detail
+    g = Geometry(**d["geometry"])
     if g.cols < 2 or g.rows < 2:
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
-    page = _Page(pen, g.page_w / 100, g.page_h / 100)
-    x0, y0 = g.margin_left / 100, g.margin_top / 100
-    gw = ((g.cols - 1) * g.pitch_x + g.label_w) / 100
-    gh = ((g.rows - 1) * g.pitch_y + g.label_h) / 100
-    col_gap, row_gap = g.pitch_x > g.label_w, g.pitch_y > g.label_h
-    col_x = [crossing_point(g, i, 1)[0] for i in range(1, g.cols)]
-    row_y = [crossing_point(g, 1, j)[1] for j in range(1, g.rows)]
+    return check_page_layout(
+        g,
+        payload_area(payload),
+        allow_qr=bool(d.get("allow_qr", True)),
+        passes=passes,
+        bottom_lines=bottom_lines_of(payload),
+    )
 
-    for x in col_x:  # solid when there is a gap to centre in, else dotted on the nominal cut
-        page.run(x, y0, y0 + gh, vertical=True, dash=None if col_gap else DOTTED)
-    for y in row_y:
-        page.run(y, x0, x0 + gw, vertical=False, dash=DASHED if row_gap else DOTTED)
 
-    # The ticks of every crossing, by (column line, row line): a corner is checked only against
-    # the crossings next to it, not against every tick of the page.
-    scales: dict[tuple[int, int], list[_Seg]] = {}
-    for i, x in enumerate(col_x):
-        for j, y in enumerate(row_y):
-            _mini_scale(page, x, y, along_x=True)
-            _mini_scale(page, x, y, along_x=False)
-            scales[i, j] = _scale_segments(x, y, along_x=True) + _scale_segments(
-                x, y, along_x=False
+# ---------------------------------------------------------------------------- run codes
+
+
+def _qr_image(payload: str, version: int, border: int) -> Image.Image:
+    """One pixel per module, mode ``"1"``; the PDF scales it to the drawn size exactly."""
+    qr = qrcode.QRCode(version=version, error_correction=codes.ECC, border=border)
+    qr.add_data(qrcode.util.QRData(payload, mode=qrcode.util.MODE_ALPHA_NUM))
+    qr.make(fit=False)
+    matrix = qr.get_matrix()
+    side = len(matrix)
+    flat = bytes(0 if dark else 255 for row in matrix for dark in row)
+    return Image.frombytes("L", (side, side), flat).convert("1")
+
+
+def _page_code(payload: PagePayload) -> str | None:
+    """The page code of a payload that belongs to a run; ``None`` without a run or prefix."""
+    d = payload.detail
+    run_no, prefix = d.get("run_no"), d.get("prefix")
+    if not isinstance(run_no, int) or not isinstance(prefix, str):
+        return None
+    corrected = bool(d["corrected"])
+    dev = snapshot_to_deviation(payload.calibration) if corrected else IDENTITY
+    return codes.page_payload(
+        run_no=run_no,
+        prefix=prefix,
+        version=int(d["version"]),
+        dev=dev,
+        check=corrected,
+        geometry_diff=cast(dict[codes.GeometryField, int], d.get("geometry_diff") or {}),
+    )
+
+
+def check_run_codes(payload: PagePayload) -> None:
+    """Refuse a stamped payload whose page code does not fit its symbol (never truncated):
+    ``CalibrationQrTooLargeError``, 422 ``calibration_qr_too_large``."""
+    page_code = _page_code(payload)
+    if page_code is not None:
+        codes.page_qr_version(page_code)
+
+
+def _code_images(payload: PagePayload, layout: PageLayout) -> list[PageImage]:
+    run_no = payload.detail.get("run_no")
+    if not isinstance(run_no, int):
+        return []
+    images: list[PageImage] = []
+    page_code = _page_code(payload)
+    if page_code is not None:
+        symbol = _qr_image(
+            page_code, codes.page_qr_version(page_code), 0
+        )  # the quiet zone lies outside the 10 mm
+        for spot in layout.page_codes:
+            b = spot.box
+            images.append(PageImage(round(b.x), round(b.y), round(b.w), round(b.h), symbol))
+    for cell in layout.cell_codes:
+        text = codes.cell_payload(run_no, cell.cell)
+        cell_version = codes.cell_qr_version(text)
+        if cell_version is None:  # a cell code that does not fit is left out, never cut
+            continue
+        b = cell.box
+        images.append(
+            PageImage(
+                round(b.x), round(b.y), round(b.w), round(b.h),
+                _qr_image(text, cell_version, codes.QUIET_MODULES),
             )
-
-    for x in col_x:
-        _ruler(page, x, y0, horizontal=True, outward=-1)
-        _ruler(page, x, y0 + gh, horizontal=True, outward=1)
-    for y in row_y:
-        _ruler(page, y, x0, horizontal=False, outward=-1)
-        _ruler(page, y, x0 + gw, horizontal=False, outward=1)
-
-    for r in range(g.rows):
-        for c in range(g.cols):
-            lx0 = (g.margin_left + c * g.pitch_x) / 100
-            ly0 = (g.margin_top + r * g.pitch_y) / 100
-            lx1 = (g.margin_left + c * g.pitch_x + g.label_w) / 100
-            ly1 = (g.margin_top + r * g.pitch_y + g.label_h) / 100
-            # A label's left edge borders column line c - 1, its right edge line c; its top edge
-            # borders row line r - 1, its bottom edge line r (the outer edges border none).
-            left, top = c - 1, r - 1
-            tl, tr = scales.get((left, top), []), scales.get((c, top), [])
-            bl, br = scales.get((left, r), []), scales.get((c, r), [])
-            _corner_mark(page, lx0, ly0, 1, 1, ticks=tl)
-            _corner_mark(page, lx1, ly0, -1, 1, ticks=tr)
-            _corner_mark(page, lx0, ly1, 1, -1, ticks=bl)
-            _corner_mark(page, lx1, ly1, -1, -1, ticks=br)
-
-    for i, x in enumerate(col_x, start=1):
-        page.text(x, y0 - _RULER_TICK_MM - 0.6, f"S{i}", size_pt=LABEL_PT, anchor="middle")
-        page.text(x, y0 + gh + _RULER_TICK_MM + 1.1, f"S{i}", size_pt=LABEL_PT, anchor="middle")
-    for j, y in enumerate(row_y, start=1):
-        page.text(x0 - _RULER_TICK_MM - 0.6, y + 0.3, f"Z{j}", size_pt=LABEL_PT, anchor="end")
-        page.text(
-            x0 + gw + _RULER_TICK_MM + 0.6, y + 0.3, f"Z{j}", size_pt=LABEL_PT, anchor="start"
-        )
-
-    if not (col_gap and row_gap):
-        page.text(
-            g.page_w / 200,
-            g.page_h / 100 - _SENTENCE_BASELINE_FROM_BOTTOM_MM,
-            CHECKERBOARD_SENTENCE,
-            size_pt=FOOTER_PT,
-            anchor="middle",
-        )
-    page.footer(g.page_w / 200, g.page_h / 100 - FOOTER_BASELINE_MM, footer)
+        )  # fmt: skip
+    return images
 
 
-# ---------------------------------------------------------------------------- payload, renderer
+# ---------------------------------------------------------------------------- drawing
+
+
+def draw_calibration_page(
+    pen: VectorPen, layout: PageLayout, *, lines: Mapping[str, Sequence[str]]
+) -> None:
+    """Draw ``layout`` (everything in black, 0.1 mm lines) with the lines of its blocks, each on
+    the block's lowest baselines."""
+    for mark in layout.marks:
+        for x1, y1, x2, y2 in mark.segs:
+            pen.line(x1, y1, x2, y2, width_mm=LINE_MM, dash=mark.dash)
+    for t in layout.labels:
+        pen.text(t.x, t.y, t.text, size_pt=t.size_pt, anchor=t.anchor)
+    for n in layout.cell_numbers:
+        pen.text(n.x, n.y, str(n.cell), size_pt=CELL_NUMBER_PT, anchor=n.anchor)
+    for block in layout.margin_blocks:
+        shown = lines.get(block.edge, ())
+        cx = (block.box.x + block.box.w / 2) / 100
+        for y, line in zip(block.baselines_for(len(shown)), shown, strict=True):
+            pen.text(cx, y, line, size_pt=block.size_pt, anchor="middle")
 
 
 def render_calibration_page(payload: PagePayload, *, compress: bool = True) -> bytes:
     """The PDF of a ``calibration_page`` payload. Used by the job and by the download alike."""
-    d = payload.detail
-    g = Geometry(**d["geometry"])
-    corrected = bool(d["corrected"])
-    snap = payload.calibration if corrected else None
-    dev = snapshot_to_deviation(snap)
-    footer = fit_footer_text(
-        d["type_key"],
-        d["version"],
-        d["printer_name"],
-        payload.tray,
-        d["date"],
-        corrected=corrected,
-        room_mm=footer_room_mm(g.page_w / 100),
-    )
+    corrected = bool(payload.detail["corrected"])
+    layout = payload_layout(payload)
+    images = _code_images(payload, layout)  # first: a code too large is refused as such
+    lines = block_lines(payload, layout)
     return write_pdf(
         payload.media,
-        vector=lambda pen: draw_calibration_page(pen, g, footer=footer),
-        correction=dev,
+        images=images,
+        vector=lambda pen: draw_calibration_page(pen, layout, lines=lines),
+        correction=snapshot_to_deviation(payload.calibration if corrected else None),
         compress=compress,
         title="Calibration page",
     )
+
+
+# ---------------------------------------------------------------------------- payload
 
 
 async def build_payload(
@@ -422,13 +318,16 @@ async def build_payload(
 ) -> PagePayload:
     """Validate printer, tray and type and build the payload; the only place that does.
 
-    Raises the ``SheetApiError``s of the calibration service and the type service, and
+    The printable area (the printer's hardware margins, ``PrinterFacts.margins_hmm``, and the
+    tray's stored offset) is computed here and travels in ``detail``, so a retry draws the same
+    page. Raises the ``SheetApiError``s of the calibration service and the type service, and
     ``CalibrationTypeUnsuitableError`` for a type without crossings and
     ``CalibrationGridTooLargeError`` for more than ``MAX_CALIBRATION_CELLS`` cells.
     """
     from app.calibration import service
     from app.models.printer import Printer
     from app.sheets import type_service as ts
+    from app.sheets.printer_facts import load_printer_facts
 
     # Kind and tray are checked; the entry goes with the snapshot (design 7.5, S7).
     snapshot, history_id = await service.snapshot_with_history(session, printer_id, tray)
@@ -444,6 +343,10 @@ async def build_payload(
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
     if g.cols * g.rows > MAX_CALIBRATION_CELLS:
         raise CalibrationGridTooLargeError(g.cols * g.rows, MAX_CALIBRATION_CELLS)
+    facts = await load_printer_facts(session, printer_id)
+    # The tray's offset moves the ink whether or not the page applies the correction.
+    tray_dev = snapshot_to_deviation(snapshot)
+    area = printable_area(g, facts.margins_hmm, tray_dev, applied=tray_dev if corrected else None)
     detail: dict[str, Any] = {
         "type_key": sheet_type.key,
         "version": v.version,
@@ -451,6 +354,10 @@ async def build_payload(
         "date": today_iso(time_zone),
         "corrected": corrected,
         "geometry": asdict(g),
+        "prefix": sheet_type.prefix,
+        "allow_qr": bool(sheet_type.allow_qr),
+        "geometry_diff": await codes.catalog_geometry_diff(session, v),
+        "printable_area": asdict(area),
     }
     return PagePayload(
         kind="calibration_page",

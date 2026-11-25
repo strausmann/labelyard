@@ -108,8 +108,12 @@ async def allocate_run(
     correction: dict[str, Any] | None,
     actor: str | None,
     check_sheet: CheckSheetChoice | None = None,
+    page_codes: list[dict[str, Any]] | None = None,
 ) -> CalibrationRun:
     """Take the next number of ``(printer_id, tray)``, insert the run and commit.
+
+    ``page_codes`` are the page codes the page draws (``PageLayout.page_code_records``), stored
+    for the photo reader; ``None`` for a page without codes.
 
     One write transaction: the counter is read and raised under the sheet write lock, the run
     (and its check sheet pass) inserted. Retention is applied by ``submit_with_run`` only after
@@ -138,6 +142,7 @@ async def allocate_run(
             check_sheet_id=check_sheet.check_sheet_id if check_sheet else None,
             pass_no=check_sheet.pass_no if check_sheet else None,
             requested_tray=tray,
+            page_codes=page_codes,
             actor=actor,
         )
         session.add(run)
@@ -233,6 +238,7 @@ async def submit_with_run(
     check_sheet: CheckSheetChoice | None = None,
     time_zone: str = "UTC",
     retention_days: int = _JOB_RETENTION,
+    page_codes: list[dict[str, Any]] | None = None,
 ) -> tuple[CalibrationRun, UUID]:
     """Allocate a run, stamp the payload and ``submit(payload, job_id)`` with the run's job id.
 
@@ -255,6 +261,7 @@ async def submit_with_run(
         correction=payload.calibration.model_dump() if payload.calibration else None,
         actor=actor,
         check_sheet=check_sheet,
+        page_codes=page_codes,
     )
     # A failing retention or compensation rolls the session back, which would expire the run
     # and break every later read of it; the caller keeps a detached, fully loaded copy.

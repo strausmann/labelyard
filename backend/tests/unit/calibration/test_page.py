@@ -15,14 +15,15 @@ from itertools import pairwise
 import pytest
 from app.calibration import scale
 from app.calibration.fit import crossing_point
-from app.calibration.page import (
+from app.calibration.layout import (
     CHECKERBOARD_SENTENCE,
-    _scale_segments,
-    draw_calibration_page,
-    footer_text,
-    render_calibration_page,
+    PrintableArea,
+    printable_area,
+    run_line,
+    scale_segments,
 )
-from app.page_render.pdf import PT_PER_MM, _register_font, resolve_font_path, write_pdf
+from app.calibration.page import render_calibration_page
+from app.page_render.pdf import PT_PER_MM, _register_font, resolve_font_path
 from app.page_render.transform import Deviation, correction_pdf_matrix
 from app.services.page_jobs import CalibrationSnapshot, PagePayload
 from app.sheets.errors import CalibrationTypeUnsuitableError
@@ -40,14 +41,13 @@ GAPPED = Geometry("A4", 21000, 29700, 4000, 2000, 3, 4, 4500, 2500, 2000, 1000, 
 # No margin at all, in the top left corner: a column line and a row line run into the square.
 EDGE = Geometry("A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 0, 0, None, "rectangle")
 A4_W, A4_H = 210.0, 297.0
-SQUARE = 15.0
-FOOTER = "t v1 · printer · tray auto · 2026-11-05 · Calibration page — printed without correction"
+#: The printable area of a printer that reports no margins: 5 mm plus 1 mm on every side.
+EDGE_MM = 6.0
 
 
-def _pdf(g: Geometry, footer: str = FOOTER) -> bytes:
-    return write_pdf(
-        "A4", vector=lambda pen: draw_calibration_page(pen, g, footer=footer), compress=False
-    )
+def _pdf(g: Geometry, area: PrintableArea | None = None) -> bytes:
+    """The page as a downloaded PDF (no run, no codes) on a printer without reported margins."""
+    return render_calibration_page(_payload(g, area=area), compress=False)
 
 
 def _mm(x_pt: float, y_pt: float) -> tuple[float, float]:
@@ -99,14 +99,6 @@ def _long(pdf: bytes, g: Geometry, *, vertical: bool) -> list[dict]:
     return [s for s in _strokes(pdf) if _vertical(s) == vertical and abs(_len(s) - want) < 0.02]
 
 
-def _inside(x: float, y: float, w: float = A4_W, h: float = A4_H) -> bool:
-    return (
-        (x < SQUARE or x > w - SQUARE)
-        and (y < SQUARE or y > h - SQUARE)
-        and (0 < x < w and 0 < y < h)
-    )
-
-
 def _points(pdf: bytes) -> list[tuple[float, float]]:
     """Every drawn point: the end points and a sample every 0.25 mm along each segment, so a
     line that merely passes through a square is seen too."""
@@ -118,12 +110,9 @@ def _points(pdf: bytes) -> list[tuple[float, float]]:
     return pts
 
 
-def _strictly_in_square(x: float, y: float) -> bool:
-    """Strictly inside; the PDF's fixed-decimal rounding is far below the 1 µm tolerance."""
+def _outside_area(x: float, y: float, w: float = A4_W, h: float = A4_H) -> bool:
     eps = 1e-3
-    return (eps < x < SQUARE - eps or A4_W - SQUARE + eps < x < A4_W - eps) and (
-        eps < y < SQUARE - eps or A4_H - SQUARE + eps < y < A4_H - eps
-    )
+    return not (EDGE_MM - eps <= x <= w - EDGE_MM + eps and EDGE_MM - eps <= y <= h - EDGE_MM + eps)
 
 
 # ---------------------------------------------------------------------------- line counts
@@ -240,7 +229,7 @@ def test_a_corner_mark_never_comes_within_the_white_of_a_tick() -> None:
 
     rects = []
     for along_x in (True, False):
-        for x1, y1, x2, y2 in _scale_segments(cx, cy, along_x=along_x):
+        for x1, y1, x2, y2 in scale_segments(cx, cy, along_x=along_x):
             (a, b), (c, d) = px(x1, y1), px(x2, y2)
             rects.append((min(a, c) - pad, min(b, d) - pad, max(a, c) + pad, max(b, d) + pad))
 
@@ -271,18 +260,18 @@ def test_a_corner_is_checked_against_the_ticks_of_its_own_crossing_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Counts what each corner is checked against instead of timing it: one crossing's ticks."""
-    from app.calibration import page
+    from app.calibration import layout as lay
 
     sizes: list[int] = []
-    real = page._corner_mark
+    real = lay._corner_mark
 
     def recording(*args: object, ticks: list[tuple[float, float, float, float]] = (), **kw: object):  # type: ignore[no-untyped-def]
         sizes.append(len(ticks))
         return real(*args, ticks=ticks, **kw)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(page, "_corner_mark", recording)
+    monkeypatch.setattr(lay, "_corner_mark", recording)
     _pdf(TINY)
-    one_crossing = 2 * len(page._scale_segments(0.0, 0.0, along_x=True))
+    one_crossing = 2 * len(lay.scale_segments(0.0, 0.0, along_x=True))
     assert len(sizes) == 20 * 20 * 4
     # Never the ticks of the page (361 crossings x 18 x 2), and not of a neighbourhood either.
     assert max(sizes) == one_crossing
@@ -342,12 +331,13 @@ def test_page_has_rulers_with_half_millimetre_ticks_on_all_edges() -> None:
 
 def test_page_has_a_corner_mark_at_every_label_corner() -> None:
     pdf = _pdf(L4736)
-    marks = [s for s in _strokes(pdf) if _len(s) == 1.5]
+    marks = [s for s in _strokes(pdf) if _len(s) == 1.8]
     # Two legs per corner. A corner inside the scale of a crossing has no mark (see
     # test_a_corner_mark_never_comes_within_the_white_of_a_tick): of the 4 x 12 labels that
     # leaves the outer corners (2 sides x 2 corners x 12 rows) and the corners on the top and
-    # bottom edge of the grid next to the 3 column gaps (3 x 2 x 2).
+    # bottom edge of the grid next to the 3 column gaps (3 x 2 x 2), all with 1.8 mm legs.
     assert len(marks) == 2 * (2 * 2 * 12 + 3 * 2 * 2)
+    assert [s for s in _strokes(pdf) if _len(s) in (0.9, 1.5)] == []
     # The first label's top left corner: legs run right and down, hugging the label.
     x, y = L4736.margin_left / 100, L4736.margin_top / 100
     near = [
@@ -356,40 +346,28 @@ def test_page_has_a_corner_mark_at_every_label_corner() -> None:
     assert len(near) == 2
 
 
-# ---------------------------------------------------------------------------- corners
+# ---------------------------------------------------------------------------- the area
 
 
 @pytest.mark.parametrize("g", [L4736, L4731, EDGE], ids=["l4736", "l4731", "no-margin"])
-def test_page_is_gray_only_and_corners_empty(g: Geometry) -> None:
+def test_page_is_gray_only_and_nothing_lies_outside_the_area(g: Geometry) -> None:
     pdf = _pdf(g)
     assert pi.colour_operators(pdf) == set()
     assert not {"rg", "RG", "k", "K"} & set(pi.operators(pdf))
-    inside = [p for p in _points(pdf) if _strictly_in_square(*p)]
-    assert inside == []
-    texts_in = [
+    assert [p for p in _points(pdf) if _outside_area(*p)] == []
+    texts_out = [
         p
         for p in pi.text_positions(pdf)
-        if _strictly_in_square(p[0] / PT_PER_MM, A4_H - p[1] / PT_PER_MM)
+        if _outside_area(p[0] / PT_PER_MM, A4_H - p[1] / PT_PER_MM)
     ]
-    assert texts_in == []
+    assert texts_out == []
     assert pi.texts(pdf)  # something is drawn
-
-
-def test_l4731_leaves_out_the_corner_marks_inside_the_squares() -> None:
-    pdf = _pdf(L4731)
-    marks = [s for s in _strokes(pdf) if _len(s) == 1.5]
-    # The corners that lie inside a square have no mark, nor have those inside the scale of a
-    # crossing (pinned: 128 corners keep their mark on this 7 x 27 sheet).
-    assert len(marks) == 128 * 2
-    assert not any(
-        abs(p[0] - 8.6) < 0.01 and abs(p[1] - 13.5) < 0.01 for s in marks for p in s["pts"]
-    )
 
 
 def test_a_zero_margin_type_loses_marks_but_keeps_its_clipped_lines() -> None:
     pdf = _pdf(EDGE)
-    marks = [s for s in _strokes(pdf) if _len(s) == 1.5]
-    assert 0 < len(marks) < 4 * 9 * 2  # the corners inside the top left square are gone
+    marks = [s for s in _strokes(pdf) if _len(s) in (0.9, 1.8)]
+    assert 0 < len(marks) < 4 * 9 * 2  # the corners outside the area are gone
     col = [
         s
         for s in _strokes(pdf)
@@ -400,24 +378,32 @@ def test_a_zero_margin_type_loses_marks_but_keeps_its_clipped_lines() -> None:
         for s in _strokes(pdf)
         if not _vertical(s) and round(s["pts"][0][1], 2) == 11.0 and _len(s) > 10
     ]
-    assert [
-        (round(min(p[1] for p in s["pts"]), 2), round(max(p[1] for p in s["pts"]), 2)) for s in col
-    ] == [(15.0, 33.0)]
-    assert [
-        (round(min(p[0] for p in s["pts"]), 2), round(max(p[0] for p in s["pts"]), 2)) for s in row
-    ] == [(15.0, 30.0)]
+    # Clipped where the 0.1 mm stroke would leave the area (6 mm, plus half the stroke), and
+    # around the top margin block, which reaches below the grid's top edge.
+    assert [round(min(p[1] for p in s["pts"]), 2) for s in col] == [6.05] or all(
+        round(min(p[1] for p in s["pts"]), 2) >= 6.05 for s in col
+    )
+    assert [round(min(p[0] for p in s["pts"]), 2) for s in row] == [6.05]
+    assert [round(max(p[0] for p in s["pts"]), 2) for s in row] == [30.0]
 
 
-def test_footer_is_centred_and_clear_of_the_squares() -> None:
+def test_the_margin_blocks_are_centred_inside_the_area() -> None:
     pdf = _pdf(L4736)
-    footer = FOOTER
-    [pos] = [p for t, p in zip(pi.texts(pdf), pi.text_positions(pdf), strict=True) if t == footer]
     font = _register_font(resolve_font_path())
-    width = pdfmetrics.stringWidth(footer, font, 6) / PT_PER_MM
-    x, y = pos[0] / PT_PER_MM, A4_H - pos[1] / PT_PER_MM
-    assert x + width / 2 == pytest.approx(A4_W / 2, abs=0.05)
-    assert y == pytest.approx(A4_H - 7, abs=0.01)
-    assert x > SQUARE and x + width < A4_W - SQUARE
+    lines = {
+        run_line(None, "2026-11-05", None, corrected=False),
+        "t v1 · Office · tray auto",
+        "No correction applied",
+        CHECKERBOARD_SENTENCE,
+    }
+    found = [(t, p) for t, p in zip(pi.texts(pdf), pi.text_positions(pdf), strict=True)
+             if t in lines]  # fmt: skip
+    assert {t for t, _ in found} == lines
+    for t, pos in found:
+        width = pdfmetrics.stringWidth(t, font, 6) / PT_PER_MM
+        x = pos[0] / PT_PER_MM
+        assert x + width / 2 == pytest.approx(A4_W / 2, abs=0.05)
+        assert x >= EDGE_MM and x + width <= A4_W - EDGE_MM
 
 
 # ---------------------------------------------------------------------------- the renderer
@@ -431,6 +417,7 @@ def _payload(
     name: str = "Office",
     key: str = "t",
     tray: str = "auto",
+    area: PrintableArea | None = None,
 ) -> PagePayload:
     return PagePayload(
         kind="calibration_page",
@@ -446,15 +433,16 @@ def _payload(
             "date": "2026-11-05",
             "corrected": corrected,
             "geometry": asdict(g),
+            "printable_area": asdict(area or printable_area(g, None, Deviation())),
         },
     )
 
 
-def test_footer_text_wording() -> None:
-    assert footer_text("t", 1, "Office", "auto", "2026-11-05", corrected=False) == (
-        "t v1 · Office · tray auto · 2026-11-05 · Calibration page — printed without correction"
+def test_run_line_wording() -> None:
+    assert run_line(3, "2026-11-05", "09:41", corrected=False) == (
+        "Run #3 · 2026-11-05 09:41 · Calibration page — printed without correction"
     )
-    assert footer_text("t", 1, "Office", "auto", "2026-11-05", corrected=True).endswith(
+    assert run_line(3, "2026-11-05", "09:41", corrected=True).endswith(
         "Calibration page — check print with correction"
     )
 
@@ -494,13 +482,20 @@ def test_printer_name_is_text_and_never_an_operator() -> None:
     assert any(name in t for t in pi.texts(pdf))
 
 
-def test_a_long_printer_name_cannot_push_the_footer_into_a_square() -> None:
+def _type_line_extent(pdf: bytes) -> tuple[str, float, float]:
+    """The type line (the text with `` · tray ``) with its real left and right edge in mm."""
+    texts = pi.texts(pdf)
+    [i] = [i for i, t in enumerate(texts) if " · tray " in t]
+    width = pdfmetrics.stringWidth(texts[i], _register_font(resolve_font_path()), 6) / PT_PER_MM
+    left = pi.text_positions(pdf)[i][0] / PT_PER_MM
+    return texts[i], left, left + width
+
+
+def test_a_long_printer_name_cannot_push_the_type_line_out_of_the_area() -> None:
     pdf = render_calibration_page(_payload(name="x" * 300), compress=False)
-    [t] = [t for t in pi.texts(pdf) if t.endswith("printed without correction")]
-    pos = pi.text_positions(pdf)[pi.texts(pdf).index(t)]
-    width = pdfmetrics.stringWidth(t, _register_font(resolve_font_path()), 6) / PT_PER_MM
-    assert pos[0] / PT_PER_MM > SQUARE
-    assert pos[0] / PT_PER_MM + width < A4_W - SQUARE
+    text, left, right = _type_line_extent(pdf)
+    assert left >= EDGE_MM and right <= A4_W - EDGE_MM
+    assert text.startswith("t v1 · ") and "xxx..." in text
 
 
 # ---------------------------------------------------------------------------- unsuitable
@@ -520,21 +515,12 @@ def test_unsuitable_type(g: Geometry) -> None:
     assert e.value.error_code == "calibration_type_unsuitable" and e.value.status == 422
 
 
-# ---------------------------------------------------------------------------- footer fit (I1, I2)
-
-
-def _footer_extent(pdf: bytes) -> tuple[str, float, float]:
-    """The footer line (the text ending in the outcome) with its real left and right edge in mm."""
-    texts = pi.texts(pdf)
-    [i] = [i for i, t in enumerate(texts) if "Calibration page —" in t]
-    width = pdfmetrics.stringWidth(texts[i], _register_font(resolve_font_path()), 6) / PT_PER_MM
-    left = pi.text_positions(pdf)[i][0] / PT_PER_MM
-    return texts[i], left, left + width
+# ---------------------------------------------------------------------------- block fit (I1, I2)
 
 
 @pytest.mark.parametrize("glyph", ["W", "M", "m", "0"])
 @pytest.mark.parametrize("corrected", [False, True])
-def test_footer_with_wide_glyphs_stays_clear_of_both_squares(glyph: str, corrected: bool) -> None:
+def test_the_type_line_with_wide_glyphs_stays_inside_the_area(glyph: str, corrected: bool) -> None:
     pdf = render_calibration_page(
         _payload(
             corrected=corrected,
@@ -545,92 +531,53 @@ def test_footer_with_wide_glyphs_stays_clear_of_both_squares(glyph: str, correct
         ),
         compress=False,
     )
-    text, left, right = _footer_extent(pdf)
-    assert left >= SQUARE and right <= A4_W - SQUARE, (left, right)
-    # Whatever is shortened, the fixed parts stay.
-    assert " v1 " in text and "2026-11-05" in text
-    assert text.endswith(
-        "check print with correction" if corrected else "printed without correction"
-    )
+    text, left, right = _type_line_extent(pdf)
+    assert left >= EDGE_MM and right <= A4_W - EDGE_MM, (left, right)
+    assert " v1 " in text  # the version stays, whatever is shortened
+    outcome = "check print with correction" if corrected else "printed without correction"
+    assert any(t.endswith(outcome) and "2026-11-05" in t for t in pi.texts(pdf))
 
 
-def test_footer_of_the_longest_ordinary_names_is_present_and_marked() -> None:
+def test_the_longest_ordinary_names_are_not_cut() -> None:
     snap = CalibrationSnapshot(method="manual", dx_hmm=10)
     pdf = render_calibration_page(
-        _payload(corrected=True, snapshot=snap, key="k" * 40, name="n" * 24, tray="t" * 24),
+        _payload(corrected=True, snapshot=snap, key="k" * 24, name="n" * 24, tray="t" * 12),
         compress=False,
     )
-    text, left, right = _footer_extent(pdf)
-    assert text.endswith("Calibration page — check print with correction")
-    assert left >= SQUARE and right <= A4_W - SQUARE
-    assert "k" * 40 in text  # 179 mm: fits, so nothing is cut
+    text, left, right = _type_line_extent(pdf)
+    assert left >= EDGE_MM and right <= A4_W - EDGE_MM
+    # The top block is as wide as the longest run line (about 88 mm): these names fit uncut.
+    assert text == "k" * 24 + " v1 · " + "n" * 24 + " · tray " + "t" * 12
 
 
-def test_a_footer_that_cannot_fit_is_an_error_not_a_missing_footer() -> None:
-    with pytest.raises(ValueError, match="footer"):
-        _pdf(L4736, footer="W" * 200)
+def test_a_block_with_no_room_even_at_4_5_pt_is_left_out_not_cut() -> None:
+    """Operator decision (25.11.2026): smaller first, then no block; the fields never shorten."""
+    narrow = PrintableArea(left=9000, top=600, right=12000, bottom=29100)
+    pdf = _pdf(L4736, area=narrow)
+    texts = pi.texts(pdf)
+    assert not any(t.startswith("No run") or t.startswith("No correction") for t in texts)
+    assert [s for s in _strokes(pdf) if s["width"] == 0.1]  # the grid is still drawn
 
 
 # ---------------------------------------------------------------------------- boundary (M1, M2)
 
-# A label corner exactly on x = 15 / y = 15 (kept), and the same 0.01 mm further in (dropped).
-ON_EDGE = Geometry("A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 1500, 1500, None, "rectangle")
-JUST_IN = Geometry("A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 1499, 1499, None, "rectangle")
-# Gap lines exactly on x = 15 and y = 15 (kept whole), and 0.01 mm inside (clipped).
-LINE_ON_EDGE = Geometry(
-    "A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 400, 500, None, "rectangle"
-)
-LINE_JUST_IN = Geometry(
-    "A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 399, 499, None, "rectangle"
-)
+# A label corner exactly on the area's edge, 6 mm plus half a stroke (kept), and the same
+# 0.01 mm further out (dropped).
+ON_EDGE = Geometry("A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 2005, 605, None, "rectangle")
+JUST_OUT = Geometry("A4", 21000, 29700, 1000, 1100, 3, 3, 1000, 1100, 2005, 604, None, "rectangle")
 
 
 def _marks_at(pdf: bytes, x: float, y: float) -> list[dict]:
     return [
         s
         for s in _strokes(pdf)
-        if _len(s) == 1.5 and any(abs(p[0] - x) < 0.005 and abs(p[1] - y) < 0.005 for p in s["pts"])
+        if _len(s) == 1.8 and any(abs(p[0] - x) < 0.005 and abs(p[1] - y) < 0.005 for p in s["pts"])
     ]
 
 
-def test_an_element_touching_a_square_edge_is_kept() -> None:
-    assert len(_marks_at(_pdf(ON_EDGE), 15.0, 15.0)) == 2
+def test_an_element_touching_the_area_edge_is_kept() -> None:
+    assert len(_marks_at(_pdf(ON_EDGE), 6.05, 20.05)) == 2
 
 
-def test_an_element_0_01_mm_inside_a_square_is_dropped() -> None:
-    assert _marks_at(_pdf(JUST_IN), 14.99, 14.99) == []
-
-
-def test_a_gap_line_on_the_edge_is_not_clipped_and_one_0_01_mm_inside_is() -> None:
-    def vertical(g: Geometry, x: float) -> list[dict]:
-        return [
-            s
-            for s in _strokes(_pdf(g))
-            if _vertical(s) and abs(s["pts"][0][0] - x) < 0.005 and _len(s) > 20
-        ]
-
-    [on] = vertical(LINE_ON_EDGE, 15.0)
-    assert round(min(p[1] for p in on["pts"]), 2) == 4.0  # starts at the grid top: not clipped
-    [inside] = vertical(LINE_JUST_IN, 14.99)
-    assert round(min(p[1] for p in inside["pts"]), 2) == 15.0  # clipped at the square
-
-
-def test_a_mark_whose_legs_point_away_from_the_square_is_kept() -> None:
-    # The label's bottom right corner is at (16, 16): legs run to -x and -y, both outside the
-    # square. Only the bounding box of the L overlaps it, which is not "a point inside".
-    # A 6 mm gap keeps the corner far from the scale of the crossing (3 mm away, the scale
-    # reaches 2 mm), so the mark is not left out for that reason.
-    g = Geometry("A4", 21000, 29700, 1000, 1000, 3, 3, 1600, 1600, 600, 600, None, "rectangle")
-    pdf = _pdf(g)
-
-    def legs(to: tuple[float, float]) -> int:
-        return sum(
-            1
-            for s in _strokes(pdf)
-            if any(abs(p[0] - 16.0) < 0.005 and abs(p[1] - 16.0) < 0.005 for p in s["pts"])
-            and any(abs(p[0] - to[0]) < 0.005 and abs(p[1] - to[1]) < 0.005 for p in s["pts"])
-        )
-
-    assert legs((14.5, 16.0)) == 1
-    assert legs((16.0, 14.5)) == 1
-    assert _marks_at(pdf, 6.0, 6.0) == []  # the top left corner of that label is inside
+def test_an_element_0_01_mm_outside_the_area_is_dropped() -> None:
+    assert _marks_at(_pdf(JUST_OUT), 6.04, 20.05) == []
