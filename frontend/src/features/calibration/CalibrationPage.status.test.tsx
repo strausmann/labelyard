@@ -172,7 +172,8 @@ describe("the live print status line (#239)", () => {
     // Another tab before the hub answered: the line that would have claimed the print is hidden.
     await userEvent.click(screen.getByRole("tab", { name: "History" }));
     await act(async () => answer?.());
-    expect(await stack().findByText("Queued")).toBeVisible();
+    // The card moves from the quiet list into the live one when the waiting claim is released (a new element):
+    // only the end state is asserted, read fresh on every try.
     await waitFor(() => expect(stack().getByText("Queued").closest("[aria-live]")?.getAttribute("aria-live")).toBe("polite"));
   });
 
