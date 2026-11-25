@@ -24,6 +24,7 @@ import {
   NotFoundPage,
 } from "../pages/placeholders";
 import { CalibrationPage } from "../features/calibration/CalibrationPage";
+import { CALIBRATION_TABS, type CalibrationTab } from "../features/calibration/tabs";
 import { IntegrationPage } from "../features/integrations/IntegrationPage";
 import { AboutPage } from "../features/about/AboutPage";
 import { JobPage } from "../features/jobs/JobDetail";
@@ -189,12 +190,27 @@ const calibrationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/calibration",
   component: CalibrationPage,
-  validateSearch: (search: Record<string, unknown>): { printer?: string | undefined; tray?: string | undefined; type?: string | undefined } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { printer?: string | undefined; tray?: string | undefined; type?: string | undefined; view?: CalibrationTab | undefined } => ({
     printer: text(search.printer),
     tray: text(search.tray),
     // A sheet type key is at most 64 characters (the print request's limit); anything longer is not one.
     type: sheetTypeKey(search.type),
+    // The open tab (mockups M7, M8); without it the page opens on Result when a correction is stored, else on Print page.
+    view: CALIBRATION_TABS.find((tab) => tab === search.view),
   }),
+});
+
+const jobsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/jobs",
+  component: JobsPage,
+  // The jobs printed with one calibration history entry (#336): its id, nothing else.
+  validateSearch: (search: Record<string, unknown>): { calibration?: string | undefined } => {
+    const id = text(search.calibration);
+    return { calibration: id && /^[A-Za-z0-9-]{1,64}$/.test(id) ? id : undefined };
+  },
 });
 
 // Settings is a layout (admin gate and section navigation) with one child per section.
@@ -217,7 +233,7 @@ const routeTree = rootRoute.addChildren([
   page("/", OverviewPage),
   page("/printers", PrintersPage),
   page("/printers/$printerId", PrinterPage),
-  page("/jobs", JobsPage),
+  jobsRoute,
   page("/jobs/$jobId", JobPage),
   page("/integrations/$app", IntegrationPage),
   page("/lookup/$app/$id", LookupPage),

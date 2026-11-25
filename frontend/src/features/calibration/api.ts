@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../../api/client";
 import type { components } from "../../api/schema.gen";
 import { queryString } from "../../api/queryString";
@@ -120,3 +120,48 @@ export const useCapabilities = (printerId: string) =>
     // A screen that has not chosen a printer yet passes "" and asks for nothing.
     enabled: printerId !== "",
   });
+
+export type CalibrationHistoryEntry = Schemas["CalibrationHistoryRead"];
+export type CalibrationRun = Schemas["CalibrationRunRead"];
+
+/** Entries per page of the history; the hub keeps the newest 500 per printer and tray. */
+export const HISTORY_PAGE = 50;
+export const HISTORY_KEPT = 500;
+
+// Under `calibrationKey`, so a save, a reset and a printer event refresh them too.
+const historyKey = (printerId: string, tray: string) => [...calibrationKey(printerId), "history", tray] as const;
+const runsKey = (printerId: string, tray: string) => [...calibrationKey(printerId), "runs", tray] as const;
+
+/** The saved corrections of a tray, newest first, a page at a time. */
+export const useCalibrationHistory = (printerId: string, tray: string) =>
+  useInfiniteQuery({
+    queryKey: historyKey(printerId, tray),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      apiFetch<CalibrationHistoryEntry[]>(`${trayPath(printerId, tray)}/history${queryString({ limit: HISTORY_PAGE, offset: pageParam })}`),
+    // A full page may have a next one; an empty next page ends the list.
+    getNextPageParam: (last, pages) => (last.length === HISTORY_PAGE ? pages.length * HISTORY_PAGE : undefined),
+  });
+
+/** Calibration, check and probe pages printed on a tray, newest first (with the retries of their jobs). */
+export const useCalibrationRuns = (printerId: string, tray: string) =>
+  useQuery({
+    queryKey: runsKey(printerId, tray),
+    queryFn: () => apiFetch<CalibrationRun[]>(`${trayPath(printerId, tray)}/runs`),
+  });
+
+/** Uses an earlier entry's values again: a new `revert` entry, nothing is deleted. */
+export function useRestoreCalibration(printerId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tray, entryId, note }: { tray: string; entryId: string; note: string }) =>
+      apiFetch<CalibrationRead>(`${trayPath(printerId, tray)}/history/${encode(entryId)}/restore`, {
+        method: "POST",
+        json: note.trim() ? { note: note.trim() } : {},
+      }),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: calibrationKey(printerId) });
+      void client.invalidateQueries({ queryKey: capabilitiesKey(printerId) });
+    },
+  });
+}

@@ -136,6 +136,8 @@ export function useArchiveErrorText(): (error: unknown, fallback?: string) => st
           return t`A sheet type with this key already exists.`;
         case "prefix_taken":
           return t`Another type already uses this code prefix.`;
+        case "newer_version_in_use":
+          return t`A sheet uses a newer version, so this one cannot be restored.`;
         case "not_unused": {
           const keys = listed("keys");
           return keys ? t`These types have sheets now: ${keys}. Nothing was removed.` : t`Some of these types have sheets now. Nothing was removed.`;

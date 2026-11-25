@@ -79,6 +79,13 @@ async function openCalibration(page: Page, id: string) {
   await expect(page.getByRole("heading", { level: 1, name: /Calibration|Kalibrierung/ })).toBeVisible();
 }
 
+/** Opens one of the page's tabs (mockups M7, M8): Print page, Readings, Result, History. */
+async function showTab(page: Page, name: RegExp | string) {
+  const tab = page.getByRole("tab", { name });
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
 // One sign-in for the whole file: the hub limits sign-ins per minute.
 test.describe.serial("calibration", () => {
   let page: Page;
@@ -123,6 +130,7 @@ test.describe.serial("calibration", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openCalibration(page, id);
     await chooseType(page);
+    await showTab(page, "Readings");
     const trigger = page.getByRole("button", { name: "How to read the calibration page" });
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await trigger.click();
@@ -139,6 +147,8 @@ test.describe.serial("calibration", () => {
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     // The card under Current values reads at this width too.
+    await showTab(page, "Result");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     const stillOff = page.getByRole("heading", { name: "Still off after the check print?" });
     await stillOff.scrollIntoViewIfNeeded();
     await expect(stillOff).toBeVisible();
@@ -384,6 +394,7 @@ test.describe.serial("calibration", () => {
     const trayButton = page.getByRole("button", { name: / Tray$/ });
     await trayButton.click();
     await page.getByRole("option", { name: "Main tray" }).click();
+    await showTab(page, "Readings");
     await expect(page.getByText(/The calibration page was printed from Automatic, but you are saving for Main tray/)).toBeVisible();
 
     // Back on the tray the page came from, nothing to warn about.
@@ -400,6 +411,7 @@ test.describe.serial("calibration", () => {
     try {
       await openCalibration(page, id);
       await chooseType(page);
+      await showTab(page, "Readings");
       // The same deviation at all four outermost crossings: 0.5 mm to the right, 0.3 mm too low.
       for (const crossing of ["S1 · Z1", "S3 · Z1", "S1 · Z11", "S3 · Z11"]) {
         await page.getByRole("textbox", { name: `Across at ${crossing} (mm)` }).fill("0,5");
@@ -416,6 +428,7 @@ test.describe.serial("calibration", () => {
       await expect.poll(async () => (await trayCalibration(page, id))?.offset_x_mm, { timeout: 10_000 }).toBeCloseTo(0.5, 2);
       expect((await trayCalibration(page, id))?.offset_y_mm).toBeCloseTo(0.3, 2);
       // The stored values are shown, with the date of the change.
+      await showTab(page, "Result");
       const current = page.getByRole("region", { name: "Current values" });
       await expect(current.getByText("0.5 mm", { exact: true })).toBeVisible();
       await expect(current.getByText(/Last changed/)).toBeVisible();
@@ -425,6 +438,7 @@ test.describe.serial("calibration", () => {
       await expect(around(page.getByRole("status", { name: "Check page status" })).getByRole("link", { name: "Show the job" })).toBeVisible();
 
       // Back to no correction, through the page.
+      await showTab(page, "Readings");
       await page.getByRole("button", { name: "Reset to no correction" }).click();
       await page.getByRole("button", { name: "Yes, reset" }).click();
       await expect(page.getByText("Reset. This tray prints without correction.")).toBeVisible();
@@ -453,22 +467,28 @@ test.describe.serial("calibration", () => {
       // Without a correction the calibration page is the main action and the check waits, disabled.
       expect(await setCorrection(page, id, null)).toBeLessThan(500);
       await openCalibration(page, id);
+      // Without a correction the page opens on Print page; the check sits under Result.
+      await expect(page.getByRole("tab", { name: "Print page" })).toHaveAttribute("aria-selected", "true");
+      await expect(again).toBeEnabled();
+      await showTab(page, "Result");
       await expect(check).toBeDisabled();
       await expect(page.getByText("Measure and save values first, then check.")).toBeVisible();
-      await expect(again).toBeEnabled();
 
       expect(await setCorrection(page, id, { offset_x_mm: 0.4, offset_y_mm: -0.2, scale_x: 1, scale_y: 1, rotation_deg: 0 })).toBe(200);
       await openCalibration(page, id);
       await chooseType(page);
+      // With a correction the page opens on Result: the check page is the print action shown, on the first screen.
+      await expect(page.getByRole("tab", { name: "Result" })).toHaveAttribute("aria-selected", "true");
       await expect(check).toBeEnabled();
-      // Read in order, the first print action is the check page, and it is on the first screen.
       const printActions = page.getByRole("button", { name: /^Print the (check|calibration) page/ });
       await expect(printActions.first()).toHaveAccessibleName("Print the check page (with correction)");
+      await expect(again).toBeHidden();
       const box = (await check.boundingBox())!;
       expect(box.y + box.height).toBeLessThanOrEqual(800);
 
       // Measuring again asks first; nothing is queued until the dialog is answered.
       const before = await jobsOf(page, id);
+      await showTab(page, "Print page");
       await again.click();
       const dialog = page.getByRole("alertdialog", { name: "Print without correction?" });
       await expect(dialog).toBeVisible();
@@ -487,6 +507,7 @@ test.describe.serial("calibration", () => {
     try {
       expect(await setCorrection(page, id, { offset_x_mm: 0.4, offset_y_mm: -0.2, scale_x: 1, scale_y: 1, rotation_deg: 0 })).toBe(200);
       await openCalibration(page, id);
+      await showTab(page, "Print page");
       await page.getByRole("button", { name: "Print the calibration page (without correction)" }).click();
       const dialog = page.getByRole("alertdialog", { name: "Print without correction?" });
       await expect(dialog).toBeVisible();
@@ -553,6 +574,7 @@ test.describe.serial("calibration", () => {
         // The step heading in the page's language is there once the language file has arrived.
         await expect(page.getByRole("heading", { level: 2, name: de ? "Schritt 1: Kalibrierseite drucken" : "Step 1: Print the calibration page" })).toBeVisible();
         await chooseType(page);
+        await showTab(page, de ? "Messwerte" : "Readings");
         for (const crossing of ["S1 · Z1", "S3 · Z1", "S1 · Z11", "S3 · Z11"]) {
           await page.getByRole("textbox", { name: new RegExp(`^(Across|Quer) (at|bei) ${crossing} \\(mm\\)$`) }).fill("0,3");
           await page.getByRole("textbox", { name: new RegExp(`^(Down|Abwärts) (at|bei) ${crossing} \\(mm\\)$`) }).fill("-0,2");
