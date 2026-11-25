@@ -177,6 +177,20 @@ describe("buildFeedbackUrl", () => {
     }
   });
 
+  it("feedback issue carries the geometry suggestion", () => {
+    const suggestion = { pitch_x_hmm: 4755, pitch_y_hmm: null, margin_left_hmm: 1030, margin_top_hmm: null };
+    const url = buildFeedbackUrl(input({ suggestion: { runNo: 14, ...suggestion, uneven: true } }));
+    const lines = params(url).get("observed")!.split("\n");
+    expect(lines[0]).toBe("Geometry suggestion from check print run #14:");
+    expect(lines).toContain(`pitch_x: ${GEOMETRY_L4736.pitch_x} → 47.55 mm`);
+    expect(lines).toContain(`margin_left: ${GEOMETRY_L4736.margin_left} → 10.3 mm`);
+    expect(lines.some((l) => l.startsWith("pitch_y") || l.startsWith("margin_top"))).toBe(false);
+    expect(lines.at(-1)).toMatch(/^uneven: /);
+    const unchanged = { pitch_x_hmm: null, pitch_y_hmm: null, margin_left_hmm: null, margin_top_hmm: null };
+    const none = buildFeedbackUrl(input({ suggestion: { runNo: 3, ...unchanged, uneven: false } }));
+    expect(params(none).get("observed")).toBe("Geometry suggestion from check print run #3:\nno change to pitch or margins");
+  });
+
   it("names the source, and its URL only while it is the one shipped with the hub", () => {
     const seed = params(buildFeedbackUrl(input())).get("provenance")!;
     expect(seed).toContain("Vendor data sheet");

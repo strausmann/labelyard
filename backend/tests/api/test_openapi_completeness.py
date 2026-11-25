@@ -161,6 +161,7 @@ def test_endpoint_count_in_range(openapi_schema: dict[str, Any]) -> None:
       + 1.8.0 #246: preprint presets (4), per-printer sheet code placement (1) -> 112
       + 1.8.0 #336: calibration runs of a tray (1) -> 113
       + 1.8.0 #336: calibration history and restore, type versions and restore (4) -> 117
+      + 1.8.0 #240: a geometry suggestion as a new type version (1) -> 118
       Total = 29+
 
     The range 28-121 is intentionally wide to tolerate minor additions

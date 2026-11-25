@@ -1,0 +1,249 @@
+# SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""A sheet geometry suggested from check-print readings (#240 comment, design 7.4).
+
+On a calibration page a pitch error and a margin error cannot be told apart from the printer's
+scale and offset: both are linear in the gap index, and the affine fit absorbs them. A **check**
+print is drawn through the stored correction; when that correction was measured on another sheet
+type, what is left in the readings is the geometry of this type. A reading is ink minus the
+crossing on the real sheet, so along the S gaps ``across = (ml - ml') + (i - 0.5)(px - px')``
+(the stored geometry unprimed, the real one primed) and along the Z gaps the same for ``down``.
+A least-squares line per axis gives the real pitch (from the slope) and margin (from the
+intercept); what the line does not explain is reported as ``uneven``.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Sequence
+from dataclasses import replace
+from typing import Literal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
+
+from app.calibration.fit import RESIDUAL_FLAG_MM, Reading
+from app.models.calibration_run import CalibrationHistory, CalibrationRun
+from app.models.job import Job
+from app.models.sheet import SheetTypeVersion
+from app.repositories.write_lock import write_transaction
+from app.sheets import type_service as ts
+from app.sheets.errors import SheetApiError
+from app.sheets.geometry import Geometry
+
+#: A proposed value closer than this to the stored one is no change (hundredths of a mm).
+MIN_CHANGE_HMM = 5
+
+SuggestionUnavailable = Literal["same_type", "no_check_run"]
+
+
+class GeometrySuggestion(BaseModel):
+    """Proposed geometry values in hundredths of a millimetre; ``null`` means "keep it"."""
+
+    pitch_x_hmm: int | None = Field(description="From the trend across the S gaps.")
+    pitch_y_hmm: int | None = Field(description="From the trend across the Z gaps.")
+    margin_left_hmm: int | None = Field(description="From the constant part across the S gaps.")
+    margin_top_hmm: int | None = Field(description="From the constant part across the Z gaps.")
+    uneven: bool = Field(
+        description=(
+            "A reading lies more than 0.3 mm off the trend: the pattern is not a pitch or margin "
+            "error, check the sheet rather than the printer."
+        )
+    )
+
+
+def _line(t: list[float], p: list[float]) -> tuple[float, float] | None:
+    """Least-squares ``p = c0 + c1 * t``; ``None`` with fewer than two distinct ``t``."""
+    n = len(t)
+    if len(set(t)) < 2:
+        return None
+    mt, mp = sum(t) / n, sum(p) / n
+    stt = sum((x - mt) ** 2 for x in t)
+    c1 = sum((x - mt) * (y - mp) for x, y in zip(t, p, strict=True)) / stt
+    return mp - c1 * mt, c1
+
+
+def _changed(stored: int, proposed: float) -> int | None:
+    value = round(proposed)
+    return None if abs(value - stored) < MIN_CHANGE_HMM else value
+
+
+def suggest_geometry(
+    g: Geometry,
+    readings: Sequence[Reading],
+    *,
+    correction_type_version_id: UUID | None,
+    run_type_version_id: UUID,
+) -> GeometrySuggestion | None:
+    """The geometry the check readings point at, or ``None`` when the correction was measured on
+    the very version the check page was printed for (its geometry error is already in it)."""
+    if correction_type_version_id == run_type_version_id:
+        return None
+    cols = [float(r.col_gap) for r in readings]
+    rows = [float(r.row_gap) for r in readings]
+    across = [r.across_mm for r in readings]
+    down = [r.down_mm for r in readings]
+    x_line, y_line = _line(cols, across), _line(rows, down)
+
+    def detrended(line: tuple[float, float] | None, t: float, p: float) -> float:
+        return 0.0 if line is None else p - (line[0] + line[1] * t)
+
+    uneven = any(
+        math.hypot(detrended(x_line, c, a), detrended(y_line, r, d)) > RESIDUAL_FLAG_MM
+        for c, r, a, d in zip(cols, rows, across, down, strict=True)
+    )
+    pitch_x = margin_left = pitch_y = margin_top = None
+    if x_line is not None:
+        c0, c1 = x_line
+        pitch_x = _changed(g.pitch_x, g.pitch_x - c1 * 100)
+        margin_left = _changed(g.margin_left, g.margin_left - (c0 + 0.5 * c1) * 100)
+    if y_line is not None:
+        c0, c1 = y_line
+        pitch_y = _changed(g.pitch_y, g.pitch_y - c1 * 100)
+        margin_top = _changed(g.margin_top, g.margin_top - (c0 + 0.5 * c1) * 100)
+    return GeometrySuggestion(
+        pitch_x_hmm=pitch_x,
+        pitch_y_hmm=pitch_y,
+        margin_left_hmm=margin_left,
+        margin_top_hmm=margin_top,
+        uneven=uneven,
+    )
+
+
+async def _correction_entry(
+    session: AsyncSession, run: CalibrationRun
+) -> CalibrationHistory | None:
+    """The history entry the check page was printed with.
+
+    The job's payload names it (``calibration_history_id``, design 7.5); once the job was cleaned
+    up, the tray's newest entry written before the run stands in.
+    """
+    job = await session.get(Job, run.job_id)
+    raw = job.payload.get("calibration_history_id") if job is not None else None
+    if isinstance(raw, str):
+        try:
+            entry = await session.get(CalibrationHistory, UUID(raw))
+        except ValueError:
+            entry = None
+        if entry is not None:
+            return entry
+    return (
+        await session.execute(
+            select(CalibrationHistory)
+            .where(
+                col(CalibrationHistory.printer_id) == run.printer_id,
+                col(CalibrationHistory.tray) == run.tray,
+                col(CalibrationHistory.created_at) <= run.created_at,
+            )
+            .order_by(col(CalibrationHistory.seq).desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+async def _type_id(session: AsyncSession, version_id: UUID | None) -> UUID | None:
+    if version_id is None:
+        return None
+    version = await session.get(SheetTypeVersion, version_id)
+    return version.type_id if version is not None else None
+
+
+async def suggestion_for_run(
+    session: AsyncSession, run: CalibrationRun, g: Geometry, readings: Sequence[Reading]
+) -> tuple[GeometrySuggestion | None, SuggestionUnavailable | None]:
+    """The suggestion for the readings of ``run`` (printed on geometry ``g``), or why there is
+    none: ``no_check_run`` for a calibration or probe page and for a check page printed without
+    any correction (nothing was compensated), ``same_type`` when the correction was measured on
+    the run's sheet type, in any version."""
+    correction = run.correction or {}
+    if run.kind != "check_page" or correction.get("method", "none") == "none":
+        return None, "no_check_run"
+    entry = await _correction_entry(session, run)
+    measured_on = entry.measured_on_type_version_id if entry is not None else None
+    measured_type = await _type_id(session, measured_on)
+    if measured_type is not None and measured_type == await _type_id(session, run.type_version_id):
+        return None, "same_type"
+    suggestion = suggest_geometry(
+        g,
+        readings,
+        correction_type_version_id=measured_on,
+        run_type_version_id=run.type_version_id,
+    )
+    return (suggestion, None) if suggestion is not None else (None, "same_type")
+
+
+# ---------------------------------------------------------------------------- apply
+
+
+class RunNotForThisTypeError(SheetApiError):
+    status = 422
+    error_code = "run_not_for_this_type"
+    message = "The run was not printed for this sheet type."
+
+
+class RunNotACheckPrintError(SheetApiError):
+    status = 422
+    error_code = "run_not_a_check_print"
+    message = "A geometry suggestion comes from a check print; this run is another page."
+
+
+class RunVersionNotCurrentError(SheetApiError):
+    """The suggestion is relative to the run's version; on top of a newer one it would undo that
+    version's changes."""
+
+    status = 409
+    error_code = "run_version_not_current"
+    message = "The run was printed for an older version of this sheet type."
+
+
+#: The fields "apply as new version" may change, by the name of the ``Geometry`` field.
+SUGGESTION_FIELDS = ("pitch_x", "pitch_y", "margin_left", "margin_top")
+
+
+async def apply_suggestion(
+    session: AsyncSession,
+    key: str,
+    run_id: UUID,
+    values_hmm: dict[str, int],
+    *,
+    actor: str,
+) -> SheetTypeVersion:
+    """Add a version of ``key`` with the run's version geometry and ``values_hmm`` in place.
+
+    The run must be a check print of this type's newest version. The change note names the run
+    by its number only: a version note travels into exports and the feedback issue, a printer or
+    tray name must not.
+    """
+    async with write_transaction(session):
+        t = await ts.get_type(session, key)
+        run = await session.get(CalibrationRun, run_id, populate_existing=True)
+        version = (
+            await session.get(SheetTypeVersion, run.type_version_id) if run is not None else None
+        )
+        if run is None or version is None or version.type_id != t.id:
+            raise RunNotForThisTypeError()
+        if run.kind != "check_page":
+            raise RunNotACheckPrintError()
+        if (await ts.current_version(session, t.id)).id != version.id:
+            raise RunVersionNotCurrentError()
+        base = ts.version_geometry(version)
+        geometry = replace(
+            base,
+            pitch_x=values_hmm.get("pitch_x", base.pitch_x),
+            pitch_y=values_hmm.get("pitch_y", base.pitch_y),
+            margin_left=values_hmm.get("margin_left", base.margin_left),
+            margin_top=values_hmm.get("margin_top", base.margin_top),
+        )
+        v = await ts.add_version_locked(
+            session,
+            key,
+            geometry,
+            actor=actor,
+            change_note=f"Applied the geometry suggestion of check print run #{run.run_no}",
+        )
+        await session.commit()
+    return v

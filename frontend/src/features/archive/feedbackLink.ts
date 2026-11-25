@@ -36,6 +36,19 @@ export const FEEDBACK_FIELD_IDS = [
 export type FeedbackFieldId = (typeof FEEDBACK_FIELD_IDS)[number];
 export type FeedbackKind = "wrong" | "confirmed";
 
+/**
+ * A geometry suggestion from a check print (#240, design 7.4), in hundredths of a millimetre as the fit returns
+ * it; `null` keeps a value. The run is named by its number only, never by printer or tray.
+ */
+export interface FeedbackSuggestion {
+  runNo: number;
+  pitch_x_hmm: number | null;
+  pitch_y_hmm: number | null;
+  margin_left_hmm: number | null;
+  margin_top_hmm: number | null;
+  uneven: boolean;
+}
+
 export interface FeedbackInput {
   kind: FeedbackKind;
   sheetType: SheetTypeRead;
@@ -44,6 +57,7 @@ export interface FeedbackInput {
   scheme: "http" | "https";
   printer?: { model: string; tray: string; calibration: "calibrated" | "uncalibrated" };
   browser?: string;
+  suggestion?: FeedbackSuggestion;
 }
 
 export const FEEDBACK_BASE = "https://github.com/strausmann/labelyard/issues/new?template=sheet-type-feedback.yml";
@@ -132,6 +146,21 @@ export function browserLabel(userAgent: string): string | undefined {
   return undefined;
 }
 
+const SUGGESTION_FIELDS = ["pitch_x", "pitch_y", "margin_left", "margin_top"] as const;
+
+/** "pitch_x: 48.2 → 47.55 mm" per proposed value, under a line naming the check print. */
+function suggestionText(suggestion: FeedbackSuggestion, version: VersionRead): string {
+  const stored = version.geometry as Record<string, number | string | null | undefined>;
+  const lines = [`Geometry suggestion from check print run #${suggestion.runNo}:`];
+  for (const name of SUGGESTION_FIELDS) {
+    const proposed = suggestion[`${name}_hmm`];
+    if (proposed !== null) lines.push(`${name}: ${stored[name]} → ${proposed / 100} mm`);
+  }
+  if (lines.length === 1) lines.push("no change to pitch or margins");
+  if (suggestion.uneven) lines.push("uneven: the readings follow no straight line (check the sheet, not the printer)");
+  return lines.join("\n");
+}
+
 const exportPointer = (key: string) => `See the export: /api/v1/sheet-types/${key}/export (paste it here)`;
 
 type Fields = Partial<Record<FeedbackFieldId | "title" | "labels", string>>;
@@ -182,6 +211,7 @@ export function buildFeedbackUrl(input: FeedbackInput): string {
     hub_version: input.hubVersion,
     scheme: input.scheme,
     browser: input.browser,
+    observed: input.suggestion ? suggestionText(input.suggestion, version) : undefined,
   };
 
   // What gives way first, in this order, until the address fits.
