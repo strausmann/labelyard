@@ -9,7 +9,7 @@ import Screenshot from "../../../../components/Screenshot.astro";
 
 Ein Seitendrucker druckt selten genau dorthin, wo die Seite es vorgibt. Das Papier verschiebt sich im Fach ein wenig, der Druck ist einen Hauch zu groß oder zu klein, und ein Etikettenbogen lässt dafür keinen Spielraum: Ein Druck, der einen halben Millimeter daneben liegt, trifft schon den Rand eines Etiketts. Die **Kalibrierung** misst, wie weit ein Fach danebenliegt. Labelyard verschiebt dann jeden Druck aus diesem Fach um das Gegenteil.
 
-Das machst du einmal je Drucker und Fach und noch einmal, wenn du das Papier oder das Fach wechselst. Es dauert etwa zehn Minuten. Öffne **Kalibrierung** in der Web-App; sie führt dich durch drei Schritte: Kalibrierseite drucken, Abweichung eingeben, Ergebnis prüfen.
+Das machst du einmal je Drucker und Fach und noch einmal, wenn du das Papier oder das Fach wechselst. Es dauert etwa zehn Minuten. Öffne **Kalibrierung** in der Web-App und wähle oben Drucker, Fach und Bogentyp. Die Seite hat vier Reiter: **Seite drucken** (Schritt 1), **Messwerte** (Schritt 2), **Ergebnis** (Schritt 3, die gespeicherten Werte und die Kontrollseite) und **Verlauf**. Ein Fach mit gespeicherter Korrektur öffnet auf **Ergebnis**, jedes andere auf **Seite drucken**.
 
 ## Was du brauchst
 
@@ -108,3 +108,13 @@ Für den Kontrolldruck gilt dieselbe Regel: Liegt jede Kreuzung innerhalb von ±
 - Ist die Skala schwer zu lesen, dient die bekannte Lückenbreite (Spaltenabstand minus Etikettenbreite) als Lineal.
 - Datenblätter der Hersteller können danebenliegen. Miss einen Abstand mit dem Lineal über zehn Etiketten und teile durch zehn.
 - Für Fotos: volle Auflösung, an jede Kreuzung heranzoomen, und flaches Licht macht den Schnitt sichtbar. Gebogenes Papier lässt Linien krumm wirken, beurteile deshalb nur an der Kreuzung.
+
+## Verlauf
+
+Jedes Speichern bleibt erhalten. Der Reiter **Verlauf** listet die Korrekturen des Fachs, die neueste zuerst; die gerade benutzte ist markiert. Jeder Eintrag zeigt seine Werte, wie stark sich jeder gegenüber dem Eintrag davor geändert hat (**zum vorigen**), woher die Werte kommen (berechnet aus den Messwerten eines nummerierten Drucks, von Hand eingegeben oder aus einem früheren Eintrag wiederhergestellt), den Bogentyp, auf dem gemessen wurde, und eine Notiz, falls eine da ist. Die Korrektur, die ein Fach beim Update auf 1.8.0 hatte, ist der erste Eintrag, markiert mit **Übernommen**. Labelyard behält die neuesten 500 Einträge je Drucker und Fach.
+
+**N Aufträge damit gedruckt** öffnet die Auftragsliste mit genau den Aufträgen, die mit dieser Korrektur gedruckt wurden.
+
+**Diese Werte wiederherstellen** (nur für Admins) verwendet einen früheren Eintrag wieder. Die Rückfrage nennt die Werte und nimmt eine Notiz an. Wiederherstellen legt einen neuen Eintrag an; nichts wird überschrieben oder gelöscht.
+
+Unter den Korrekturen listet **Aus diesem Fach gedruckte Seiten** jede Kalibrier-, Kontroll- und Probeseite mit ihrer Laufnummer. Ein erneutes Senden behält die Nummer seines Laufs und sagt **(erneut gesendet)**; eine Seite, die nie beim Drucker ankam, ist mit **nicht gesendet** markiert. **Gedruckt aus** ist das Fach, das der Drucker meldet. Ist es nicht das gewünschte, warnt der Reiter oben: Eine Korrektur, die auf so einer Seite gemessen wurde, gehört zu dem Fach, aus dem die Seite wirklich kam. Manche Drucker melden das Fach nicht; die Spalte sagt das dann.

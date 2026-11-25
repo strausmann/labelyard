@@ -6690,6 +6690,26 @@
         "title": "ResolveRequest",
         "type": "object"
       },
+      "RestoreRequest": {
+        "description": "Optional body of a restore: a note for the new `revert` entry.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note for the revert entry (at most 500 characters, cleaned).",
+            "title": "Note"
+          }
+        },
+        "title": "RestoreRequest",
+        "type": "object"
+      },
       "RollColourUpdate": {
         "additionalProperties": false,
         "description": "Body of ``PUT /printers/{id}/roll``.",
@@ -13723,7 +13743,7 @@
     },
     "/api/v1/printers/{printer_id}/calibration/{tray}/history/{entry_id}/restore": {
       "post": {
-        "description": "Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry\nclears the tray. When the entry's sheet type version was deleted since, the values are\nrestored without it and `notes` carries `measured_on_deleted`.",
+        "description": "Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry\nclears the tray. When the entry's sheet type version was deleted since, the values are\nrestored without it and `notes` carries `measured_on_deleted`. The optional body's `note` is\nkept on the new entry.",
         "operationId": "restore_calibration_api_v1_printers__printer_id__calibration__tray__history__entry_id__restore_post",
         "parameters": [
           {
@@ -13764,6 +13784,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RestoreRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
