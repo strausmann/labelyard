@@ -43,7 +43,7 @@ from app.calibration.codes import (
 )
 from app.calibration.fit import crossing_point
 from app.page_render.pdf import text_width_mm
-from app.page_render.transform import Deviation
+from app.page_render.transform import IDENTITY, Deviation, correction_mm
 from app.printer_backends.ipp.attributes import Margins
 from app.sheets.errors import CalibrationTypeUnsuitableError
 from app.sheets.geometry import Geometry
@@ -236,21 +236,55 @@ class PageLayout:
 # ---------------------------------------------------------------------------- area
 
 
-def printable_area(g: Geometry, hw: Margins | None, dev: Deviation) -> PrintableArea:
+def printable_area(
+    g: Geometry, hw: Margins | None, dev: Deviation, *, applied: Deviation | None = None
+) -> PrintableArea:
     """The page less the hardware margin (5 mm unknown), ``|offset|`` per axis and 1 mm.
 
     The same arithmetic as ``planner.margin_bands_hmm``: every side of an axis loses the full
-    ``|offset|`` of that axis, whatever its sign; scale and rotation are ignored.
+    ``|offset|`` of that axis, whatever its sign. ``applied`` is the correction the page is
+    printed with: the renderer moves all content through its inverse (one ``cm``), and a scale
+    or rotation there moves the edges further than the offset does. The area then shrinks until
+    every corrected corner still lies inside the hardware margin plus 1 mm, so nothing is drawn
+    where the printer cannot print (review on #447).
     """
     m = hw or Margins(
         top=DEFAULT_HW_HMM, left=DEFAULT_HW_HMM, bottom=DEFAULT_HW_HMM, right=DEFAULT_HW_HMM
     )
     dx, dy = abs(dev.offset_x_hmm), abs(dev.offset_y_hmm)
+    area = [
+        float(m.left + dx + SAFETY_HMM),
+        float(m.top + dy + SAFETY_HMM),
+        float(g.page_w - (m.right + dx + SAFETY_HMM)),
+        float(g.page_h - (m.bottom + dy + SAFETY_HMM)),
+    ]
+    if applied is not None and applied != IDENTITY:
+        corr = correction_mm(applied, g.page_size)
+        limit = (
+            (m.left + SAFETY_HMM) / 100,
+            (m.top + SAFETY_HMM) / 100,
+            (g.page_w - m.right - SAFETY_HMM) / 100,
+            (g.page_h - m.bottom - SAFETY_HMM) / 100,
+        )
+        for _ in range(50):  # the correction is close to the identity: a few rounds suffice
+            x0, y0, x1, y1 = (v / 100 for v in area)
+            pts = [corr.apply(p) for p in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
+            over = (
+                limit[0] - min(p[0] for p in pts),
+                limit[1] - min(p[1] for p in pts),
+                max(p[0] for p in pts) - limit[2],
+                max(p[1] for p in pts) - limit[3],
+            )
+            if max(over) <= 1e-9:
+                break
+            for i, o in enumerate(over):
+                if o > 0:  # move that side inwards by the overshoot, plus a hundredth
+                    area[i] += (o * 100 + 1) * (1 if i < 2 else -1)
     return PrintableArea(
-        left=m.left + dx + SAFETY_HMM,
-        top=m.top + dy + SAFETY_HMM,
-        right=g.page_w - (m.right + dx + SAFETY_HMM),
-        bottom=g.page_h - (m.bottom + dy + SAFETY_HMM),
+        left=math.ceil(area[0]),
+        top=math.ceil(area[1]),
+        right=math.floor(area[2]),
+        bottom=math.floor(area[3]),
     )
 
 

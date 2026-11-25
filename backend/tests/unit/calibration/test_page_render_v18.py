@@ -302,3 +302,34 @@ def test_a_payload_from_before_1_8_0_renders_with_5_mm_and_without_codes() -> No
     pdf = render_calibration_page(payload, compress=False)
     assert pi.placed_images(pdf) == []
     assert layout == check_page_layout(g, layout.area, allow_qr=True, passes=1)
+
+
+@pytest.mark.parametrize(
+    "snap",
+    [
+        CalibrationSnapshot(method="manual", sy_ppm=950_000),
+        CalibrationSnapshot(method="manual", sx_ppm=950_000, sy_ppm=950_000),
+        CalibrationSnapshot(method="manual", dx_hmm=-1000, dy_hmm=1000, rotation_udeg=2_000_000),
+        CalibrationSnapshot(method="manual", sx_ppm=1_050_000, rotation_udeg=-2_000_000),
+    ],
+    ids=["sy-0.95", "s-0.95", "offset-rot", "sx-1.05-rot"],
+)
+def test_a_corrected_page_keeps_every_element_inside_the_hardware_margin(
+    snap: CalibrationSnapshot,
+) -> None:
+    """Review on #447: the correction's scale and rotation move the page edges further than the
+    offset; the area shrinks so that every stroke and every text start, *after* the ``cm``,
+    stays inside the 5 mm hardware margin plus 1 mm."""
+    key = "avery-zweckform-6121"
+    g = _geometry(key)
+    dev = Deviation(snap.dx_hmm, snap.dy_hmm, snap.sx_ppm, snap.sy_ppm, snap.rotation_udeg)
+    area = printable_area(g, _hw(500), dev, applied=dev)
+    assert area != printable_area(g, _hw(500), dev)  # shrunk
+    pdf = render_calibration_page(_payload(key, area, snapshot=snap), compress=False)
+    limit = (6.0, 6.0, g.page_w / 100 - 6.0, g.page_h / 100 - 6.0)
+    strokes = [p for p in _strokes_on_paper(pdf, g.page_h / 100) if not _inside((*p, *p), limit)]
+    assert strokes == []
+    starts = [(x / PT_PER_MM, g.page_h / 100 - y / PT_PER_MM) for x, y in pi.text_positions(pdf)]
+    assert [p for p in starts if not _inside((*p, *p), limit)] == []
+    # An uncorrected page of the same tray keeps the plain area.
+    assert printable_area(g, _hw(500), dev, applied=None) == printable_area(g, _hw(500), dev)

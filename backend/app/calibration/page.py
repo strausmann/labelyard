@@ -315,7 +315,8 @@ async def build_payload(
         raise CalibrationGridTooLargeError(g.cols * g.rows, MAX_CALIBRATION_CELLS)
     facts = await load_printer_facts(session, printer_id)
     # The tray's offset moves the ink whether or not the page applies the correction.
-    area = printable_area(g, facts.margins_hmm, snapshot_to_deviation(snapshot))
+    tray_dev = snapshot_to_deviation(snapshot)
+    area = printable_area(g, facts.margins_hmm, tray_dev, applied=tray_dev if corrected else None)
     detail: dict[str, Any] = {
         "type_key": sheet_type.key,
         "version": v.version,
