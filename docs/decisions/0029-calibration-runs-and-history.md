@@ -84,8 +84,44 @@ pass). Readings of pass 2 and 3 are attributed through this table, not through c
 **The codes on a calibration page use the `LYC1` grammar (D35).** QR alphanumeric mode, a page code
 `LYC1:<run>:0:<PREFIX>:<version>:<dx_hmm>:<dy_hmm>:<sx_ppm_dev>:<sy_ppm_dev>:<rot_udeg>[:K1][:PX…][:PY…][:MT…][:ML…]`
 and a cell code `LYC1:<run>:<cell>`. A printed code is a durable format: once a release prints it,
-later releases must read it. The grammar's details are added to this ADR with the page layout
-(design section 7.2).
+later releases must read it. The grammar (design section 7.2, `app/calibration/codes.py`):
+
+```
+page:  LYC1:<run>:0:<PREFIX>:<version>:<dx_hmm>:<dy_hmm>:<sx_ppm_dev>:<sy_ppm_dev>:<rot_udeg>[:K1][:PX<pitch_x_hmm>][:PY<pitch_y_hmm>][:MT<margin_top_hmm>][:ML<margin_left_hmm>]
+cell:  LYC1:<run>:<cell>
+```
+
+- **Field order is fixed** as written; fields are separated by `:`, numbers are decimal integers
+  with an optional leading `-`. A reader must accept the optional fields in this order and ignore
+  none of the mandatory ones.
+- **Characters:** only `0-9 A-Z : -`, so every code is QR alphanumeric mode. A payload with any
+  other character is refused when it is built.
+- `<run>` is the run number (D34). `<cell>` is `0` in a page code and the cell number from 1 in a
+  cell code. `<PREFIX>` is the sheet type's prefix (`^[A-Z][A-Z0-9]{1,9}$`) and `<version>` its
+  version as a **separate** field: prefixes end in digits, so `A7160` version 1 and `A71` version
+  601 would both read `A71601` as one token.
+- The correction fields are the applied `Deviation`: offsets in hundredths of a millimetre, the
+  scales as parts per million **minus 1000000**, rotation in micro-degrees. A page printed without
+  correction carries `0` in all five.
+- `:K1` marks pass 1 of a check sheet; a calibration page has no `K` field. Cell codes carry no
+  pass suffix; passes 2 and 3 print no codes at all.
+- `PX`/`PY`/`MT`/`ML` carry the current value of pitch x, pitch y, margin top and margin left, each
+  only when it differs from the **newest version of the type written by the catalog actor**
+  (`system:catalog`, or `system:seed` from 1.7.x) in the database, never from the entry in the
+  image: a newer catalog revision in the image does not make an unedited type look edited. A
+  catalog-written version itself, and a type without any catalog-written version (custom,
+  imported, installed under a new key), carry none of them.
+- **QR floors:** error correction M. Page codes are drawn as a 10 mm symbol at version 5 at least
+  (the longest payload of the bounds, 106 characters, fits 5-M); cell codes as an 8 mm symbol with
+  its quiet zone, at version 1 (the longest, `LYC1:999999:400`, fits 1-M). A module is never below
+  0.25 mm.
+- **Never truncated.** A page code that needs a version whose module would drop below 0.25 mm is
+  refused with `422 calibration_qr_too_large` (`error_detail`: `length`, `version_needed`,
+  `max_version`); at 10 mm no version above 5 keeps 0.25 mm modules, so in practice a page code
+  never grows. A cell code that does not fit is left out and the cell prints its number only.
+- **No code a scanner acts on by itself:** no payload may contain `@`, `://`, `mailto:`, `tel:`,
+  `sms:`, `WIFI:`, `geo:`, `BEGIN:` or start with `+` and a digit; a test checks every catalog
+  type, correction, page kind and cell.
 
 ## Options considered
 

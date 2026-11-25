@@ -523,6 +523,22 @@ class CalibrationGridTooLargeError(SheetApiError):
         super().__init__(detail={"cells": cells, "max_cells": max_cells})
 
 
+class CalibrationQrTooLargeError(SheetApiError):
+    """A page code needs a QR version whose modules would be below 0.25 mm (design 7.2).
+
+    The payload is never shortened to fit: the page job is refused instead.
+    """
+
+    status = 422
+    error_code = "calibration_qr_too_large"
+    message = "The run code of this calibration page does not fit its QR symbol."
+
+    def __init__(self, length: int, version_needed: int, max_version: int) -> None:
+        super().__init__(
+            detail={"length": length, "version_needed": version_needed, "max_version": max_version}
+        )
+
+
 # ---------------------------------------------------------------------------- sheet printing
 
 
