@@ -907,6 +907,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/page/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How a calibration or check page fits the printable area of a printer and tray
+         * @description The layout the page would get now: the printer's hardware margins (5 mm per side when it
+         *     reports none) and the tray's stored offset decide the printable area, as when it is printed.
+         *     Nothing is stored and no run is taken.
+         */
+        get: operations["get_calibration_page_layout_api_v1_printers__printer_id__calibration__tray__page_layout_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/printers/{printer_id}/calibration/{tray}/page/pdf": {
         parameters: {
             query?: never;
@@ -3704,6 +3726,27 @@ export interface components {
              * Format: uuid
              */
             job_id: string;
+        };
+        /**
+         * PageLayoutSummary
+         * @description What the print dialog says before a calibration or check page is printed (design 7.2).
+         */
+        PageLayoutSummary: {
+            /**
+             * Page Codes
+             * @description How many of the four page codes the page carries on this printer and tray; fewer than 4: "This sheet type leaves room for 2 of the 4 page codes on this printer".
+             */
+            page_codes: number;
+            /**
+             * Passes Total
+             * @description Passes the sheet takes.
+             */
+            passes_total: number;
+            /**
+             * Run Line Slots
+             * @description Run-line slots reserved for the later passes of a check sheet; fewer than `passes_total - 1`: the later passes print without their run line.
+             */
+            run_line_slots: number;
         };
         /** PageMedia */
         PageMedia: {
@@ -8628,6 +8671,52 @@ export interface operations {
             };
             /** @description The printer is a tape printer (`media_kind_mismatch`), is not known to the print queue (`printer-unavailable`), or the device behind it changed (`printer-identity-mismatch`). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes. The run code would not fit its QR symbol at 0.25 mm modules (`calibration_qr_too_large`, with `length`, `version_needed` and `max_version`); it is never shortened. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_calibration_page_layout_api_v1_printers__printer_id__calibration__tray__page_layout_get: {
+        parameters: {
+            query: {
+                /** @description Sheet type key. */
+                type: string;
+                /** @description Defaults to the current version. */
+                version?: number | null;
+                /** @description `check_page` is printed with the tray's stored correction. */
+                kind?: "calibration_page" | "check_page";
+            };
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageLayoutSummary"];
+                };
+            };
+            /** @description The key may not use this printer (`printer_not_allowed`). */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -26,27 +26,30 @@ from app.api.routes.calibration import router as calibration_router
 from app.api.routes.jobs import router as jobs_router
 from app.auth.dependencies import AuthContext
 from app.auth.scope_deps import require_admin, require_print, require_read
-from app.calibration import runs
-from app.calibration.page import render_calibration_page
+from app.calibration import codes, runs
+from app.calibration.page import payload_layout, render_calibration_page
 from app.db.session import get_session
 from app.models.api_key import ApiKey
 from app.models.calibration_run import CalibrationRun
 from app.models.job import Job
 from app.models.printer import Printer
 from app.models.printer_tray import PrinterTray
+from app.page_render.pdf import PT_PER_MM
 from app.printer_backends.ipp.client import IppClient
 from app.services import page_jobs
 from app.services.job_store_sqlite import SQLiteJobStore
 from app.services.page_job_runner import PageJobRunner
-from app.services.page_jobs import IppPagePrinter
+from app.services.page_jobs import IppPagePrinter, PagePayload
 from app.services.print_queue import PrintQueue
 from app.services.producers.ipp_status_producer import IppPrinterState
 from app.sheets import type_service as ts
+from app.sheets.errors import CalibrationQrTooLargeError
 from app.sheets.geometry import Geometry
 from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from tests.helpers import pdf_inspect as pi
 from tests.helpers.fake_ipp_printer import FAKE_URI, FakeIppPrinter
 from tests.helpers.page_jobs import RecordingHandler, registered
 
@@ -450,5 +453,119 @@ async def test_page_date_and_time_follow_the_hub_zone_not_the_server(
             f"/api/v1/printers/{env.printer_id}/calibration/tray-1/page/pdf?type=cal-run"
         )
     assert dl.status_code == 200
+    # The download draws the same page as the job (OC-35) but belongs to no run: the job's
+    # payload without its run renders exactly the downloaded bytes, the date included.
+    unrun = PagePayload.model_validate(job.payload)
+    for key in ("run_no", "time", "run_id"):
+        del unrun.detail[key]
+    assert dl.content == render_calibration_page(unrun)
     [sent] = [r for r in env.fake.received if r.operation == "Print-Job"]
-    assert dl.content == sent.document  # the download draws the same date (OC-35)
+    assert sent.document == render_calibration_page(PagePayload.model_validate(job.payload))
+
+
+# ---------------------------------------------------------------------------- page layout (#240)
+
+
+G6121 = Geometry("A4", 21000, 29700, 3810, 2118, 5, 13, 3810, 2118, 1080, 990, None, "rectangle")
+
+
+async def _job_payload(env: _Env, job_id: str) -> PagePayload:
+    async with env.factory() as s:
+        job = await s.get(Job, UUID(job_id))
+    assert job is not None
+    return PagePayload.model_validate(job.payload)
+
+
+async def test_run_number_increments_between_two_pages(env: _Env) -> None:
+    first, second = await env.post_page(), await env.post_page()
+    one, two = await _job_payload(env, first), await _job_payload(env, second)
+    lines = [
+        [t for t in pi.texts(render_calibration_page(p, compress=False)) if t.startswith("Run #")]
+        for p in (one, two)
+    ]
+    assert [line[0].split(" · ")[0] for line in lines] == ["Run #1", "Run #2"]
+    assert lines[0][0].endswith("Calibration page — printed without correction")
+    # The codes carry the run: the cell codes of the two pages differ.
+    images = [pi.placed_images(render_calibration_page(p, compress=False)) for p in (one, two)]
+    assert len(images[0]) == len(images[1]) > 0
+    assert any(a.image.tobytes() != b.image.tobytes() for a, b in zip(*images, strict=True))
+
+
+async def test_run_stores_page_code_positions(env: _Env) -> None:
+    job_id = await env.post_page()
+    run = await env.run_row(job_id)
+    payload = await _job_payload(env, job_id)
+    layout = payload_layout(payload)
+    assert run.page_codes == layout.page_code_records()
+    assert run.page_codes is not None and len(run.page_codes) == len(layout.page_codes) == 4
+    assert {c["corner"] for c in run.page_codes} == {
+        "top_left", "top_right", "bottom_left", "bottom_right"
+    }  # fmt: skip
+    # The stored boxes are the drawn ones: the 10 mm images of the page.
+    pdf = render_calibration_page(payload, compress=False)
+    drawn = sorted(
+        (round(i.x_pt / PT_PER_MM * 100), round(297_00 - (i.y_pt + i.h_pt) / PT_PER_MM * 100))
+        for i in pi.placed_images(pdf)
+        if abs(i.w_pt / PT_PER_MM - 10) < 0.02
+    )
+    assert drawn == sorted((c["x_hmm"], c["y_hmm"]) for c in run.page_codes)
+
+
+async def test_a_page_code_too_large_is_422_and_leaves_no_run(
+    env: _Env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await env.post_page()  # run 1
+
+    def too_large(payload: str, **_: Any) -> int:
+        raise CalibrationQrTooLargeError(len(payload), 6, 5)
+
+    monkeypatch.setattr(codes, "page_qr_version", too_large)
+    async with env.client() as c:
+        r = await c.post(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1/page", json={"type": "cal-run"}
+        )
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["error_code"] == "calibration_qr_too_large"
+    assert r.json()["detail"]["error_detail"] == {
+        "length": r.json()["detail"]["error_detail"]["length"],
+        "version_needed": 6,
+        "max_version": 5,
+    }
+    assert [x["run_no"] for x in await env.runs()] == [1]  # the refused run was taken back
+    monkeypatch.undo()
+    assert (await env.run_row(await env.post_page())).run_no == 3  # a gap, never a reuse
+
+
+async def test_layout_summary_for_6121_on_5_mm(env: _Env) -> None:
+    async with env.factory() as s:
+        await ts.create_type(
+            s, ts.TypeFields("lay-6121", "L6121", "Acme", [], None, None), G6121, actor="t"
+        )
+    base = f"/api/v1/printers/{env.printer_id}/calibration/tray-1/page/layout"
+    async with env.client() as c:
+        r = await c.get(base, params={"type": "lay-6121"})
+        check = await c.get(base, params={"type": "lay-6121", "kind": "check_page"})
+        bad = await c.get(base, params={"type": "lay-6121", "kind": "probe_page"})
+    assert r.status_code == 200, r.text
+    # The printer reports no margins: 5 mm; the corner cells take the four page codes.
+    assert r.json() == {"page_codes": 4, "run_line_slots": 0, "passes_total": 1}
+    assert check.status_code == 200 and check.json()["page_codes"] == 4
+    assert bad.status_code == 422
+    async with env.factory() as s:  # nothing is stored, no run is taken
+        assert (await s.execute(select(CalibrationRun))).scalars().all() == []
+
+
+async def test_layout_summary_restricted_key_other_printer_403(
+    api_client_with_seed: httpx.AsyncClient,
+) -> None:
+    c = api_client_with_seed
+    pid, other = await _printer(_factory()), await _printer(_factory())
+    await _type(_factory(), f"lay-{uuid4().hex[:6]}")
+    bound = await _key(["read"], allowed=[str(other)])
+    path = "/api/v1/printers/{}/calibration/tray-1/page/layout?type=cal-x"
+    r = await c.get(path.format(pid), headers=bound)
+    assert r.status_code == 403, r.text
+    assert r.json()["detail"]["error_code"] == "printer_not_allowed"
+    own = await c.get(path.format(other), headers=bound)
+    assert own.status_code == 404  # its own printer: past the restriction, the type is unknown
+    assert (await c.get(path.format(other))).status_code == 401
