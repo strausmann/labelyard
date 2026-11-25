@@ -430,7 +430,8 @@ async def build_payload(
     from app.models.printer import Printer
     from app.sheets import type_service as ts
 
-    snapshot = await service.snapshot(session, printer_id, tray)  # kind and tray are checked
+    # Kind and tray are checked; the entry goes with the snapshot (design 7.5, S7).
+    snapshot, history_id = await service.snapshot_with_history(session, printer_id, tray)
     printer = await session.get(Printer, printer_id)
     assert printer is not None  # snapshot() found it
     sheet_type = await ts.get_type(session, type_key)
@@ -458,5 +459,6 @@ async def build_payload(
         render_dpi=600,
         job_name=f"Calibration page · {sheet_type.key} v{v.version}",
         calibration=snapshot if corrected else None,
+        calibration_history_id=history_id if corrected else None,
         detail=detail,
     )

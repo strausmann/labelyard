@@ -208,6 +208,64 @@ async def test_resolve_replaced_resets_calibration() -> None:
         assert not rig.app.state.print_queue.is_identity_held(rig.printer_id)
 
 
+async def test_resolve_replaced_writes_a_reset_history_entry() -> None:
+    """Codex on #442: every calibration the swap removes gets a ``reset`` history entry in the
+    same transaction, so later prints do not count against the old correction."""
+    from app.calibration import history
+    from app.models.calibration_run import CalibrationHistory
+
+    async with running() as rig:
+        await _seed_calibrations(rig.printer_id, "auto", "gone")
+        await _flag_swap(rig)
+        assert (await _resolve(rig, "replaced")).status_code == 200
+        async with _factory()() as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(CalibrationHistory).where(
+                            CalibrationHistory.printer_id == rig.printer_id  # type: ignore[arg-type]
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            latest = await history.latest_id(s, rig.printer_id, "auto")
+        by_tray = {r.tray: r for r in rows}
+        assert set(by_tray) == {"auto", "gone"}
+        assert all(r.action == "reset" and r.offset_x_hmm is None for r in rows)
+        assert by_tray["auto"].previous is not None
+        assert by_tray["auto"].previous["offset_x_hmm"] == 10
+        assert latest == by_tray["auto"].id
+
+
+async def test_a_swap_resets_the_history_as_the_key_that_resolved_it() -> None:
+    """#336 task review F1: through the real resolve route the reset entries name
+    ``sheet_common.actor`` (``key:<id>``), not the admin audit string."""
+    from app.auth.ownership import key_actor
+    from app.models.api_key import ApiKey
+    from app.models.calibration_run import CalibrationHistory
+
+    async with running() as rig:
+        await _seed_calibrations(rig.printer_id, "auto")
+        await _flag_swap(rig)
+        plaintext = await _insert_key(["admin"])
+        headers = {"X-Label-Hub-Key": plaintext}
+        assert (await _resolve(rig, "replaced", headers)).status_code == 200
+        async with _factory()() as s:
+            key = (
+                await s.execute(select(ApiKey).where(ApiKey.key_prefix == plaintext[:16]))  # type: ignore[arg-type]
+            ).scalar_one()
+            entry = (
+                await s.execute(
+                    select(CalibrationHistory).where(
+                        CalibrationHistory.printer_id == rig.printer_id  # type: ignore[arg-type]
+                    )
+                )
+            ).scalar_one()
+        assert entry.action == "reset" and entry.actor == key_actor(key.id)
+
+
 async def test_replaced_is_atomic(monkeypatch: pytest.MonkeyPatch) -> None:
     """The second calibration delete fails: no calibration row is lost, the mismatch stays."""
     async with running() as rig:
@@ -235,6 +293,45 @@ async def test_replaced_is_atomic(monkeypatch: pytest.MonkeyPatch) -> None:
 
         assert calls == 2
         assert await _calibration_trays(rig.printer_id) == ["auto", "gone"]
+        row = await _identity(rig.printer_id)
+        assert row.hardware_id == SERIAL_A and row.mismatch_since is not None
+        assert rig.app.state.print_queue.is_identity_held(rig.printer_id)
+
+
+async def test_replaced_keeps_everything_when_the_reset_entry_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#336 task review F5: a failing reset history entry rolls back the whole resolution: no
+    calibration row and no history entry is lost or written, the mismatch and the hold stay."""
+    from app.calibration import history
+    from app.models.calibration_run import CalibrationHistory
+
+    async with running() as rig:
+        await _seed_calibrations(rig.printer_id, "auto")
+        await _flag_swap(rig)
+        headers = await _admin()
+
+        async def broken(*_a: Any, **_k: Any) -> None:
+            raise BoomError
+
+        with monkeypatch.context() as m:
+            m.setattr(history, "record_resets", broken)
+            with pytest.raises(BoomError):
+                await _resolve(rig, "replaced", headers)
+        assert await _calibration_trays(rig.printer_id) == ["auto"]
+        async with _factory()() as s:
+            entries = (
+                (
+                    await s.execute(
+                        select(CalibrationHistory).where(
+                            CalibrationHistory.printer_id == rig.printer_id  # type: ignore[arg-type]
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert entries == []
         row = await _identity(rig.printer_id)
         assert row.hardware_id == SERIAL_A and row.mismatch_since is not None
         assert rig.app.state.print_queue.is_identity_held(rig.printer_id)

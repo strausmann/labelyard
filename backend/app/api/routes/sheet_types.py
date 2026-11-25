@@ -50,6 +50,7 @@ from app.schemas.sheets import (
     SheetTypeRead,
     UsageState,
     VersionCreate,
+    VersionHistoryRead,
     VersionRead,
 )
 from app.seed.sheet_seed import shipped_source_urls
@@ -453,6 +454,74 @@ async def get_sheet_type_id_placement(
             )
         )
     return out
+
+
+@router.get(
+    "/{key}/versions",
+    response_model=list[VersionHistoryRead],
+    summary="The versions of a sheet type with their changed geometry, newest first",
+    responses=_NOT_FOUND,
+)
+async def list_sheet_type_versions(
+    key: KeyPath, session: SessionDep, _auth: ReadDep
+) -> list[VersionHistoryRead]:
+    with mapped():
+        t = await ts.get_type(session, key)
+        versions = await ts.list_versions_with_sheet_counts(session, t.id)  # oldest first
+    newest = versions[-1][0].version if versions else 0
+    # A version with the newest geometry cannot be restored: the new version would be unchanged.
+    newest_hash = versions[-1][0].geometry_hash if versions else None
+    out: list[VersionHistoryRead] = []
+    before: dict[str, Any] | None = None
+    for i, (v, count) in enumerate(versions):
+        read = _version_read(v, count)
+        geometry = read.geometry.model_dump()
+        changed = (
+            {}
+            if before is None
+            else {
+                k: {"old": before[k], "new": geometry[k]}
+                for k in geometry
+                if before[k] != geometry[k]
+            }
+        )
+        newer_in_use = any(c > 0 for _, c in versions[i + 1 :])
+        out.append(
+            VersionHistoryRead(
+                **read.model_dump(),
+                created_by=v.created_by,
+                changed_fields=changed,  # type: ignore[arg-type]  # validated into FieldChange
+                restorable=(
+                    v.version < newest and v.geometry_hash != newest_hash and not newer_in_use
+                ),
+            )
+        )
+        before = geometry
+    return out[::-1]
+
+
+@router.post(
+    "/{key}/versions/{n}/restore",
+    response_model=VersionRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Restore an older version's geometry as a new version",
+    description=(
+        "Adds a version with version `n`'s geometry and the change note "
+        '"Restored from version n". Refused with `409 newer_version_in_use` while a sheet is '
+        "pinned to a newer version; the newest version itself is refused as unchanged geometry "
+        "(`422 invalid_geometry`)."
+    ),
+    responses={
+        **_NOT_FOUND,
+        409: {"description": "A sheet uses a newer version (`newer_version_in_use`)."},
+    },
+)
+async def restore_sheet_type_version(
+    key: KeyPath, n: VersionPath, session: SessionDep, auth: AdminDep
+) -> VersionRead:
+    with mapped():
+        v = await ts.restore_version(session, key, n, actor=actor(auth))
+        return _version_read(v, 0)
 
 
 @router.get(

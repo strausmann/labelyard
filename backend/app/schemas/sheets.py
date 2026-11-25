@@ -98,6 +98,29 @@ class VersionRead(BaseModel):
         return _utc(dt, info)
 
 
+class FieldChange(BaseModel):
+    old: float | int | str | None
+    new: float | int | str | None
+
+
+class VersionHistoryRead(VersionRead):
+    """A version in the type's version list, with what changed against the version before it."""
+
+    created_by: str | None
+    changed_fields: dict[str, FieldChange] = Field(
+        description=(
+            "Geometry fields (mm, as in `geometry`) that differ from the previous version, "
+            "old → new; empty for version 1."
+        )
+    )
+    restorable: bool = Field(
+        description=(
+            "`POST …/versions/{n}/restore` is possible: an older version whose geometry differs "
+            "from the newest, and no sheet is pinned to a newer one."
+        )
+    )
+
+
 class BackingDesignRead(BaseModel):
     """A backing design: the vendor print on the back of a liner and its free strips."""
 

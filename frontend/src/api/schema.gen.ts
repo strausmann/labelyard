@@ -810,10 +810,18 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Set the manual calibration of a tray */
+        /**
+         * Set the calibration of a tray (a new history entry)
+         * @description Store the tray's calibration and add a history entry in the same transaction.
+         *
+         *     With `readings` the stored values are the hub's fit of them on `measured_on` (`source`
+         *     `fit`); a sent value further than 0.05 mm from the fit is replaced and named in
+         *     `ignored_fields`, with `client_values_ignored` in `notes`. Without readings the values are
+         *     stored as sent (`source` `manual`).
+         */
         put: operations["put_calibration_api_v1_printers__printer_id__calibration__tray__put"];
         post?: never;
-        /** Reset a tray to no calibration */
+        /** Reset a tray to no calibration (a `reset` history entry) */
         delete: operations["delete_calibration_api_v1_printers__printer_id__calibration__tray__delete"];
         options?: never;
         head?: never;
@@ -831,6 +839,50 @@ export interface paths {
         put?: never;
         /** Fit calibration values from measured readings (nothing is saved) */
         post: operations["fit_calibration_api_v1_printers__printer_id__calibration__tray__fit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saved calibrations of a tray, newest first
+         * @description Every save, reset, revert and import of the tray (the newest 500 are kept), each with the
+         *     change to the values before it and the number of jobs printed with it. A `Link` header names
+         *     the next page. The tray is not checked against the printer's current trays.
+         */
+        get: operations["list_calibration_history_api_v1_printers__printer_id__calibration__tray__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/history/{entry_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Use an earlier calibration of the tray again (a `revert` history entry)
+         * @description Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry
+         *     clears the tray. When the entry's sheet type version was deleted since, the values are
+         *     restored without it and `notes` carries `measured_on_deleted`.
+         */
+        post: operations["restore_calibration_api_v1_printers__printer_id__calibration__tray__history__entry_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1485,7 +1537,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The versions of a sheet type with their changed geometry, newest first */
+        get: operations["list_sheet_type_versions_api_v1_sheet_types__key__versions_get"];
         put?: never;
         /** Add a version with new geometry */
         post: operations["add_sheet_type_version_api_v1_sheet_types__key__versions_post"];
@@ -1506,6 +1559,26 @@ export interface paths {
         get: operations["get_sheet_type_version_api_v1_sheet_types__key__versions__n__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/{key}/versions/{n}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore an older version's geometry as a new version
+         * @description Adds a version with version `n`'s geometry and the change note "Restored from version n". Refused with `409 newer_version_in_use` while a sheet is pinned to a newer version; the newest version itself is refused as unchanged geometry (`422 invalid_geometry`).
+         */
+        post: operations["restore_sheet_type_version_api_v1_sheet_types__key__versions__n__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2134,6 +2207,77 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** CalibrationHistoryRead */
+        CalibrationHistoryRead: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "imported" | "save" | "revert" | "reset";
+            /** Actor */
+            actor: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Diff
+             * @description The values that differ from `previous`, by name (old → new).
+             */
+            diff: {
+                [key: string]: components["schemas"]["ValueChange"];
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Jobs Count
+             * @description Jobs on the printer printed with this entry, of every key. `GET /api/v1/jobs?calibration=<id>` lists the same jobs, but shows a key without the admin scope only the jobs it submitted, so its list can be shorter than this count.
+             */
+            jobs_count: number;
+            /** @description Null when no version was named, or when it was deleted since. */
+            measured_on: components["schemas"]["MeasuredOn"] | null;
+            /**
+             * Measured On Deleted
+             * @description The entry named a sheet type version that no longer exists.
+             */
+            measured_on_deleted: boolean;
+            /** Method */
+            method: string | null;
+            /** Note */
+            note: string | null;
+            /** @description The values before this entry; null for the first entry of the tray. */
+            previous: components["schemas"]["HistoryValues"] | null;
+            /** Readings */
+            readings: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Residuals Mm */
+            residuals_mm: number[] | null;
+            /** Reverted From Id */
+            reverted_from_id: string | null;
+            /** Run Id */
+            run_id: string | null;
+            /**
+             * Run No
+             * @description Null without a run, or when the run was dropped.
+             */
+            run_no: number | null;
+            /**
+             * Seq
+             * @description Number per printer and tray, from 1.
+             */
+            seq: number;
+            /**
+             * Source
+             * @description `fit`: the hub's fit of `readings`; `manual`: typed values; null otherwise.
+             */
+            source: ("manual" | "fit") | null;
+            values: components["schemas"]["HistoryValues"];
+        };
         /**
          * CalibrationIn
          * @description A printer's measured deviation; the hub applies the inverse when it renders (D17).
@@ -2187,8 +2331,13 @@ export interface components {
         };
         /** CalibrationPut */
         CalibrationPut: {
-            /** @description The sheet type version the page was measured on (optional). */
+            /** @description The sheet type version the page was measured on (optional; needed with `readings`). */
             measured_on?: components["schemas"]["MeasuredOn"] | null;
+            /**
+             * Note
+             * @description A note for the history entry (at most 500 characters, cleaned).
+             */
+            note?: string | null;
             /**
              * Offset X Mm
              * @description mm; allowed -10.0 to 10.0, at most 2 decimals (checked by the service).
@@ -2202,11 +2351,21 @@ export interface components {
              */
             offset_y_mm: number;
             /**
+             * Readings
+             * @description The readings the values were fitted from. With readings the hub fits them again on the `measured_on` version and stores its own fit; a sent value further than 0.05 mm from it (scale and rotation: at the page corner) is named in `ignored_fields`.
+             */
+            readings?: components["schemas"]["ReadingIn"][] | null;
+            /**
              * Rotation Deg
              * @description degrees, positive is clockwise; allowed -2.0 to 2.0, at most 6 decimals (checked by the service).
              * @default 0
              */
             rotation_deg: number;
+            /**
+             * Run Id
+             * @description The run (calibration page print) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must have been printed for that version, else `422 run_version_mismatch`.
+             */
+            run_id?: string | null;
             /**
              * Scale X
              * @description factor; allowed 0.95 to 1.05, at most 6 decimals (checked by the service).
@@ -2225,9 +2384,19 @@ export interface components {
          * @description One enabled tray; the values are ``None`` while the tray has no calibration (identity).
          */
         CalibrationRead: {
+            /**
+             * Ignored Fields
+             * @description The sent values the hub's fit replaced.
+             */
+            ignored_fields?: string[];
             measured_on?: components["schemas"]["MeasuredOn"] | null;
             /** Method */
             method?: string | null;
+            /**
+             * Notes
+             * @description Only in the answer to a save or a restore: `client_values_ignored` when the stored values are the hub's fit of the readings instead of the sent ones (`ignored_fields` names them), `measured_on_deleted` when the restored entry was measured on a sheet type version that no longer exists.
+             */
+            notes?: ("client_values_ignored" | "measured_on_deleted")[];
             /** Offset X Mm */
             offset_x_mm?: number | null;
             /** Offset Y Mm */
@@ -2825,6 +2994,13 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** FieldChange */
+        FieldChange: {
+            /** New */
+            new: number | string | null;
+            /** Old */
+            old: number | string | null;
+        };
         /** FitRequest */
         FitRequest: {
             /** Readings */
@@ -3040,6 +3216,22 @@ export interface components {
             status: string;
             /** Version */
             version: string;
+        };
+        /**
+         * HistoryValues
+         * @description Values in API units; all ``None`` for a reset.
+         */
+        HistoryValues: {
+            /** Offset X Mm */
+            offset_x_mm: number | null;
+            /** Offset Y Mm */
+            offset_y_mm: number | null;
+            /** Rotation Deg */
+            rotation_deg: number | null;
+            /** Scale X */
+            scale_x: number | null;
+            /** Scale Y */
+            scale_y: number | null;
         };
         /**
          * IdPlacementRow
@@ -6030,6 +6222,13 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** ValueChange */
+        ValueChange: {
+            /** New */
+            new: number | null;
+            /** Old */
+            old: number | null;
+        };
         /** VersionCreate */
         VersionCreate: {
             /** Change Note */
@@ -6039,6 +6238,40 @@ export interface components {
         /** VersionDoc */
         VersionDoc: {
             geometry: components["schemas"]["GeometryMm"];
+            /** Version */
+            version: number;
+        };
+        /**
+         * VersionHistoryRead
+         * @description A version in the type's version list, with what changed against the version before it.
+         */
+        VersionHistoryRead: {
+            /** Change Note */
+            change_note: string | null;
+            /**
+             * Changed Fields
+             * @description Geometry fields (mm, as in `geometry`) that differ from the previous version, old → new; empty for version 1.
+             */
+            changed_fields: {
+                [key: string]: components["schemas"]["FieldChange"];
+            };
+            /** Created At */
+            created_at: string | null;
+            /** Created By */
+            created_by: string | null;
+            geometry: components["schemas"]["GeometryMm"];
+            /** Geometry Hash */
+            geometry_hash: string;
+            /**
+             * Restorable
+             * @description `POST …/versions/{n}/restore` is possible: an older version whose geometry differs from the newest, and no sheet is pinned to a newer one.
+             */
+            restorable: boolean;
+            /**
+             * Sheets
+             * @description Sheets of any state pinned to this version.
+             */
+            sheets: number;
             /** Version */
             version: number;
         };
@@ -7217,6 +7450,8 @@ export interface operations {
                 limit?: number;
                 /** @description Sort by creation time: ``oldest`` first (default) or ``newest`` first. With ``newest`` and a ``limit`` the latest jobs come back, not the first ones. */
                 order?: "oldest" | "newest";
+                /** @description Only the jobs printed with this calibration history entry (`GET /api/v1/printers/{id}/calibration/{tray}/history`): those that name it in `payload.calibration_history_id`, and jobs from before 1.8.0 whose calibration snapshot has the entry's values and that were created before the tray's next entry. */
+                calibration?: string | null;
             };
             header?: never;
             path?: never;
@@ -8170,14 +8405,12 @@ export interface operations {
                     "application/json": components["schemas"]["CalibrationRead"];
                 };
             };
-            /** @description Validation Error */
+            /** @description A value is out of range (`calibration_out_of_range`), the tray is unknown (`tray_unknown`), `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version than `measured_on` (`run_version_mismatch`), `readings` came without `measured_on` (`invalid_geometry`, `error_detail.field` is `measured_on`), has fewer than 3 or more than 200 entries (request validation), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`, `error_detail.field` names the reading, such as `readings[0].col_gap`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+                content?: never;
             };
         };
     };
@@ -8248,6 +8481,105 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    list_calibration_history_api_v1_printers__printer_id__calibration__tray__history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationHistoryRead"][];
+                };
+            };
+            /** @description The key may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such printer (`printer_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_calibration_api_v1_printers__printer_id__calibration__tray__history__entry_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+                /** @description History entry id. */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationRead"];
+                };
+            };
+            /** @description The key lacks the admin scope (`insufficient_scope`) or may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such printer, or no such entry on this printer and tray (`calibration_history_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The tray is not an enabled tray of the printer (`tray_unknown`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -9844,6 +10176,47 @@ export interface operations {
             };
         };
     };
+    list_sheet_type_versions_api_v1_sheet_types__key__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionHistoryRead"][];
+                };
+            };
+            /** @description Sheet type not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
     add_sheet_type_version_api_v1_sheet_types__key__versions_post: {
         parameters: {
             query?: never;
@@ -9913,6 +10286,57 @@ export interface operations {
             };
             /** @description Sheet type not found. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    restore_sheet_type_version_api_v1_sheet_types__key__versions__n__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionRead"];
+                };
+            };
+            /** @description Sheet type not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description A sheet uses a newer version (`newer_version_in_use`). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

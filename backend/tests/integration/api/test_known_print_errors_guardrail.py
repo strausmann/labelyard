@@ -69,6 +69,9 @@ NOT_PRINTING = {
     ("POST", "/api/v1/printers/{printer_id}/calibration/{tray}/fit"): (
         "computes a fit, never prints or renders a label"
     ),
+    ("POST", "/api/v1/printers/{printer_id}/calibration/{tray}/history/{entry_id}/restore"): (
+        "writes a stored calibration, never prints or renders a label"
+    ),
 }
 
 SLUG = "tape-a"

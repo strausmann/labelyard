@@ -34,6 +34,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
+from app.calibration import history as calibration_history
 from app.models.printer import IPP_BACKEND as IPP_BACKEND  # re-export
 from app.models.printer import Printer, PrinterAudit, is_page_backend, is_page_printer
 from app.models.printer_calibration import PrinterCalibration
@@ -485,10 +486,15 @@ class PrinterAdminService:
         audit_user: str,
         *,
         ipp_transport_factory: IppTransportFactory | None = None,
+        history_actor: str | None = None,
     ) -> None:
         self._session = session
         self._audit_user = audit_user
         self._ipp_transport_factory = ipp_transport_factory
+        # Who a calibration history entry names (``sheet_common.actor``, as every other entry):
+        # never the audit string, which carries the caller's address and is not for read keys
+        # (#336, task review F1). ``None`` when the caller does not say.
+        self._history_actor = history_actor
 
     async def _probe_for_save(
         self, connection: IppConnection, timeout_s: int, slug: str
@@ -520,6 +526,21 @@ class PrinterAdminService:
         # *disabled* tray stays in the list and keeps its measurement. Same transaction as the
         # tray delete; a calibration PUT re-checks the tray inside the sheet write lock, so
         # whichever of the two commits second sees the other's result and no orphan survives.
+        # Read after the tray delete, which holds SQLite's write lock from here to the commit:
+        # each removed calibration gets a ``reset`` history entry (#336, review on #442).
+        gone = (
+            (
+                await self._session.execute(
+                    select(PrinterCalibration).where(
+                        col(PrinterCalibration.printer_id) == printer_id,
+                        col(PrinterCalibration.tray_key).not_in([t.key for t in trays]),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        await calibration_history.record_resets(self._session, gone, actor=self._history_actor)
         await self._session.execute(
             delete(PrinterCalibration).where(
                 col(PrinterCalibration.printer_id) == printer_id,
@@ -810,14 +831,20 @@ class PrinterAdminService:
                     raise NoIdentityMismatchError
                 raise IdentityChangedError
             if resolution == "replaced":
-                rows = (
-                    await self._session.execute(
-                        select(PrinterCalibration).where(
-                            col(PrinterCalibration.printer_id) == printer_id
+                rows = list(
+                    (
+                        await self._session.execute(
+                            select(PrinterCalibration).where(
+                                col(PrinterCalibration.printer_id) == printer_id
+                            )
                         )
-                    )
-                ).scalars()
-                for row in list(rows):
+                    ).scalars()
+                )
+                # Each removed calibration gets a ``reset`` history entry (#336, review on #442).
+                await calibration_history.record_resets(
+                    self._session, rows, actor=self._history_actor
+                )
+                for row in rows:
                     await self._session.delete(row)
                     removed += 1
                 # Another device takes paper its own way: the loading goes too (R-350-5).

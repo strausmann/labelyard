@@ -162,6 +162,63 @@ async def test_calibration_payload_with_run_validates_with_the_1_7_1_models(
     v171.Geometry(**read.detail["geometry"])
 
 
+async def test_payload_with_history_id_validates_with_the_1_7_1_models(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """#336 (S7): the history entry a page was printed with goes into ``PagePayload`` as
+    ``calibration_history_id``, never into ``CalibrationSnapshot`` (``extra="forbid"`` in 1.7.1)."""
+    from app.calibration import service as calibration_service
+    from app.calibration.model import CalibrationIn
+
+    printer = await _ipp_printer(factory)
+    await _sheet_type(factory, "acme-48")
+    async with factory() as s:
+        await calibration_service.put(
+            s, printer.id, "auto", CalibrationIn(offset_x_mm=0.12), measured_on=None, actor="t"
+        )
+        payload = await calibration_page.build_payload(
+            s, printer.id, "auto", type_key="acme-48", version=None, corrected=True
+        )
+    raw = payload.model_dump(mode="json")
+    assert raw["calibration_history_id"] is not None
+    assert set(raw["calibration"]) == set(v171.CalibrationSnapshot.model_fields)
+    read = _read_by_1_7_1(raw)
+    assert read.calibration is not None and read.calibration.dx_hmm == 12
+    # The sheet page builder carries it the same way.
+    info = sps._TypeInfo(
+        key="acme-48", label="ACME48", id_title="Acme ACME48", allow_qr=True, geometry=G48
+    )
+    page = ReservedPage(
+        job_id=uuid4(),
+        sheet_id=uuid4(),
+        sheet_code="ACME48-0001",
+        type_version_id=uuid4(),
+        assignments=[CellAssignment(cell=2, item_index=0, source="api", purpose="x", ref=None)],
+        id_cell=None,
+        margin_id=False,
+        hw_margin_cells=[],
+    )
+    item = sps.ResolvedItem(
+        label=LabelData(source_app="manual", title="Drill", primary_id="T-1", qr_payload="x"),
+        content_type=ContentType.QR_TWO_LINES,
+        meta=ItemMeta(source="api", purpose="x", ref=None),
+        lookup=None,
+    )
+    sheet = sps._page_payload(
+        page,
+        [item],
+        info,
+        tray="auto",
+        render_dpi=600,
+        calibration=payload.calibration,
+        calibration_history_id=payload.calibration_history_id,
+        scan=lambda code: f"https://hub.example.invalid/s/{code}",
+    ).model_dump(mode="json")
+    assert sheet["calibration_history_id"] == raw["calibration_history_id"]
+    assert set(sheet["calibration"]) == set(v171.CalibrationSnapshot.model_fields)
+    _read_by_1_7_1(sheet)
+
+
 async def test_payload_fixture_matches_1_7_1_sheet_page() -> None:
     info = sps._TypeInfo(
         key="acme-48", label="ACME48", id_title="Acme ACME48", allow_qr=True, geometry=G48

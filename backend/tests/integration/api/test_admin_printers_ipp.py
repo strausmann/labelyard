@@ -827,6 +827,65 @@ async def test_removed_tray_loses_its_calibration_and_a_re_added_one_starts_clea
     assert by_tray["auto"]["method"] == "manual"
 
 
+async def _key_actor(headers: dict[str, str]) -> str:
+    from app.auth.ownership import key_actor
+
+    async with _factory()() as s:
+        key = (
+            await s.execute(
+                select(ApiKey).where(ApiKey.key_prefix == headers["X-Label-Hub-Key"][:16])  # type: ignore[arg-type]
+            )
+        ).scalar_one()
+    return key_actor(key.id)
+
+
+async def _tray_history(hub: Hub, headers: dict[str, str], tray: str) -> list[dict[str, Any]]:
+    r = await hub.client.get(
+        f"/api/v1/printers/{await _printer_id()}/calibration/{tray}/history", headers=headers
+    )
+    assert r.status_code == 200, r.text
+    return list(r.json())
+
+
+@pytest.mark.asyncio
+async def test_a_removed_tray_resets_its_history_as_the_key_that_removed_it(hub: Hub) -> None:
+    """#336 task review F1: the reset entry names ``sheet_common.actor`` (``key:<id>``), the form
+    of every other entry, never the admin audit string (``api-key:<id>``)."""
+    headers = await _created(hub)
+    assert (await _calibrate(hub, headers, "tray-2")).status_code == 200
+    resp = await hub.client.put(f"{ADMIN}/office-laser", json={"trays": _trays()}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    reset, save = await _tray_history(hub, headers, "tray-2")
+    assert reset["action"] == "reset"
+    assert reset["actor"] == save["actor"] == await _key_actor(headers)
+
+
+@pytest.mark.asyncio
+async def test_a_tray_removed_by_an_sso_admin_names_the_user_not_the_address(
+    hub: Hub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#336 task review F1: an SSO admin's reset entry carries the user name; the address in the
+    admin audit string must not reach ``GET …/history``, which read keys may call."""
+    from app.config import get_settings
+
+    monkeypatch.setenv("LABELYARD_SSO_TRUST_TOKEN", "fake-trust-token-for-tests-0123456789abcdef")
+    get_settings.cache_clear()
+    try:
+        sso = {
+            "Remote-User": "alice",
+            "X-Pangolin-Token": "fake-trust-token-for-tests-0123456789abcdef",
+            "Origin": "http://localhost:8000",
+        }
+        headers = await _created(hub)
+        assert (await _calibrate(hub, sso, "tray-2")).status_code == 200
+        resp = await hub.client.put(f"{ADMIN}/office-laser", json={"trays": _trays()}, headers=sso)
+        assert resp.status_code == 200, resp.text
+        reset, save = await _tray_history(hub, headers, "tray-2")
+        assert reset["action"] == "reset" and reset["actor"] == save["actor"] == "alice"
+    finally:
+        get_settings.cache_clear()
+
+
 @pytest.mark.asyncio
 async def test_disabled_tray_keeps_its_calibration(hub: Hub) -> None:
     headers = await _created(hub)

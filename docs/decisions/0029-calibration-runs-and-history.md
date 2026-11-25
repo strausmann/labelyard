@@ -64,6 +64,19 @@ one entry per save, revert, reset and import, numbered per printer and tray (`se
 new entry with an older entry's values and never deletes. 1.8.0 imports each existing calibration as
 the first entry of its tray (action `imported`). Retention: 500 entries per printer and tray.
 
+- The entry is written in the transaction that writes `printer_calibrations`, under the sheet write
+  lock; `seq` is the tray's highest plus one, so concurrent saves are numbered in commit order.
+- **With readings, the stored values are the hub's fit.** A save that carries readings is fitted
+  again on its measured-on version and the fit is stored (`source: fit`) with its residuals; a sent
+  value further than 0.05 mm from the fit (offsets directly, scale and rotation as the displacement
+  at the page corner) is replaced and named. Values typed by hand are stored as sent
+  (`source: manual`). The history must show values its stored readings produce.
+- **Jobs link.** A page job names the entry it was printed with in `PagePayload.calibration_history_id`,
+  not in `CalibrationSnapshot`, which 1.7.x reads with `extra="forbid"` (ADR 0034). Jobs from before
+  1.8.0 belong to an entry by equal snapshot values inside its window (to the tray's next entry). The
+  id on the payload, not a join table: the payload already travels with every job and survives
+  retries.
+
 **Check sheets take passes.** `calibration_check_sheets` holds a sheet that is printed in up to three
 passes; `calibration_check_sheet_passes` links each pass to its run (one pass per run, one run per
 pass). Readings of pass 2 and 3 are attributed through this table, not through codes on the paper.
@@ -107,8 +120,16 @@ later releases must read it. The grammar's details are added to this ADR with th
   guessed.
 - The run list (`GET /api/v1/printers/{id}/calibration/{tray}/runs`) needs `read` and the key's
   printer access; the printer-reported tray name is shown only there.
-- Follow-up in 1.8.0: the history API and revert (#336), the check passes and the page layout with
-  the `LYC1` codes (#240), the run picker of the reading form.
+- `jobs_count` in the history counts every job on the printer printed with the entry, of every
+  key; `GET /api/v1/jobs?calibration=<id>` shows a key without the admin scope only its own jobs,
+  so its list can be shorter. A count carries no job data, as the printer-wide queue depth does.
+- Reset entries are also written when the admin removes a calibrated tray or resolves a device swap
+  as `replaced`, in the transaction that deletes the calibration, with the same actor form as every
+  other entry (`user:<name>` or `key:<id>`), never the admin audit string.
+- The history (`GET …/calibration/{tray}/history`) needs `read` and the printer access; restore
+  (`POST …/history/{id}/restore`) needs `admin` and writes a `revert` entry.
+- Follow-up in 1.8.0: the check passes and the page layout with the `LYC1` codes (#240), the run
+  picker of the reading form and the history view.
 
 ## References
 

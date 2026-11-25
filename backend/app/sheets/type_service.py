@@ -33,6 +33,7 @@ from app.sheets.errors import (
     IdPositionOverlapsCellError,
     InvalidFieldError,
     InvalidGeometryError,
+    NewerVersionInUseError,
     PrefixLockedError,
     PrefixTakenError,
     PreprintPresetPageSizeMismatchError,
@@ -552,6 +553,34 @@ async def add_version(
     _clean_change_note(change_note)
     async with write_transaction(session):
         v = await add_version_locked(session, key, geometry, actor=actor, change_note=change_note)
+        await session.commit()
+    return v
+
+
+async def restore_version(
+    session: AsyncSession, key: str, n: int, *, actor: str
+) -> SheetTypeVersion:
+    """Add a new version with version ``n``'s geometry, note "Restored from version n".
+
+    Refused with ``newer_version_in_use`` while a sheet (any state) is pinned to a version newer
+    than ``n``: that sheet was printed for the newer geometry (design 7.5, #336 point 4). The
+    newest version itself is refused by ``add_version_locked`` as unchanged geometry.
+    """
+    async with write_transaction(session):
+        t = await get_type(session, key)
+        versions = await repo.versions_with_sheet_counts(session, t.id)
+        source = next((v for v, _ in versions if v.version == n), None)
+        if source is None:
+            raise SheetTypeVersionNotFoundError()
+        if any(count > 0 for v, count in versions if v.version > n):
+            raise NewerVersionInUseError()
+        v = await add_version_locked(
+            session,
+            key,
+            version_geometry(source),
+            actor=actor,
+            change_note=f"Restored from version {n}",
+        )
         await session.commit()
     return v
 

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 from pydantic.config import JsonDict
@@ -96,9 +98,52 @@ class MeasuredOn(BaseModel):
     version: int = Field(ge=1, le=1_000_000)
 
 
+READINGS_MAX = 200
+"""Readings a save or a fit takes at most: the reading helper's ``MAX_ROWS`` (design 7.5)."""
+NOTE_MAX = 500
+"""Longest note of a history entry, after cleaning."""
+
+
+class ReadingIn(BaseModel):
+    col_gap: int = Field(ge=1, le=1000, description="Vertical gap S1, S2, ... counted from 1.")
+    row_gap: int = Field(ge=1, le=1000, description="Horizontal gap Z1, Z2, ... counted from 1.")
+    across_mm: float = Field(
+        ge=-20, le=20, allow_inf_nan=False, description="Ink offset to the right, mm."
+    )
+    down_mm: float = Field(
+        ge=-20, le=20, allow_inf_nan=False, description="Ink offset downwards, mm."
+    )
+
+
 class CalibrationPut(CalibrationIn):
     measured_on: MeasuredOn | None = Field(
-        default=None, description="The sheet type version the page was measured on (optional)."
+        default=None,
+        description=(
+            "The sheet type version the page was measured on (optional; needed with `readings`)."
+        ),
+    )
+    run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The run (calibration page print) the readings were taken on; it must belong to this "
+            "printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must "
+            "have been printed for that version, else `422 run_version_mismatch`."
+        ),
+    )
+    readings: list[ReadingIn] | None = Field(
+        default=None,
+        min_length=3,
+        max_length=READINGS_MAX,
+        description=(
+            "The readings the values were fitted from. With readings the hub fits them again on "
+            "the `measured_on` version and stores its own fit; a sent value further than 0.05 mm "
+            "from it (scale and rotation: at the page corner) is named in `ignored_fields`."
+        ),
+    )
+    note: str | None = Field(
+        default=None,
+        max_length=NOTE_MAX,
+        description="A note for the history entry (at most 500 characters, cleaned).",
     )
 
 
@@ -126,6 +171,18 @@ class CalibrationRead(BaseModel):
     measured_on: MeasuredOn | None = None
     updated_at: datetime | None = None
     updated_by: str | None = None
+    notes: list[Literal["client_values_ignored", "measured_on_deleted"]] = Field(
+        default_factory=list,
+        description=(
+            "Only in the answer to a save or a restore: `client_values_ignored` when the stored "
+            "values are the hub's fit of the readings instead of the sent ones "
+            "(`ignored_fields` names them), `measured_on_deleted` when the restored entry was "
+            "measured on a sheet type version that no longer exists."
+        ),
+    )
+    ignored_fields: list[str] = Field(
+        default_factory=list, description="The sent values the hub's fit replaced."
+    )
 
 
 def _to_int(field: str, value: float) -> int:

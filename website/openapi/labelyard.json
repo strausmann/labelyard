@@ -623,6 +623,215 @@
         "title": "BatchSummary",
         "type": "object"
       },
+      "CalibrationHistoryRead": {
+        "properties": {
+          "action": {
+            "enum": [
+              "imported",
+              "save",
+              "revert",
+              "reset"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "diff": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValueChange"
+            },
+            "description": "The values that differ from `previous`, by name (old → new).",
+            "title": "Diff",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "jobs_count": {
+            "description": "Jobs on the printer printed with this entry, of every key. `GET /api/v1/jobs?calibration=<id>` lists the same jobs, but shows a key without the admin scope only the jobs it submitted, so its list can be shorter than this count.",
+            "title": "Jobs Count",
+            "type": "integer"
+          },
+          "measured_on": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasuredOn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when no version was named, or when it was deleted since."
+          },
+          "measured_on_deleted": {
+            "description": "The entry named a sheet type version that no longer exists.",
+            "title": "Measured On Deleted",
+            "type": "boolean"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoryValues"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The values before this entry; null for the first entry of the tray."
+          },
+          "readings": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readings"
+          },
+          "residuals_mm": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residuals Mm"
+          },
+          "reverted_from_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverted From Id"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "run_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null without a run, or when the run was dropped.",
+            "title": "Run No"
+          },
+          "seq": {
+            "description": "Number per printer and tray, from 1.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "fit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`fit`: the hub's fit of `readings`; `manual`: typed values; null otherwise.",
+            "title": "Source"
+          },
+          "values": {
+            "$ref": "#/components/schemas/HistoryValues"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "action",
+          "method",
+          "values",
+          "previous",
+          "diff",
+          "measured_on",
+          "measured_on_deleted",
+          "run_id",
+          "run_no",
+          "source",
+          "readings",
+          "residuals_mm",
+          "reverted_from_id",
+          "actor",
+          "created_at",
+          "note",
+          "jobs_count"
+        ],
+        "title": "CalibrationHistoryRead",
+        "type": "object"
+      },
       "CalibrationIn": {
         "description": "A printer's measured deviation; the hub applies the inverse when it renders (D17).\n\nOffsets are millimetres (±10, at most 2 decimals), scales are factors (0.95 to 1.05, at\nmost 6 decimals), rotation is degrees (±2, at most 6 decimals, positive is clockwise).\nThe bounds are checked by the service and reported as ``calibration_out_of_range``; the\nfit endpoint returns values of this shape even when they are outside the bounds.",
         "properties": {
@@ -705,7 +914,20 @@
                 "type": "null"
               }
             ],
-            "description": "The sheet type version the page was measured on (optional)."
+            "description": "The sheet type version the page was measured on (optional; needed with `readings`)."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note for the history entry (at most 500 characters, cleaned).",
+            "title": "Note"
           },
           "offset_x_mm": {
             "default": 0.0,
@@ -725,6 +947,23 @@
             "type": "number",
             "x-decimals": 2
           },
+          "readings": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReadingIn"
+                },
+                "maxItems": 200,
+                "minItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The readings the values were fitted from. With readings the hub fits them again on the `measured_on` version and stores its own fit; a sent value further than 0.05 mm from it (scale and rotation: at the page corner) is named in `ignored_fields`.",
+            "title": "Readings"
+          },
           "rotation_deg": {
             "default": 0.0,
             "description": "degrees, positive is clockwise; allowed -2.0 to 2.0, at most 6 decimals (checked by the service).",
@@ -733,6 +972,19 @@
             "title": "Rotation Deg",
             "type": "number",
             "x-decimals": 6
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run (calibration page print) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must have been printed for that version, else `422 run_version_mismatch`.",
+            "title": "Run Id"
           },
           "scale_x": {
             "default": 1.0,
@@ -759,6 +1011,14 @@
       "CalibrationRead": {
         "description": "One enabled tray; the values are ``None`` while the tray has no calibration (identity).",
         "properties": {
+          "ignored_fields": {
+            "description": "The sent values the hub's fit replaced.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Ignored Fields",
+            "type": "array"
+          },
           "measured_on": {
             "anyOf": [
               {
@@ -779,6 +1039,18 @@
               }
             ],
             "title": "Method"
+          },
+          "notes": {
+            "description": "Only in the answer to a save or a restore: `client_values_ignored` when the stored values are the hub's fit of the readings instead of the sent ones (`ignored_fields` names them), `measured_on_deleted` when the restored entry was measured on a sheet type version that no longer exists.",
+            "items": {
+              "enum": [
+                "client_values_ignored",
+                "measured_on_deleted"
+              ],
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
           },
           "offset_x_mm": {
             "anyOf": [
@@ -2256,6 +2528,50 @@
         "title": "FacetCount",
         "type": "object"
       },
+      "FieldChange": {
+        "properties": {
+          "new": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New"
+          },
+          "old": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old"
+          }
+        },
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "FieldChange",
+        "type": "object"
+      },
       "FitRequest": {
         "properties": {
           "readings": {
@@ -2729,6 +3045,75 @@
           "repository"
         ],
         "title": "Healthz",
+        "type": "object"
+      },
+      "HistoryValues": {
+        "description": "Values in API units; all ``None`` for a reset.",
+        "properties": {
+          "offset_x_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset X Mm"
+          },
+          "offset_y_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset Y Mm"
+          },
+          "rotation_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotation Deg"
+          },
+          "scale_x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale X"
+          },
+          "scale_y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale Y"
+          }
+        },
+        "required": [
+          "offset_x_mm",
+          "offset_y_mm",
+          "scale_x",
+          "scale_y",
+          "rotation_deg"
+        ],
+        "title": "HistoryValues",
         "type": "object"
       },
       "IdPlacementRow": {
@@ -9753,6 +10138,38 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "ValueChange": {
+        "properties": {
+          "new": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New"
+          },
+          "old": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old"
+          }
+        },
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "ValueChange",
+        "type": "object"
+      },
       "VersionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9791,6 +10208,86 @@
           "geometry"
         ],
         "title": "VersionDoc",
+        "type": "object"
+      },
+      "VersionHistoryRead": {
+        "description": "A version in the type's version list, with what changed against the version before it.",
+        "properties": {
+          "change_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Note"
+          },
+          "changed_fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldChange"
+            },
+            "description": "Geometry fields (mm, as in `geometry`) that differ from the previous version, old → new; empty for version 1.",
+            "title": "Changed Fields",
+            "type": "object"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/GeometryMm"
+          },
+          "geometry_hash": {
+            "title": "Geometry Hash",
+            "type": "string"
+          },
+          "restorable": {
+            "description": "`POST …/versions/{n}/restore` is possible: an older version whose geometry differs from the newest, and no sheet is pinned to a newer one.",
+            "title": "Restorable",
+            "type": "boolean"
+          },
+          "sheets": {
+            "description": "Sheets of any state pinned to this version.",
+            "title": "Sheets",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "geometry",
+          "geometry_hash",
+          "change_note",
+          "created_at",
+          "sheets",
+          "created_by",
+          "changed_fields",
+          "restorable"
+        ],
+        "title": "VersionHistoryRead",
         "type": "object"
       },
       "VersionRead": {
@@ -11664,6 +12161,25 @@
               "title": "Order",
               "type": "string"
             }
+          },
+          {
+            "description": "Only the jobs printed with this calibration history entry (`GET /api/v1/printers/{id}/calibration/{tray}/history`): those that name it in `payload.calibration_history_id`, and jobs from before 1.8.0 whose calibration snapshot has the entry's values and that were created before the tray's next entry.",
+            "in": "query",
+            "name": "calibration",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the jobs printed with this calibration history entry (`GET /api/v1/printers/{id}/calibration/{tray}/history`): those that name it in `payload.calibration_history_id`, and jobs from before 1.8.0 whose calibration snapshot has the entry's values and that were created before the tray's next entry.",
+              "title": "Calibration"
+            }
           }
         ],
         "responses": {
@@ -12964,12 +13480,13 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Reset a tray to no calibration",
+        "summary": "Reset a tray to no calibration (a `reset` history entry)",
         "tags": [
           "calibration"
         ]
       },
       "put": {
+        "description": "Store the tray's calibration and add a history entry in the same transaction.\n\nWith `readings` the stored values are the hub's fit of them on `measured_on` (`source`\n`fit`); a sent value further than 0.05 mm from the fit is replaced and named in\n`ignored_fields`, with `client_values_ignored` in `notes`. Without readings the values are\nstored as sent (`source` `manual`).",
         "operationId": "put_calibration_api_v1_printers__printer_id__calibration__tray__put",
         "parameters": [
           {
@@ -13020,14 +13537,7 @@
             "description": "Successful Response"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "A value is out of range (`calibration_out_of_range`), the tray is unknown (`tray_unknown`), `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version than `measured_on` (`run_version_mismatch`), `readings` came without `measured_on` (`invalid_geometry`, `error_detail.field` is `measured_on`), has fewer than 3 or more than 200 entries (request validation), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`, `error_detail.field` names the reading, such as `readings[0].col_gap`)."
           }
         },
         "security": [
@@ -13035,7 +13545,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Set the manual calibration of a tray",
+        "summary": "Set the calibration of a tray (a new history entry)",
         "tags": [
           "calibration"
         ]
@@ -13109,6 +13619,178 @@
           }
         ],
         "summary": "Fit calibration values from measured readings (nothing is saved)",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/history": {
+      "get": {
+        "description": "Every save, reset, revert and import of the tray (the newest 500 are kept), each with the\nchange to the values before it and the number of jobs printed with it. A `Link` header names\nthe next page. The tray is not checked against the printer's current trays.",
+        "operationId": "list_calibration_history_api_v1_printers__printer_id__calibration__tray__history_get",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CalibrationHistoryRead"
+                  },
+                  "title": "Response List Calibration History Api V1 Printers  Printer Id  Calibration  Tray  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+          },
+          "404": {
+            "description": "No such printer (`printer_not_found`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Saved calibrations of a tray, newest first",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/history/{entry_id}/restore": {
+      "post": {
+        "description": "Write a new `revert` entry with the entry's values; nothing is deleted. A `reset` entry\nclears the tray. When the entry's sheet type version was deleted since, the values are\nrestored without it and `notes` carries `measured_on_deleted`.",
+        "operationId": "restore_calibration_api_v1_printers__printer_id__calibration__tray__history__entry_id__restore_post",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          },
+          {
+            "description": "History entry id.",
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "description": "History entry id.",
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The key lacks the admin scope (`insufficient_scope`) or may not use this printer (`printer_not_allowed`)."
+          },
+          "404": {
+            "description": "No such printer, or no such entry on this printer and tray (`calibration_history_not_found`)."
+          },
+          "422": {
+            "description": "The tray is not an enabled tray of the printer (`tray_unknown`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Use an earlier calibration of the tray again (a `revert` history entry)",
         "tags": [
           "calibration"
         ]
@@ -15836,6 +16518,67 @@
       }
     },
     "/api/v1/sheet-types/{key}/versions": {
+      "get": {
+        "operationId": "list_sheet_type_versions_api_v1_sheet_types__key__versions_get",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VersionHistoryRead"
+                  },
+                  "title": "Response List Sheet Type Versions Api V1 Sheet Types  Key  Versions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "The versions of a sheet type with their changed geometry, newest first",
+        "tags": [
+          "sheet-types"
+        ]
+      },
       "post": {
         "operationId": "add_sheet_type_version_api_v1_sheet_types__key__versions_post",
         "parameters": [
@@ -15969,6 +16712,87 @@
           }
         ],
         "summary": "One version of a sheet type",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/{key}/versions/{n}/restore": {
+      "post": {
+        "description": "Adds a version with version `n`'s geometry and the change note \"Restored from version n\". Refused with `409 newer_version_in_use` while a sheet is pinned to a newer version; the newest version itself is refused as unchanged geometry (`422 invalid_geometry`).",
+        "operationId": "restore_sheet_type_version_api_v1_sheet_types__key__versions__n__restore_post",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "n",
+            "required": true,
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "title": "N",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "A sheet uses a newer version (`newer_version_in_use`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Restore an older version's geometry as a new version",
         "tags": [
           "sheet-types"
         ]
