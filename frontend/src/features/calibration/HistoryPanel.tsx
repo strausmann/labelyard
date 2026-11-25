@@ -19,6 +19,15 @@ const SMALL_BUTTON =
   "press inline-flex min-h-11 items-center justify-center gap-2 rounded-r2 border border-line-strong bg-surface px-3 text-small font-bold text-ink transition-colors duration-150 hover:bg-sunken data-[disabled]:opacity-60 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 const TEXT_LINK = "inline-flex min-h-11 items-center text-small text-link underline underline-offset-2";
 
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" className="shrink-0 fill-none stroke-current stroke-[1.6] [stroke-linecap:round]">
+      <circle cx="8" cy="8" r="5.75" />
+      <path d="M8 5v3.25l2 1.25" />
+    </svg>
+  );
+}
+
 function UndoIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" className="shrink-0 fill-none stroke-current stroke-[1.6] [stroke-linecap:round] [stroke-linejoin:round]">
@@ -69,7 +78,7 @@ export function HistoryPanel({ printerId, printerName, tray, trayLabel, labelOf,
       <section aria-labelledby="cal-history-h" className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 id="cal-history-h" className={SECTION_HEADING}>{t`Corrections for this tray`}</h2>
-          <p className={`${HINT} m-0 max-w-prose text-body`}>{t`Every save is kept. Restoring an entry adds a new one; nothing is overwritten or deleted.`}</p>
+          <p className="m-0 max-w-prose text-ink-2">{t`Every save is kept. Restoring an entry adds a new one; nothing is overwritten or deleted.`}</p>
         </div>
         {history.isPending ? (
           <p role="status" className="text-ink-2">{t`Loading…`}</p>
@@ -110,7 +119,7 @@ export function HistoryPanel({ printerId, printerName, tray, trayLabel, labelOf,
       <section aria-labelledby="cal-runs-h" className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h2 id="cal-runs-h" className={SECTION_HEADING}>{t`Pages printed from this tray`}</h2>
-          <p className={`${HINT} m-0 max-w-prose text-body`}>{t`Every calibration, check and probe page has a run number. A retry keeps its number.`}</p>
+          <p className="m-0 max-w-prose text-ink-2">{t`Every calibration, check and probe page has a run number. A retry keeps its number.`}</p>
         </div>
         {runs.isPending ? (
           <p role="status" className="text-ink-2">{t`Loading…`}</p>
@@ -165,7 +174,7 @@ function Entry({ entry, current, entries, types, onRestore }: EntryProps) {
             {entry.seq}
           </span>
           <span className={`${pill} ${entry.action === "revert" ? "bg-info-soft text-link" : "border border-line-strong text-ink"}`}>
-            {entry.action === "revert" || entry.action === "imported" ? <UndoIcon /> : null}
+            {entry.action === "revert" ? <UndoIcon /> : entry.action === "imported" ? <ClockIcon /> : null}
             {badge(entry.action)}
           </span>
           {current ? (

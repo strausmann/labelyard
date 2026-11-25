@@ -146,6 +146,10 @@ test.describe.serial("calibration", () => {
       expect(box!.x + box!.width).toBeLessThanOrEqual(390);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    // The guide's link leaves the app in a new tab.
+    const link = page.getByRole("link", { name: /More on labelyard\.app/ });
+    await expect(link).toHaveAttribute("href", "https://labelyard.app/using/calibration/");
+    await expect(link).toHaveAttribute("target", "_blank");
     // The card under Current values reads at this width too.
     await showTab(page, "Result");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -153,10 +157,6 @@ test.describe.serial("calibration", () => {
     await stillOff.scrollIntoViewIfNeeded();
     await expect(stillOff).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    // The link leaves the app in a new tab.
-    const link = page.getByRole("link", { name: /More on labelyard\.app/ });
-    await expect(link).toHaveAttribute("href", "https://labelyard.app/using/calibration/");
-    await expect(link).toHaveAttribute("target", "_blank");
   });
 
   test("the print result sits below the buttons: they do not move, and the line reaches Done without a reload (#239)", async () => {
@@ -524,6 +524,77 @@ test.describe.serial("calibration", () => {
       await page.keyboard.press("Escape");
     } finally {
       await setCorrection(page, id, null);
+    }
+  });
+
+  test("screenshots: history, runs, restore dialog and type versions, light and dark, desktop and phone (#336, M7)", async () => {
+    test.skip(!process.env.E2E_SHOTS_DIR, "screenshots are an artifact, taken only with E2E_SHOTS_DIR");
+    test.setTimeout(180_000);
+    const dir = process.env.E2E_SHOTS_DIR!;
+    mkdirSync(dir, { recursive: true });
+    await setLanguage(page, "en");
+    // The answers of the mockup (M7), so the screenshots can be held against it; the page itself is the real one.
+    const v = (x: number, y: number) => ({ offset_x_mm: x, offset_y_mm: y, scale_x: 1.00012, scale_y: 0.99992, rotation_deg: 0.021 });
+    const zero = { offset_x_mm: 0, offset_y_mm: 0, scale_x: 1, scale_y: 1, rotation_deg: 0 };
+    const base = { method: "manual", measured_on: { type_key: TYPE, version: 1 }, measured_on_deleted: false, run_id: null, run_no: null, readings: null, residuals_mm: null, reverted_from_id: null, actor: "admin", note: null };
+    const history = [
+      { ...base, id: "e4", seq: 4, action: "revert", source: null, values: v(0.41, -0.66), previous: v(0.38, -0.62), reverted_from_id: "e2", note: "The new tray feed drifted back; entry 3 was a bad fit.", jobs_count: 3, created_at: "2026-11-21T14:05:00Z", diff: { offset_x_mm: { old: 0.38, new: 0.41 }, offset_y_mm: { old: -0.62, new: -0.66 } } },
+      { ...base, id: "e3", seq: 3, action: "save", source: "fit", values: v(0.38, -0.62), previous: v(0.41, -0.66), run_id: "r12", run_no: 12, readings: Array.from({ length: 12 }, (_, i) => ({ col_gap: 1 + (i % 3), row_gap: 1 + i, across_mm: 0.4, down_mm: -0.6 })), residuals_mm: [0.05, 0.18, 0.02], jobs_count: 5, created_at: "2026-11-20T18:22:00Z", diff: { offset_x_mm: { old: 0.41, new: 0.38 }, offset_y_mm: { old: -0.66, new: -0.62 } } },
+      { ...base, id: "e2", seq: 2, action: "save", source: "manual", values: v(0.41, -0.66), previous: zero, jobs_count: 14, created_at: "2026-11-15T10:40:00Z", diff: { offset_x_mm: { old: 0, new: 0.41 }, offset_y_mm: { old: 0, new: -0.66 }, scale_x: { old: 1, new: 1.00012 }, scale_y: { old: 1, new: 0.99992 }, rotation_deg: { old: 0, new: 0.021 } } },
+      { ...base, id: "e1", seq: 1, action: "imported", source: null, values: zero, previous: null, measured_on: null, actor: null, jobs_count: 0, created_at: "2026-11-01T08:00:00Z", diff: {} },
+    ];
+    const run = { job_id: "j", retry: false, submitted: true, requested_tray: TRAY, actual_media_source: null, media_source_reported: true, check_sheet_id: null, pass_no: null, type_key: TYPE, version: 1 };
+    const runs = [
+      { ...run, id: "r14", run_no: 14, kind: "check_page", created_at: "2026-11-21T14:44:00Z" },
+      { ...run, id: "r13", run_no: 13, kind: "check_page", created_at: "2026-11-21T14:32:00Z", actual_media_source: "auto" },
+      { ...run, id: "r12", run_no: 12, kind: "calibration_page", created_at: "2026-11-21T14:20:00Z", media_source_reported: false },
+      { ...run, id: "r11", run_no: 11, kind: "probe_page", created_at: "2026-11-20T18:02:00Z", retry: true },
+    ];
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/history*`, (route) => route.fulfill({ json: history }));
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/runs`, (route) => route.fulfill({ json: runs }));
+    const g = { page_size: "A4", page_w: 210, page_h: 297, label_w: 45.7, label_h: 21.2, cols: 4, rows: 12, pitch_x: 48.2, pitch_y: 21.2, margin_top: 21.3, margin_left: 9.85, corner_radius: null, shape: "rectangle" };
+    const version = { geometry: g, geometry_hash: "h", sheets: 0, created_by: "admin", changed_fields: {}, restorable: false };
+    await page.route(`**/api/v1/sheet-types/${TYPE}/versions`, (route) =>
+      route.fulfill({
+        json: [
+          { ...version, version: 3, change_note: "Pitch measured on the probe page", created_at: "2026-11-20T18:55:00Z", changed_fields: { pitch_x: { old: 48.2, new: 47.55 }, margin_left: { old: 9.85, new: 9.9 } } },
+          { ...version, version: 2, change_note: "Measured again", created_at: "2026-11-12T09:10:00Z", sheets: 2, changed_fields: { margin_top: { old: 21.3, new: 21.5 } }, restorable: true },
+          { ...version, version: 1, change_note: null, created_at: "2026-11-01T08:00:00Z", created_by: "system:seed", sheets: 1 },
+        ],
+      }),
+    );
+    try {
+      for (const scheme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const [width, height] of [
+          [1280, 900],
+          [390, 844],
+        ] as const) {
+          await page.setViewportSize({ width, height });
+          await page.goto(`/calibration?printer=${id}&tray=${TRAY}&view=history&type=${TYPE}`);
+          await expect(page.getByRole("list", { name: "Corrections for this tray" })).toBeVisible();
+          await expect(page.getByRole("table", { name: "Pages printed from this tray" })).toBeVisible();
+          expect(await noSideScroll(page)).toBe(true);
+          await page.screenshot({ path: resolve(dir, `t13c-history-${width}-${scheme}.png`), fullPage: true });
+          await page.getByRole("button", { name: "Restore these values (entry 2)" }).click();
+          const dialog = page.getByRole("dialog", { name: "Use these values again?" });
+          await expect(dialog).toBeVisible();
+          await dialog.getByRole("textbox", { name: "Note (optional)" }).fill("Back to the values of 11-15");
+          await page.screenshot({ path: resolve(dir, `t13c-restore-${width}-${scheme}.png`) });
+          await page.keyboard.press("Escape");
+          await expect(dialog).toHaveCount(0);
+          await page.goto(`/sheets/archive?type=${TYPE}`);
+          await page.getByRole("tab", { name: "Versions" }).click();
+          await expect(page.getByText("Horizontal pitch: 48.2 → 47.55 mm")).toBeVisible();
+          expect(await noSideScroll(page)).toBe(true);
+          await page.screenshot({ path: resolve(dir, `t13c-versions-${width}-${scheme}.png`), fullPage: true });
+        }
+      }
+    } finally {
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/history*`);
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/runs`);
+      await page.unroute(`**/api/v1/sheet-types/${TYPE}/versions`);
+      await page.emulateMedia({ colorScheme: "light" });
     }
   });
 

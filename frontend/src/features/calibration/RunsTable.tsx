@@ -41,7 +41,7 @@ export function RunsTable({ runs, labelOf }: { runs: CalibrationRun[]; labelOf: 
   const columns = { run: t`Run`, page: t`Page`, printed: t`Printed`, requested: t`Requested tray`, from: t`Printed from` };
   return (
     <div className="overflow-hidden rounded-r3 border border-line bg-surface">
-      <table aria-label={t`Pages printed from this tray`} className="w-full border-collapse">
+      <table aria-label={t`Pages printed from this tray`} className="w-full border-collapse text-small">
         <thead className="max-sm:sr-only">
           <tr className="border-b border-line">
             <th scope="col" className={HEAD}>{columns.run}</th>
@@ -87,7 +87,7 @@ function PrintedFrom({ run, labelOf }: { run: CalibrationRun; labelOf: (tray: st
   const { t } = useLingui();
   if (run.actual_media_source !== null) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-r1 bg-accent-soft px-2 leading-7 font-bold">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-soft px-2.5 leading-7 font-bold">
         <WarnIcon size={14} />
         {labelOf(run.actual_media_source)}
       </span>

@@ -122,7 +122,7 @@ export function CalibrationPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-title font-bold">{t`Calibration`}</h1>
-        <p className={`${HINT} mt-1 max-w-prose`}>
+        <p className="mt-1 mb-0 max-w-prose text-ink-2">
           {t`Print a test page, read how far the ink landed from each crossing, and save the correction for this printer and tray.`}
         </p>
       </div>
