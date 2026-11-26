@@ -2617,10 +2617,6 @@ msgstr "aus dem Katalog"
 msgid "From the left edge of one label to the left edge of the next."
 msgstr "Von der linken Kante eines Etiketts bis zur linken Kante des nächsten."
 
-#: src/features/calibration/CalibrationPage.tsx
-#~ msgid "From the readings of print #{fitRun}."
-#~ msgstr "Aus den Messwerten von Druck #{fitRun}."
-
 #: src/features/archive/PreprintZonesEditor.tsx
 msgid "From the sheet's top-left corner, in mm."
 msgstr "Von der linken oberen Ecke des Bogens, in mm."

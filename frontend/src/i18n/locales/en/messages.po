@@ -2617,10 +2617,6 @@ msgstr "from the catalog"
 msgid "From the left edge of one label to the left edge of the next."
 msgstr "From the left edge of one label to the left edge of the next."
 
-#: src/features/calibration/CalibrationPage.tsx
-#~ msgid "From the readings of print #{fitRun}."
-#~ msgstr "From the readings of print #{fitRun}."
-
 #: src/features/archive/PreprintZonesEditor.tsx
 msgid "From the sheet's top-left corner, in mm."
 msgstr "From the sheet's top-left corner, in mm."
