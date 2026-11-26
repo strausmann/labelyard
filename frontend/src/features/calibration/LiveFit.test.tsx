@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { act, renderHook } from "@testing-library/react";
+import { I18nProvider } from "@lingui/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FitRequest } from "./api";
-import { useLiveFit } from "./LiveFit";
+import { i18n, initI18n } from "../../i18n";
+import { LiveFitPanel, useLiveFit } from "./LiveFit";
 
 // The pause of design 7.4, written out: a test against the constant would follow a changed constant.
 const LIVE_FIT_DELAY_MS = 400;
@@ -102,5 +104,61 @@ describe("useLiveFit", () => {
     rerender({ r: request(2) });
     expect(sent[1]!.signal?.aborted).toBe(true);
     expect(result.current.result).toBeNull();
+  });
+});
+
+describe("useLiveFit, late answers", () => {
+  it("an answer that arrives after its request was cancelled is dropped", async () => {
+    // A fetch that ignores the abort and answers anyway, as a slow server or a proxy can.
+    const late: ((body: unknown) => void)[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            late.push((body) => resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })));
+          }),
+      ),
+    );
+    const { result, rerender } = renderHook(({ r }) => useLiveFit("p", "main", r), { initialProps: { r: request(3) } });
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_FIT_DELAY_MS));
+    rerender({ r: request(4) });
+    await act(() => vi.advanceTimersByTimeAsync(LIVE_FIT_DELAY_MS));
+    expect(late).toHaveLength(2);
+    await act(async () => late[1]!({ ...FIT, residuals_mm: [4, 4, 4, 4] }));
+    // The first request's answer comes last: it must not replace the answer of the readings now in the form.
+    await act(async () => late[0]!({ ...FIT, residuals_mm: [3, 3, 3] }));
+    expect(result.current.result?.request).toEqual(request(4));
+    expect(result.current.result?.response.residuals_mm).toEqual([4, 4, 4, 4]);
+  });
+});
+
+describe("LiveFitPanel for assistive technology", () => {
+  const result = (residuals: number[], outOfRange: string[] = []) => ({
+    request: request(3),
+    response: { ...FIT, residuals_mm: residuals, flagged: residuals.flatMap((r, i) => (r > 0.3 ? [i] : [])), out_of_range: outOfRange },
+  });
+  const panel = (r: ReturnType<typeof result>) => (
+    <I18nProvider i18n={i18n}>
+      <LiveFitPanel result={r} error={null} updating={false} complete={3} readingRows={[1, 2, 3]} />
+    </I18nProvider>
+  );
+
+  it("announces the recalculated fit politely, and the out-of-range values only when they change", async () => {
+    vi.useRealTimers();
+    await initI18n("en");
+    const { rerender } = render(panel(result([0.1, 0.4, 0.1], ["offset_x_mm"])));
+    const status = screen.getByRole("status", { name: "Live fit result" });
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent("Across 0.00 mm, down 0.00 mm. 1 probable misread.");
+    // The range warning is no alert: an alert is read out again on every recalculation.
+    expect(screen.queryByRole("alert")).toBeNull();
+    const range = screen.getByText(/outside the allowed range: offset X/);
+    expect(range.closest("[aria-live='polite']")).not.toBeNull();
+    const node = range;
+    rerender(panel(result([0.1, 0.2, 0.1], ["offset_x_mm"])));
+    // Same list: the same node, untouched, so nothing is read out again.
+    expect(screen.getByText(/outside the allowed range: offset X/)).toBe(node);
+    expect(status).toHaveTextContent("Across 0.00 mm, down 0.00 mm. No probable misreads.");
   });
 });

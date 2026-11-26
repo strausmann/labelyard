@@ -22,6 +22,8 @@ export interface SuggestionRun {
   id: string;
   run_no: number;
   kind: "calibration_page" | "check_page" | "probe_page";
+  /** The sheet type version the print was made for: the suggestion is relative to its geometry. */
+  version: number;
 }
 
 /** The suggested fields, in the order the card lists them, with the geometry field each one changes. */
@@ -104,10 +106,19 @@ function Suggested({
   const info = useInfo();
   const detail = useSheetType(type.key);
   const apply = useApplySuggestion();
-  const [opened, setOpened] = useState<boolean | null>(null);
+  // After apply: whether the feedback issue opened ("opened"), was blocked ("blocked") or has no address ("none").
+  const [opened, setOpened] = useState<"opened" | "blocked" | "none" | null>(null);
 
-  const version = detail.data?.versions.find((v) => v.version === type.current_version);
-  const geometry = (version?.geometry ?? type.geometry) as unknown as Record<string, number | null | undefined>;
+  // "Now" is the geometry of the version the print was made for: the suggestion was computed against it. It stays so
+  // after apply, when the type's current version is the new one.
+  const printedFor = run?.version ?? type.current_version;
+  const version = detail.data?.versions.find((v) => v.version === printedFor);
+  const geometry = (version?.geometry ?? (printedFor === type.current_version ? type.geometry : {})) as unknown as Record<
+    string,
+    number | null | undefined
+  >;
+  // The hub applies only a check print of the newest version (409 run_version_not_current); an older one is not offered.
+  const outdated = printedFor !== type.current_version && !apply.isSuccess;
   const mm = (v: number) => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }).format(v);
   const names: Record<(typeof FIELDS)[number][1], string> = {
     pitch_x: t`Pitch across`,
@@ -142,11 +153,12 @@ function Suggested({
       { key: type.key, body },
       {
         onSuccess: () => {
-          // The issue opens with the result, within the press that applied it (the browser lets it open).
-          if (!issue) return setOpened(false);
+          // Opened once the hub answered, so after an await: browsers usually still allow it shortly after the press,
+          // but a blocker may not. A blocked tab is said below, and the link stays on the card.
+          if (!issue) return setOpened("none");
           const tab = window.open(issue, "_blank");
           if (tab) tab.opener = null;
-          setOpened(tab !== null);
+          setOpened(tab !== null ? "opened" : "blocked");
         },
       },
     );
@@ -173,6 +185,7 @@ function Suggested({
   const typeName = typeLabelWithKey(type);
   const next = type.current_version + 1;
   const current = type.current_version;
+  const newestVersion = type.current_version;
   const runNo = run?.run_no ?? 0;
   const added = apply.data?.version ?? next;
   const key = type.key;
@@ -206,7 +219,7 @@ function Suggested({
       {suggestion.uneven && <p className="m-0 font-bold text-warn">{t`Uneven: the readings follow no straight line. Check the sheet, not the printer.`}</p>}
       {proposed.length === 0 && !suggestion.uneven && <p className="m-0">{t`No change to pitch or margins.`}</p>}
       <div className="flex flex-wrap gap-3">
-        {admin && proposed.length > 0 && run && (
+        {admin && proposed.length > 0 && run && !outdated && (
           <Button onPress={applyNow} isDisabled={apply.isPending || apply.isSuccess} className={PRIMARY_BUTTON}>
             {t`Apply as new version`}
           </Button>
@@ -218,9 +231,14 @@ function Suggested({
           </a>
         )}
       </div>
-      {admin && proposed.length > 0 && (
+      {admin && proposed.length > 0 && !outdated && !apply.isSuccess && (
         <p className={`${HINT} m-0`}>
           {t`Adds version ${next} of ${typeName} with a change note naming print #${runNo}, and a log entry. Admins only. Sheets already made keep version ${current}.`}
+        </p>
+      )}
+      {outdated && proposed.length > 0 && (
+        <p className={`${HINT} m-0`}>
+          {t`This check print was made for version ${printedFor}. Only a check print of the newest version, ${newestVersion}, can be applied.`}
         </p>
       )}
       {apply.isError && (
@@ -230,9 +248,11 @@ function Suggested({
       )}
       {apply.isSuccess && opened !== null && (
         <p role="status" className="m-0 text-ok">
-          {opened
+          {opened === "opened"
             ? t`Version ${added} of ${key} is added. The feedback issue opened in a new tab.`
-            : t`Version ${added} of ${key} is added. Open the feedback issue with the link above.`}
+            : opened === "blocked"
+              ? t`Version ${added} of ${key} is added. Open the feedback issue with the link above.`
+              : t`Version ${added} of ${key} is added.`}
         </p>
       )}
     </section>

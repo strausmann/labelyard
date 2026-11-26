@@ -97,7 +97,7 @@ export function ReadingGuide({
           <h4 id={stepsId} className="m-0 text-body font-bold">{t`Steps`}</h4>
           <ol aria-labelledby={stepsId} className="m-0 -mt-2 flex list-decimal flex-col gap-3 pl-5">
             <li>{t`Print the page on a real sheet of this type. Writing a number on each cell, row by row, is optional; it helps when you take photos.`}</li>
-            <li>{t`Choose the print the readings come from: its run number is printed in the page margin ("#12"). The newest calibration page of this tray and type is chosen for you.`}</li>
+            <li>{t`Choose the print the readings come from: its run number is printed in the page margin ("#12"). The newest print of this tray and type, a calibration page or a check pass, is chosen for you.`}</li>
             <li className="flex flex-col gap-3">
               <span>{fits ? t`Read at least the four outer crossings and the one in the centre.` : t`Read the crossings marked in the drawing.`}</span>
               {geometry && (

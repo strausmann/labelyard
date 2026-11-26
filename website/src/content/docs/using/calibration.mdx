@@ -69,13 +69,13 @@ The numbers in the drawing follow this list. S counts the gaps between columns f
 
 Enter the readings under **Readings**:
 
-1. **Readings from print** names the page the readings come from, by the run number printed in its margin. The newest calibration page of this printer, tray and type is chosen for you. For a check print, choose its pass of the check sheet ("Check sheet of run #12 — pass 2, run #14"): the open sheet, or the last one once its final pass is printed.
+1. **Readings from print** names the page the readings come from, by the run number printed in its margin. The newest print of this printer, tray and type is chosen for you, a calibration page or a check pass. For a check print, choose its pass of the check sheet ("Check sheet of run #12 — pass 2, run #14"): the open sheet, or the last one once its final pass is printed.
 2. For each reading, choose the crossing (every S and Z line of the sheet is offered), then for each direction where the ink lies: **Left of the gap** or **Right of the gap**, **Above the cut** or **Below the cut**. The buttons set the sign, so you type only the size. A typed minus works too: `-0,4` picks left (or above) and leaves 0.4.
 3. Type the size, or use **−** and **+** (or the arrow keys). They move by 0.1 mm, or by one tick of the printed scale (0.5 mm) when you choose that step. A value with more decimals is rounded to 0.1 mm, and the field says so ("You typed 0,43 … saved as 0.4 mm"). A reading past the end of the scale (±2.0 mm) is warned about: then check the tray, the sheet type or the printer.
 
 From three readings the **live fit** shows the offset, scale and rotation and what is left at each crossing, 0.4 s after your last change. A crossing that is more than 0.3 mm off the fit is marked **probable misread**; read it again. Press **Fit** to fill the values in below. Nothing is saved yet: check the values, then save them. The save keeps the readings and the print they came from in the history.
 
-The readings of a check print show what is left with the stored correction; Fit shows them but does not fill them in as a new correction.
+The readings of a check print show what is left with the stored correction; Fit shows them but does not fill them in, and the hub never saves them as a correction. **Readings from print** starts at the newest print of this tray and sheet type, so after a check print its pass is chosen for you.
 
 On a sheet with only two columns or two rows all crossings lie on one line, so the readings cannot be fitted and the readings helper is not offered. Enter the values directly in the form below it.
 
@@ -124,7 +124,7 @@ The rule of thumb for what is left after the fit:
 
 ### Geometry suggestion
 
-When you enter the readings of such a check print, the readings helper suggests new values for the type, for example "Pitch across 48.50 → 48.20 mm". If the readings follow no straight line it says **uneven**: check the sheet, not the printer. If the correction was measured on the same type, or it is not known which type it was measured on, it says why there is no suggestion.
+When you enter the readings of such a check print, the readings helper suggests new values for the type, for example "Pitch across 48.50 → 48.20 mm". If the readings follow no straight line it says **uneven**: check the sheet, not the printer. When there is no suggestion it says why: the correction was measured on the same type, it is not known which type it was measured on, or the check print was made without a correction (then it shows the printer, not the sheet; print the check page with the correction).
 
 An admin can press **Apply as new version**: Labelyard adds a version of the sheet type with these values and a change note naming the print, and opens the prefilled feedback issue on GitHub so the catalogue can be corrected too. Sheets already made keep their version. **Fill the feedback issue** opens the same issue without changing anything.
 

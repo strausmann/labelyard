@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { calibrationOutOfRange, readingsInsufficient } from "../../api/errorDetail";
 import { apiErrorBody, mockApi, PAGE_CAPABILITIES, PAGE_PRINTER, respond } from "../test-api";
 import { calibrationPdfUrl, useCalibration, useCapabilities, useFit, usePrintCalibrationPage, useResetCalibration, useSaveCalibration } from "./api";
+import { calibrationKey } from "../sheets/keys";
 
 const P = PAGE_PRINTER.id;
 function setup() {
@@ -90,6 +91,16 @@ describe("calibration writes", () => {
     const { result } = renderHook(() => usePrintCalibrationPage(P), { wrapper });
     await act(() => result.current.mutateAsync({ tray: "main", request: { type: "L4736REV", corrected: true } }));
     expect(invalidate.mock.calls.map((c) => c[0]?.queryKey)).toContainEqual(["printers", P, "status"]);
+  });
+});
+
+describe("usePrintCalibrationPage and the readings' print picker", () => {
+  it("refreshes the runs of the printer, so the new print is offered (and chosen) for readings at once", async () => {
+    mockApi({ [`POST /api/v1/printers/${P}/calibration/main/page`]: respond(202, { job_id: "j1" }) });
+    const { wrapper, invalidate } = setup();
+    const { result } = renderHook(() => usePrintCalibrationPage(P), { wrapper });
+    await act(() => result.current.mutateAsync({ tray: "main", request: { type: "L4736REV", corrected: false } }));
+    expect(invalidate.mock.calls.map((c) => c[0]?.queryKey)).toContainEqual([...calibrationKey(P), "runs"]);
   });
 });
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "vitest";
-import { httpUrl, linkHost } from "./search";
+import { httpUrl, linkHost, parseDecimal } from "./search";
 
 describe("httpUrl", () => {
   it("httpUrl returns the normalised href", () => {
@@ -28,3 +28,10 @@ describe("linkHost (#204)", () => {
   });
 });
 
+describe("parseDecimal from the archive search", () => {
+  it("the zone editor and the size search take no exponent or hex number (shared/decimal.ts)", () => {
+    expect(parseDecimal("1e1")).toBeNull();
+    expect(parseDecimal("0x10")).toBeNull();
+    expect(parseDecimal("12,5")).toBe(12.5);
+  });
+});

@@ -199,14 +199,21 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const [fitted, setFitted] = useState<FitResult | null>(null);
   const [outcome, setOutcome] = useState<"filled" | "check" | null>(null);
 
-  const { choices, isPending: runsPending } = useRunChoices(printerId, tray, { key: type.key, version: type.current_version });
-  // Default: the newest calibration page of this printer, tray and type; else the newest pass of the open check sheet.
-  const run = choices.find((c) => c.id === chosenRun) ?? choices.find((c) => c.kind === "calibration_page") ?? choices.at(-1) ?? null;
+  const { choices, defaultChoice, isPending: runsPending, isError: runsFailed } = useRunChoices(printerId, tray, {
+    key: type.key,
+    version: type.current_version,
+  });
+  const run = choices.find((c) => c.id === chosenRun) ?? defaultChoice;
+  // Once a reading is typed it belongs to the print shown: a refetch that brings a newer print does not move it.
+  const typed = list.some((r) => r.across.text !== "" || r.down.text !== "");
+  if (typed && chosenRun === null && run) setChosenRun(run.id);
   // A fit with a run must name the version the run was printed for (else 422 run_version_mismatch).
   const version = run?.version ?? type.current_version;
   // The crossings are those of that version's grid: an older print may have other rows or columns than the type now.
   const detail = useSheetType(type.key, version !== type.current_version);
   const printed = version !== type.current_version ? detail.data?.versions.find((v) => v.version === version)?.geometry : undefined;
+  // Until that version's grid is known (or when it cannot be loaded) nothing is read: not on the current grid either.
+  const gridState: "ready" | "loading" | "error" = version === type.current_version || printed ? "ready" : detail.isError ? "error" : "loading";
   const { cols, rows } = printed ?? type.geometry;
   // Another grid: the readings start again at its suggested crossings (they belong to another page).
   const [grid, setGrid] = useState(`${cols}x${rows}`);
@@ -220,7 +227,14 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const rowOptions = useMemo(() => gapOptions("Z", Math.max(rows - 1, 1)), [rows]);
   const request = useMemo(() => readingsRequest(type.key, version, list, run?.id ?? null), [type.key, version, list, run?.id]);
   const complete = request.readings.length;
-  const live = useLiveFit(printerId, tray, request);
+  // No fit without the print the readings belong to, when the prints could not be loaded; none on an unknown grid.
+  const canFit = !runsFailed && gridState === "ready";
+  const live = useLiveFit(printerId, tray, canFit ? request : null);
+  // The request the form shows now, for an answer that arrives after the readings or the print changed.
+  const latest = useRef(request);
+  useEffect(() => {
+    latest.current = request;
+  }, [request]);
 
   const { reset: resetFit } = fit;
   const changed = useCallback(() => {
@@ -275,6 +289,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
     [changed],
   );
 
+  const runNo = run?.run_no ?? 0;
   const press = () => {
     setOutcome(null);
     const sent = request;
@@ -282,6 +297,9 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
       { tray, request: sent },
       {
         onSuccess: (response) => {
+          // The readings or the print changed while the fit ran: the answer belongs to neither. Today every change also
+          // resets the mutation (`changed`), which drops this callback first; this check keeps it so if that ever moves.
+          if (JSON.stringify(latest.current) !== JSON.stringify(sent)) return;
           setFitted({ request: sent, response });
           // A check print shows what is left with the stored correction: its fit is no new correction.
           if (run?.kind === "check_page") return setOutcome("check");
@@ -335,7 +353,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
       node?.removeEventListener("focusin", later);
       vv?.removeEventListener("resize", later);
     };
-  }, []);
+  }, [gridState]);
 
   // With two columns (or two rows) every crossing lies on one line: nothing to fit.
   if (cols <= 2 || rows <= 2) {
@@ -346,7 +364,18 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,24rem)] lg:items-start">
       <div className="flex min-w-0 flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <RunPicker choices={choices} value={run} onChange={(id) => { setChosenRun(id); changed(); }} isPending={runsPending} labelOf={labelOf} />
+          <RunPicker
+            choices={choices}
+            value={run}
+            onChange={(id) => {
+              setChosenRun(id);
+              changed();
+            }}
+            isPending={runsPending}
+            isError={runsFailed}
+            defaultId={defaultChoice?.id ?? null}
+            labelOf={labelOf}
+          />
           <div className="flex min-w-0 flex-col gap-1.5">
             <RadioGroup
               aria-label={t`Step`}
@@ -365,6 +394,14 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
           </div>
         </div>
 
+        {gridState !== "ready" && run && (
+          <p role={gridState === "error" ? "alert" : "status"} className={`m-0 ${gridState === "error" ? "text-bad" : HINT}`}>
+            {gridState === "error"
+              ? t`The sheet of print #${runNo} (version ${version}) could not be loaded, so its crossings are not known. Reload the page to try again.`
+              : t`Loading the sheet of print #${runNo} (version ${version})…`}
+          </p>
+        )}
+        {gridState === "ready" && (
         <ul ref={listRef} aria-label={t`Readings`} className="m-0 flex flex-col gap-4 p-0">
           {list.map((r, index) => (
             <ReadingCard
@@ -381,6 +418,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
             />
           ))}
         </ul>
+        )}
 
         {fit.isError && (
           <p role="alert" className="m-0 text-bad">
@@ -410,7 +448,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
             </svg>
             {t`Add reading`}
           </Button>
-          <Button onPress={press} isDisabled={complete < MIN_READINGS || fit.isPending} className={PRIMARY_BUTTON}>
+          <Button onPress={press} isDisabled={!canFit || complete < MIN_READINGS || fit.isPending} className={PRIMARY_BUTTON}>
             {t`Fit`}
           </Button>
           <span className={HINT}>{complete < MIN_READINGS ? t`Enter at least three readings to fit.` : t`${complete} readings`}</span>
@@ -422,7 +460,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
         {shown && shownIsCurrent && (
           <SuggestionCard
             type={type}
-            run={run ? { id: run.id, run_no: run.run_no, kind: run.kind } : null}
+            run={run ? { id: run.id, run_no: run.run_no, kind: run.kind, version: run.version } : null}
             response={shown.response}
             readings={shown.request.readings.length}
             measuredOn={measuredOn}

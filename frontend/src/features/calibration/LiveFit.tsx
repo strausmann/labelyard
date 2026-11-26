@@ -99,6 +99,13 @@ export function LiveFitPanel({ result, error, updating, complete, readingRows }:
   const values = result?.response.values;
   const outOfRange = result?.response.out_of_range ?? [];
   const outOfRangeList = outOfRange.map((name) => rangeWords[name] ?? name).join(", ");
+  const misreads = result?.response.flagged.length ?? 0;
+  const across = values ? mm(values.offset_x_mm) : "";
+  const down = values ? mm(values.offset_y_mm) : "";
+  // What a screen reader hears after each recalculation: the shift and how many readings look misread.
+  const summary = values
+    ? `${t`Across ${across}, down ${down}.`} ${misreads === 0 ? t`No probable misreads.` : misreads === 1 ? t`1 probable misread.` : t`${misreads} probable misreads.`}`
+    : "";
 
   return (
     <section aria-labelledby="live-fit-h" className={`${PANEL} flex min-w-0 flex-col gap-4`}>
@@ -140,11 +147,17 @@ export function LiveFitPanel({ result, error, updating, complete, readingRows }:
           </div>
         </dl>
       )}
-      {outOfRange.length > 0 && (
-        <p role="alert" className="m-0 text-bad">
-          {t`These fitted values are outside the allowed range: ${outOfRangeList}. They are not filled in. More than that is a fault of the printer, not something to correct.`}
-        </p>
-      )}
+      {/* Always in the page and polite: it is read out when the list changes, not on every recalculation. */}
+      <div aria-live="polite" className="empty:hidden">
+        {outOfRange.length > 0 && (
+          <p className="m-0 text-bad">
+            {t`These fitted values are outside the allowed range: ${outOfRangeList}. More than that is a fault of the printer, not something to correct.`}
+          </p>
+        )}
+      </div>
+      <p role="status" aria-live="polite" aria-label={t`Live fit result`} className="sr-only">
+        {summary}
+      </p>
       {result && (
         // A box that scrolls sideways has to be reachable with the keyboard, and it needs a name (267-08).
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must take focus (axe: scrollable-region-focusable)

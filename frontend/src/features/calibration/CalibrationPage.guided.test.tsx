@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { components } from "../../api/schema.gen";
-import { GEOMETRY_L4736, SHEET_TYPE } from "../test-api";
+import { apiErrorBody, GEOMETRY_L4736, respond, SHEET_TYPE } from "../test-api";
 import { BASE, body, button, enter, enterAll, FIT, none, only, open, PRINT_SESSION, resetBetweenTests, stored, typeB } from "./CalibrationPage.kit";
 
 vi.setConfig({ testTimeout: 20_000 });
@@ -36,7 +36,8 @@ const SHEET_ID = "eeeeeeee-0000-4000-8000-000000000001";
 const RUNS: Run[] = [
   run({ id: "run-14", run_no: 14, kind: "check_page", created_at: "2026-11-21T15:10:00Z", check_sheet_id: SHEET_ID, pass_no: 2 }),
   run({ id: "run-13", run_no: 13, kind: "check_page", created_at: "2026-11-21T14:50:00Z", check_sheet_id: SHEET_ID, pass_no: 1 }),
-  run({ id: "run-other", run_no: 13, kind: "calibration_page", type_key: "OTHERTYPE", version: 3, created_at: "2026-11-21T14:40:00Z" }),
+  // Another type's page is the newest run of the tray: it never belongs to these readings.
+  run({ id: "run-other", run_no: 16, kind: "calibration_page", type_key: "OTHERTYPE", version: 3, created_at: "2026-11-21T15:40:00Z" }),
   run({ id: "run-12", run_no: 12, kind: "calibration_page", created_at: "2026-11-21T14:20:00Z" }),
   run({ id: "run-9", run_no: 9, kind: "calibration_page", created_at: "2026-11-20T09:00:00Z" }),
 ];
@@ -181,12 +182,13 @@ describe("guided readings", () => {
     expect(rows[2]).not.toHaveTextContent("probable misread");
   });
 
-  it("run picker defaults to the newest calibration run and lists the open check sheet's passes", async () => {
+  it("run picker defaults to the newest run of this type and version and lists the open check sheet's passes", async () => {
+    // Operator ruling (2026-11-26): the default is the newest run of this type and version, a check pass included, not
+    // only the newest calibration page (the spec's literal default): check readings are entered right after the check.
     const { calls } = await open(withRuns({ [`POST ${BASE}/main/fit`]: FIT }));
     const picker = await screen.findByRole("button", { name: /Readings from print/ });
-    // The newest calibration page of this type: #12, not the other type's #13 and not a check print.
-    await waitFor(() => expect(picker).toHaveTextContent(/^#12 · calibration page · /));
-    expect(screen.getByText(/Printed from Main tray, as requested\./)).toBeVisible();
+    // Run #14 (pass 2) is the newest of L4736REV v1; the other type's #16 is newer still and is not offered.
+    await waitFor(() => expect(picker).toHaveTextContent("Check sheet of run #13 — pass 2, run #14"));
     await userEvent.click(picker);
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     expect(options).toEqual([
@@ -195,11 +197,12 @@ describe("guided readings", () => {
       "Check sheet of run #13 — pass 1, run #13",
       "Check sheet of run #13 — pass 2, run #14",
     ]);
-    await userEvent.click(screen.getByRole("option", { name: "Check sheet of run #13 — pass 2, run #14" }));
+    await userEvent.click(screen.getByRole("option", { name: /^#12 · calibration page/ }));
+    expect(screen.getByText(/Printed from Main tray, as requested\./)).toBeVisible();
     await fillThreePlain();
     await userEvent.click(await button("Fit"));
     await waitFor(() => expect(only(calls, "POST", "/fit").length).toBeGreaterThan(0));
-    expect(body(only(calls, "POST", "/fit").at(-1))).toMatchObject({ type: "L4736REV", version: 1, run_id: "run-14" });
+    expect(body(only(calls, "POST", "/fit").at(-1))).toMatchObject({ type: "L4736REV", version: 1, run_id: "run-12" });
   });
 
   it("save sends run_id and readings", async () => {
@@ -208,11 +211,12 @@ describe("guided readings", () => {
     const { calls } = await open(
       withRuns({
         "GET /api/v1/sheet-types": [typeV2],
+        "GET /api/v1/sheet-types/L4736REV": { ...typeV2, versions: [{ version: 1, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "a", sheets: 1 }] },
         [`POST ${BASE}/main/fit`]: FIT,
         [`PUT ${BASE}/main`]: stored,
       }),
     );
-    await waitFor(() => expect(screen.getByRole("button", { name: /Readings from print/ })).toHaveTextContent(/^#12/));
+    await chooseRun(/^#12 · calibration page/);
     await fillThreePlain();
     await userEvent.click(await button("Fit"));
     expect(await screen.findByText("From the readings of print #12.")).toBeVisible();
@@ -350,7 +354,8 @@ describe("guided readings", () => {
       [`POST ${BASE}/main/fit`]: FIT,
     });
     const picker = await screen.findByRole("button", { name: /Readings from print/ });
-    await waitFor(() => expect(picker).toHaveTextContent(/^#12/));
+    // The last pass is the newest run of the type: it is the default.
+    await waitFor(() => expect(picker).toHaveTextContent("Check sheet of run #13 — pass 3, run #15"));
     await userEvent.click(picker);
     const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     expect(options).toContain("Check sheet of run #13 — pass 3, run #15");
@@ -360,5 +365,114 @@ describe("guided readings", () => {
     await userEvent.click(await button("Fit"));
     await waitFor(() => expect(only(calls, "POST", "/fit").length).toBeGreaterThan(0));
     expect(body(only(calls, "POST", "/fit").at(-1)).run_id).toBe("run-15");
+  });
+
+  it("check readings are never filled in as a correction, and a save after them sends no run and no readings", async () => {
+    const { calls } = await open(withRuns({ [`POST ${BASE}/main/fit`]: FIT, [`PUT ${BASE}/main`]: stored }));
+    await chooseRun(/pass 2, run #14/);
+    await fillThreePlain();
+    await userEvent.click(await button("Fit"));
+    expect(await screen.findByText(/These are check readings: they show what is left with the stored correction/)).toBeVisible();
+    // The form keeps the stored values (0.4), not the fit's 0.35.
+    expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.4");
+    expect(screen.queryByText("The values are filled in below. Nothing is saved yet.")).toBeNull();
+    expect(screen.queryByText(/From the readings of print/)).toBeNull();
+    await userEvent.click(await button("Save for this printer and tray"));
+    await screen.findByText("Saved. New prints use this correction.");
+    const put = body(only(calls, "PUT")[0]);
+    expect(put.run_id).toBeUndefined();
+    expect(put.readings).toBeUndefined();
+  });
+
+  it("says in words when the hub refuses a check print's run as a correction", async () => {
+    await open(
+      withRuns({
+        [`POST ${BASE}/main/fit`]: FIT,
+        [`PUT ${BASE}/main`]: () => respond(422, apiErrorBody("run_is_a_check_print", "No.")),
+      }),
+    );
+    await chooseRun(/^#12 · calibration page/);
+    await fillThreePlain();
+    await userEvent.click(await button("Fit"));
+    await screen.findByText("From the readings of print #12.");
+    await userEvent.click(await button("Save for this printer and tray"));
+    expect(
+      await screen.findByText("These readings come from a check print. They show what is left with the stored correction and are never saved as a correction."),
+    ).toBeVisible();
+  });
+
+  it("the print is pinned once a reading is typed: a newer print appearing later does not take the readings", async () => {
+    let newer = false;
+    const view = await open(
+      withRuns({ [`GET ${BASE}/main/runs`]: () => (newer ? [run({ id: "run-17", run_no: 17, created_at: "2026-11-21T16:00:00Z" }), ...RUNS] : RUNS) }),
+    );
+    const picker = await screen.findByRole("button", { name: /Readings from print/ });
+    await waitFor(() => expect(picker).toHaveTextContent("pass 2, run #14"));
+    await enter(across("S1 · Z1"), "0,2");
+    newer = true;
+    await act(() => view.queryClient.invalidateQueries());
+    await waitFor(() => expect(view.calls.filter((c) => c.path.endsWith("/runs")).length).toBeGreaterThan(1));
+    // Counter-check: the new print is in the list, it just is not chosen for readings that were already typed.
+    await userEvent.click(picker);
+    expect(await screen.findByRole("option", { name: /^#17 · calibration page/ })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(picker).toHaveTextContent("pass 2, run #14");
+    expect(screen.getByLabelText(across("S1 · Z1"))).toHaveValue("0,2");
+  });
+
+  it("when the prints cannot be loaded it says so, and fits nothing without a print", async () => {
+    const { calls } = await open({
+      [`GET ${BASE}/main/runs`]: () => respond(500, apiErrorBody("internal", "Boom.")),
+      [`POST ${BASE}/main/fit`]: FIT,
+    });
+    // A 5xx is asked again twice (queryClient.ts) before the page gives up.
+    expect(
+      await screen.findByText("The prints of this tray could not be loaded, so the readings cannot be tied to one. Reload the page to try again.", {}, { timeout: 10_000 }),
+    ).toBeVisible();
+    expect(screen.queryByText(/No calibration page of this type was printed/)).toBeNull();
+    await fillThreePlain();
+    expect(await button("Fit")).toBeDisabled();
+    await new Promise((r) => setTimeout(r, 600));
+    expect(only(calls, "POST", "/fit")).toHaveLength(0);
+  });
+
+  it("a print of an older version is not read on the current grid while that version loads or when it cannot", async () => {
+    const typeV2 = { ...SHEET_TYPE, current_version: 2 };
+    const { calls } = await open(
+      withRuns({
+        "GET /api/v1/sheet-types": [typeV2],
+        "GET /api/v1/sheet-types/L4736REV": () => respond(500, apiErrorBody("internal", "Boom.")),
+        [`POST ${BASE}/main/fit`]: FIT,
+      }),
+    );
+    expect(await screen.findByText(/The sheet of print #14 \(version 1\) could not be loaded/, {}, { timeout: 10_000 })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Reading 1" })).toBeNull();
+    expect(await button("Fit")).toBeDisabled();
+    expect(only(calls, "POST", "/fit")).toHaveLength(0);
+  });
+
+  // Two guards hold this: switching the print resets the fit mutation (its callbacks are dropped), and the answer is
+  // compared with the request now in the form. The counter-test removes both; one alone keeps the test green.
+  it("a manual fit whose print was switched while it ran fills nothing", async () => {
+    let answer: (value: Response) => void = () => {};
+    const slow = new Promise<Response>((resolve) => (answer = resolve));
+    let first = true;
+    await open(
+      withRuns({
+        [`POST ${BASE}/main/fit`]: () => {
+          if (!first) return FIT;
+          first = false;
+          return slow;
+        },
+      }),
+    );
+    await chooseRun(/^#12 · calibration page/);
+    await fillThreePlain();
+    await userEvent.click(await button("Fit"));
+    await chooseRun(/^#9 · calibration page/);
+    await act(async () => answer(new Response(JSON.stringify(FIT), { status: 200, headers: { "Content-Type": "application/json" } })));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.queryByText("The values are filled in below. Nothing is saved yet.")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.4");
   });
 });

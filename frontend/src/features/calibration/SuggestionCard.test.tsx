@@ -35,18 +35,21 @@ const unavailable = (reason: NonNullable<FitResponse["suggestion_unavailable"]>)
   suggestion: null,
   suggestion_unavailable: reason,
 });
-const CHECK_RUN: SuggestionRun = { id: "run-14", run_no: 14, kind: "check_page" };
+const CHECK_RUN: SuggestionRun = { id: "run-14", run_no: 14, kind: "check_page", version: 1 };
 const DETAIL = { ...SHEET_TYPE, versions: [{ version: 1, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "a", sheets: 1 }] };
 const APPLY = "POST /api/v1/sheet-types/L4736REV/versions/from-suggestion";
 
-function show(response: FitResponse, { admin = true, run = CHECK_RUN as SuggestionRun | null, routes = {} as Record<string, unknown> } = {}) {
+function show(
+  response: FitResponse,
+  { admin = true, run = CHECK_RUN as SuggestionRun | null, routes = {} as Record<string, unknown>, type = SHEET_TYPE, info = INFO as typeof INFO | null } = {},
+) {
   const api = mockApi({ "GET /api/v1/sheet-types/L4736REV": DETAIL, ...routes });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  client.setQueryData(INFO_KEY, INFO);
+  if (info) client.setQueryData(INFO_KEY, info);
   render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <SuggestionCard type={SHEET_TYPE} run={run} response={response} readings={8} measuredOn="Other OT-1 (OTHERTYPE)" admin={admin} />
+        <SuggestionCard type={type} run={run} response={response} readings={8} measuredOn="Other OT-1 (OTHERTYPE)" admin={admin} />
       </QueryClientProvider>
     </I18nProvider>,
   );
@@ -133,7 +136,39 @@ describe("no suggestion", () => {
   });
 
   it("stays quiet for the readings of a calibration page", async () => {
-    show(unavailable("no_check_run"), { run: { id: "run-12", run_no: 12, kind: "calibration_page" } });
+    show(unavailable("no_check_run"), { run: { id: "run-12", run_no: 12, kind: "calibration_page", version: 1 } });
     await waitFor(() => expect(screen.queryByRole("note")).toBeNull());
+  });
+});
+
+describe("the suggestion of a print made for an older version", () => {
+  const V1 = { version: 1, change_note: null, created_at: null, geometry: { ...GEOMETRY_L4736, pitch_x: 48.6 }, geometry_hash: "a", sheets: 1 };
+  const V2 = { version: 2, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "b", sheets: 0 };
+  const typeV2 = { ...SHEET_TYPE, current_version: 2 };
+
+  it("shows that version's values as now, and offers no apply (the hub only applies a check print of the newest version)", async () => {
+    show(suggests(), { type: typeV2, routes: { "GET /api/v1/sheet-types/L4736REV": { ...typeV2, versions: [V2, V1] } } });
+    expect(await screen.findByText("48.60 → 48.20 mm")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Apply as new version" })).toBeNull();
+    expect(screen.getByText("This check print was made for version 1. Only a check print of the newest version, 2, can be applied.")).toBeVisible();
+  });
+});
+
+describe("after apply", () => {
+  it("keeps the values it applied and names the version it added, also once the type has moved on", async () => {
+    vi.stubGlobal("open", vi.fn(() => null));
+    show(suggests(), { routes: { [APPLY]: { version: 2, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "b", sheets: 0 } } });
+    await userEvent.click(await screen.findByRole("button", { name: "Apply as new version" }));
+    expect(await screen.findByText(/^Version 2 of L4736REV is added\./)).toBeVisible();
+    expect(screen.getByText("48.50 → 48.20 mm")).toBeVisible();
+    expect(screen.queryByText(/Adds version/)).toBeNull();
+  });
+
+  it("does not point at a link that is not there when the hub version is unknown", async () => {
+    show(suggests(), { info: null, routes: { [APPLY]: { version: 2, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "b", sheets: 0 } } });
+    await userEvent.click(await screen.findByRole("button", { name: "Apply as new version" }));
+    expect(await screen.findByText("Version 2 of L4736REV is added.")).toBeVisible();
+    expect(screen.queryByText(/the link above/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Fill the feedback issue/ })).toBeNull();
   });
 });

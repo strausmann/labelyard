@@ -69,13 +69,13 @@ Die Nummern in der Zeichnung folgen dieser Liste. S zählt die Lücken zwischen 
 
 Gib die Messwerte unter **Messwerte** ein:
 
-1. **Messwerte von Druck** nennt die Seite, von der die Messwerte stammen, mit der Laufnummer, die in ihrem Rand steht. Vorgewählt ist die neueste Kalibrierseite dieses Druckers, Fachs und Typs. Für einen Kontrolldruck wählst du seinen Durchgang des Kontrollbogens („Kontrollbogen von Lauf #12 — Durchgang 2, Lauf #14“): des offenen, oder des letzten, sobald sein letzter Durchgang gedruckt ist.
+1. **Messwerte von Druck** nennt die Seite, von der die Messwerte stammen, mit der Laufnummer, die in ihrem Rand steht. Vorgewählt ist der neueste Druck dieses Druckers, Fachs und Typs, eine Kalibrierseite oder ein Kontrolldurchgang. Für einen Kontrolldruck wählst du seinen Durchgang des Kontrollbogens („Kontrollbogen von Lauf #12 — Durchgang 2, Lauf #14“): des offenen, oder des letzten, sobald sein letzter Durchgang gedruckt ist.
 2. Wähle zu jedem Messwert die Kreuzung (jede S- und Z-Linie des Bogens wird angeboten) und dann für jede Richtung, wo die Tinte liegt: **Links der Lücke** oder **Rechts der Lücke**, **Über dem Schnitt** oder **Unter dem Schnitt**. Die Tasten setzen das Vorzeichen, du tippst nur den Betrag. Ein getipptes Minus geht auch: `-0,4` wählt links (oder über) und lässt 0,4 stehen.
 3. Tippe den Betrag ein oder nimm **−** und **+** (oder die Pfeiltasten). Sie gehen in Schritten von 0,1 mm, oder um einen Strich der gedruckten Skala (0,5 mm), wenn du diese Schrittweite wählst. Ein Wert mit mehr Nachkommastellen wird auf 0,1 mm gerundet, und das Feld sagt es („Du hast 0,43 eingegeben … gespeichert wird also 0,4 mm“). Ein Messwert jenseits des Skalenendes (±2,0 mm) wird angemahnt: Prüfe dann das Fach, den Bogentyp oder den Drucker.
 
 Ab drei Messwerten zeigt die **laufende Berechnung** Versatz, Maßstab und Drehung und was an jeder Kreuzung übrig bleibt, 0,4 s nach deiner letzten Änderung. Eine Kreuzung, die mehr als 0,3 mm neben der Berechnung liegt, ist mit **wohl falsch abgelesen** markiert; lies sie noch einmal ab. Drücke **Berechnen**, um die Werte unten einzutragen. Noch ist nichts gespeichert: Prüfe die Werte und speichere sie dann. Das Speichern behält die Messwerte und den Druck, von dem sie stammen, im Verlauf.
 
-Die Messwerte eines Kontrolldrucks zeigen, was mit der gespeicherten Korrektur übrig bleibt; Berechnen zeigt sie, trägt sie aber nicht als neue Korrektur ein.
+Die Messwerte eines Kontrolldrucks zeigen, was mit der gespeicherten Korrektur übrig bleibt; Berechnen zeigt sie, trägt sie aber nicht ein, und der Hub speichert sie nie als Korrektur. **Messwerte von Druck** beginnt beim neuesten Druck dieses Fachs und Bogentyps, nach einem Kontrolldruck ist also sein Durchgang vorgewählt.
 
 Auf einem Bogen mit nur zwei Spalten oder zwei Zeilen liegen alle Kreuzungen auf einer Linie; die Messwerte lassen sich dann nicht berechnen, und der Messwert-Helfer wird nicht angeboten. Gib die Werte direkt in das Formular darunter ein.
 
@@ -124,7 +124,7 @@ Die Faustregel für das, was nach der Berechnung übrig bleibt:
 
 ### Vorschlag für die Maße
 
-Gibst du die Messwerte eines solchen Kontrolldrucks ein, schlägt der Messwert-Helfer neue Werte für den Typ vor, zum Beispiel „Rastermaß quer 48,50 → 48,20 mm“. Folgen die Messwerte keiner geraden Linie, sagt er **ungleichmäßig**: Prüfe dann den Bogen, nicht den Drucker. Wurde die Korrektur auf demselben Typ gemessen, oder ist nicht bekannt, auf welchem, sagt er, warum es keinen Vorschlag gibt.
+Gibst du die Messwerte eines solchen Kontrolldrucks ein, schlägt der Messwert-Helfer neue Werte für den Typ vor, zum Beispiel „Rastermaß quer 48,50 → 48,20 mm“. Folgen die Messwerte keiner geraden Linie, sagt er **ungleichmäßig**: Prüfe dann den Bogen, nicht den Drucker. Gibt es keinen Vorschlag, sagt er warum: Die Korrektur wurde auf demselben Typ gemessen, es ist nicht bekannt, auf welchem Typ sie gemessen wurde, oder der Kontrolldruck wurde ohne Korrektur gemacht (dann zeigt er den Drucker, nicht den Bogen; drucke die Kontrollseite mit der Korrektur).
 
 Ein Admin kann **Als neue Version übernehmen** drücken: Labelyard legt eine Version des Bogentyps mit diesen Werten an, mit einer Änderungsnotiz, die den Druck nennt, und öffnet die vorbereitete Rückmeldung auf GitHub, damit auch der Katalog korrigiert werden kann. Bereits angelegte Bögen behalten ihre Version. **Rückmeldung auf GitHub ausfüllen** öffnet dieselbe Rückmeldung, ohne etwas zu ändern.
 

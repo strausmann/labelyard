@@ -427,6 +427,10 @@ msgstr "{list}: Öffne einen Drucker, um zu sehen, warum."
 msgid "{lowCount, plural, one {# printer is running low} other {# printers are running low}}"
 msgstr "{lowCount, plural, one {# Drucker hat nur noch wenig Material} other {# Drucker haben nur noch wenig Material}}"
 
+#: src/features/calibration/LiveFit.tsx
+msgid "{misreads} probable misreads."
+msgstr "{misreads} wohl falsch abgelesen."
+
 #: src/features/archive/MarginPlacement.tsx
 msgid "{missing} of {total} printers do not print the code in the margin"
 msgstr "{missing} von {total} Druckern drucken den Code nicht in den Rand"
@@ -702,6 +706,10 @@ msgstr "1 = Zellennummer (wird nicht gedruckt)"
 msgid "1 preset"
 msgstr "1 Herstellervorgabe"
 
+#: src/features/calibration/LiveFit.tsx
+msgid "1 probable misread."
+msgstr "1 wohl falsch abgelesen."
+
 #: src/features/sheets/backSide/LoadingPicture.tsx
 msgid "1 Turn"
 msgstr "1 Umdrehen"
@@ -861,6 +869,10 @@ msgstr "Zugang und Schlüssel"
 #: src/features/layout/LayoutPicker.tsx
 msgid "Across"
 msgstr "Quer"
+
+#: src/features/calibration/LiveFit.tsx
+msgid "Across {across}, down {down}."
+msgstr "Quer {across}, abwärts {down}."
 
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Across at {name} (mm)"
@@ -1647,8 +1659,8 @@ msgid "Choose one tray as the default."
 msgstr "Wähle ein Fach als Standard."
 
 #: src/features/calibration/guide/ReadingGuide.tsx
-msgid "Choose the print the readings come from: its run number is printed in the page margin (\"#12\"). The newest calibration page of this tray and type is chosen for you."
-msgstr "Wähle den Druck, von dem die Messwerte stammen: Seine Laufnummer steht im Seitenrand („#12“). Vorgewählt ist die neueste Kalibrierseite dieses Fachs und Typs."
+msgid "Choose the print the readings come from: its run number is printed in the page margin (\"#12\"). The newest print of this tray and type, a calibration page or a check pass, is chosen for you."
+msgstr "Wähle den Druck, von dem die Messwerte stammen: Seine Laufnummer steht im Seitenrand („#12“). Vorgewählt ist der neueste Druck dieses Fachs und Typs, eine Kalibrierseite oder ein Kontrolldurchgang."
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Chore"
@@ -3289,6 +3301,10 @@ msgstr "Links werden gezeigt"
 msgid "Live fit"
 msgstr "Laufende Berechnung"
 
+#: src/features/calibration/LiveFit.tsx
+msgid "Live fit result"
+msgstr "Ergebnis der laufenden Berechnung"
+
 #: src/shell/LiveStatus.tsx
 msgid "Live updates paused"
 msgstr "Live-Updates pausiert"
@@ -3324,6 +3340,10 @@ msgstr "Benachrichtigungen werden geladen…"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Loading test"
 msgstr "Einlegetest"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Loading the sheet of print #{runNo} (version {version})…"
+msgstr "Der Bogen von Druck #{runNo} (Version {version}) wird geladen …"
 
 #: src/features/archive/ArchivePage.tsx
 msgid "Loading vendors…"
@@ -3779,6 +3799,10 @@ msgstr "Kein Drucker verfügbar"
 #: src/features/settings/Printers.tsx
 msgid "No printers yet."
 msgstr "Noch keine Drucker."
+
+#: src/features/calibration/LiveFit.tsx
+msgid "No probable misreads."
+msgstr "Nichts wohl falsch abgelesen."
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "No public URL is set for this hub, so the address starts with <public-url>. Set LABELYARD_PUBLIC_URL in the container."
@@ -6893,8 +6917,8 @@ msgid "The new version could not be added."
 msgstr "Die neue Version konnte nicht angelegt werden."
 
 #: src/features/calibration/RunPicker.tsx
-msgid "The newest page of this printer, tray and type."
-msgstr "Die neueste Seite dieses Druckers, Fachs und Typs."
+msgid "The newest print of this printer, tray and type."
+msgstr "Der neueste Druck dieses Druckers, Fachs und Typs."
 
 #: src/features/archive/errors.ts
 msgid "The note about the change"
@@ -7182,6 +7206,10 @@ msgstr "Die Drucker konnten nicht geladen werden."
 msgid "The printers could not be loaded. A saved printer is shown by its short name."
 msgstr "Die Drucker ließen sich nicht laden. Ein gespeicherter Drucker wird mit seinem Kurznamen angezeigt."
 
+#: src/features/calibration/RunPicker.tsx
+msgid "The prints of this tray could not be loaded, so the readings cannot be tied to one. Reload the page to try again."
+msgstr "Die Drucke dieses Fachs konnten nicht geladen werden, die Messwerte lassen sich also keinem zuordnen. Lade die Seite neu, um es noch einmal zu versuchen."
+
 #: src/features/lookup/CartPage.tsx
 msgid "The QR code does not fit this tape: {length} of at most {max} bytes."
 msgstr "Der QR-Code passt nicht auf dieses Band: {length} von höchstens {max} Bytes."
@@ -7328,6 +7356,10 @@ msgstr "Der Bogen hat auf dieser Seite keinen Rand."
 #: src/features/jobs/PageJobInfo.tsx
 msgid "The sheet is discarded, so these cells cannot be settled any more."
 msgstr "Der Bogen ist verworfen, deshalb lassen sich diese Zellen nicht mehr klären."
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "The sheet of print #{runNo} (version {version}) could not be loaded, so its crossings are not known. Reload the page to try again."
+msgstr "Der Bogen von Druck #{runNo} (Version {version}) konnte nicht geladen werden, seine Kreuzungen sind also nicht bekannt. Lade die Seite neu, um es noch einmal zu versuchen."
 
 #: src/features/archive/TypeDetail.tsx
 msgid "The sheet type could not be loaded."
@@ -7507,8 +7539,8 @@ msgid "These are check readings: they show what is left with the stored correcti
 msgstr "Das sind Kontrollmesswerte. Daran siehst du, was mit der gespeicherten Korrektur übrig bleibt. Deshalb werden sie nicht als neue Korrektur eingetragen."
 
 #: src/features/calibration/LiveFit.tsx
-msgid "These fitted values are outside the allowed range: {outOfRangeList}. They are not filled in. More than that is a fault of the printer, not something to correct."
-msgstr "Diese berechneten Werte liegen außerhalb des erlaubten Bereichs: {outOfRangeList}. Sie werden nicht eingetragen. Mehr ist ein Fehler des Druckers, nichts, was man ausgleicht."
+msgid "These fitted values are outside the allowed range: {outOfRangeList}. More than that is a fault of the printer, not something to correct."
+msgstr "Diese berechneten Werte liegen außerhalb des erlaubten Bereichs: {outOfRangeList}. Mehr ist ein Fehler des Druckers, nichts zum Korrigieren."
 
 #: src/features/sheets/SheetDetail.tsx
 msgid "These labels are not on the sheet. The cells become free again."
@@ -7538,6 +7570,10 @@ msgstr "Diese Messwerte stammen nicht von einem Kontrolldruck und können den Bo
 msgid "These readings cannot be fitted. Check them and add crossings that are further apart."
 msgstr "Aus diesen Messwerten lässt sich nichts berechnen. Prüfe sie und füge weiter auseinander liegende Kreuzungen hinzu."
 
+#: src/features/calibration/errors.ts
+msgid "These readings come from a check print. They show what is left with the stored correction and are never saved as a correction."
+msgstr "Diese Messwerte stammen von einem Kontrolldruck. Daran siehst du, was mit der gespeicherten Korrektur übrig bleibt; als Korrektur werden sie nie gespeichert."
+
 #: src/features/calibration/SuggestionCard.tsx
 msgid "These readings give no geometry suggestion."
 msgstr "Diese Messwerte ergeben keinen Vorschlag für die Maße."
@@ -7566,6 +7602,10 @@ msgstr "Der Browser hat die Kamera für diese Seite gesperrt. Erlaube sie in den
 #: src/features/calibration/SuggestionCard.tsx
 msgid "This check print was made for another sheet type."
 msgstr "Dieser Kontrolldruck wurde für einen anderen Bogentyp gemacht."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "This check print was made for version {printedFor}. Only a check print of the newest version, {newestVersion}, can be applied."
+msgstr "Dieser Kontrolldruck wurde für Version {printedFor} gemacht. Übernehmen lässt sich nur ein Kontrolldruck der neuesten Version, {newestVersion}."
 
 #: src/features/calibration/SuggestionCard.tsx
 msgid "This check print was made without a correction, so what it shows is the printer, not the sheet. Print the check page with the correction."
@@ -8202,6 +8242,10 @@ msgstr "Version"
 msgctxt "column"
 msgid "Version"
 msgstr "Version"
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Version {added} of {key} is added."
+msgstr "Version {added} von {key} ist angelegt."
 
 #: src/features/calibration/SuggestionCard.tsx
 msgid "Version {added} of {key} is added. Open the feedback issue with the link above."

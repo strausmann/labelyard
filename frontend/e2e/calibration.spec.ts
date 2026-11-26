@@ -412,6 +412,13 @@ test.describe.serial("calibration", () => {
       await openCalibration(page, id);
       await chooseType(page);
       await showTab(page, "Readings");
+      // The newest print of the tray may be a check pass of another spec (its readings are never a correction):
+      // these readings belong to a calibration page.
+      const picker = page.getByRole("button", { name: /Readings from print/ });
+      if (await picker.isVisible()) {
+        await picker.click();
+        await page.getByRole("option", { name: /· calibration page ·/ }).first().click();
+      }
       // The same deviation at all four outermost crossings: 0.5 mm to the right, 0.3 mm too low.
       for (const crossing of ["S1 · Z1", "S3 · Z1", "S1 · Z11", "S3 · Z11"]) {
         await page.getByRole("textbox", { name: `Across at ${crossing} (mm)` }).fill("0,5");
@@ -419,7 +426,7 @@ test.describe.serial("calibration", () => {
       }
       await page.getByRole("button", { name: "Fit", exact: true }).click();
       await expect(page.getByRole("table", { name: "Result of the fit" })).toBeVisible();
-      await expect(page.getByText("probable misread")).toHaveCount(0);
+      await expect(page.getByText("probable misread", { exact: true })).toHaveCount(0);
       await expect(page.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.5");
       await expect(page.getByRole("textbox", { name: "Offset Y (mm)" })).toHaveValue("0.3");
 
@@ -656,7 +663,7 @@ test.describe.serial("calibration", () => {
           await page.setViewportSize({ width, height });
           await fill();
           await page.getByRole("button", { name: "Fit", exact: true }).click();
-          await expect(page.getByText("probable misread")).toBeVisible();
+          await expect(page.getByText("probable misread", { exact: true })).toBeVisible();
           expect(await noSideScroll(page)).toBe(true);
           // The window as tall as the page: a full-page shot would stitch the sticky bars into the middle.
           const tall = await page.evaluate(() => document.documentElement.scrollHeight);
@@ -741,7 +748,7 @@ test.describe.serial("calibration", () => {
         await fitRegion.focus();
         await expect(fitRegion).toBeFocused();
         // The flag on the far reading is on screen without scrolling the table sideways.
-        const flag = await page.getByText(de ? "wohl falsch abgelesen" : "probable misread").boundingBox();
+        const flag = await page.getByText(de ? "wohl falsch abgelesen" : "probable misread", { exact: true }).boundingBox();
         expect(flag, "the flag is rendered").not.toBeNull();
         expect(flag!.x).toBeGreaterThanOrEqual(0);
         expect(flag!.x + flag!.width).toBeLessThanOrEqual(size.width);

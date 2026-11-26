@@ -77,7 +77,12 @@ export function useRunChoices(printerId: string, tray: string, type: { key: stri
       });
     return [...pages, ...passes];
   }, [runs.data, sheet.data, type.key, type.version, t, i18n.locale]);
-  return { choices, isPending: runs.isPending };
+  // Operator ruling (2026-11-26): the default is the newest run of this type and its current version, a check pass
+  // included, not only the newest calibration page (design 7.4 names the page): check readings are entered right after
+  // the check print. With no run of the current version, the newest of the type.
+  const newest = (list: RunChoice[]) => list.reduce<RunChoice | null>((best, c) => (best === null || c.run_no > best.run_no ? c : best), null);
+  const defaultChoice = newest(choices.filter((c) => c.version === type.version)) ?? newest(choices);
+  return { choices, defaultChoice, isPending: runs.isPending, isError: runs.isError };
 }
 
 export interface RunPickerProps {
@@ -85,13 +90,27 @@ export interface RunPickerProps {
   value: RunChoice | null;
   onChange: (id: string) => void;
   isPending: boolean;
+  /** The prints could not be loaded: the readings cannot be tied to one. */
+  isError: boolean;
+  /** The choice made when nobody chose; the hint calls it the newest. */
+  defaultId: string | null;
   /** The label of a tray key, for the line about where the page came from. */
   labelOf: (key: string) => string;
 }
 
 /** "Readings from print #12": the readings and the fit belong to that print (design 7.4). */
-export function RunPicker({ choices, value, onChange, isPending, labelOf }: RunPickerProps) {
+export function RunPicker({ choices, value, onChange, isPending, isError, defaultId, labelOf }: RunPickerProps) {
   const { t } = useLingui();
+  if (isError) {
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <span className={LABEL}>{t`Readings from print`}</span>
+        <p role="alert" className="m-0 text-small text-bad">
+          {t`The prints of this tray could not be loaded, so the readings cannot be tied to one. Reload the page to try again.`}
+        </p>
+      </div>
+    );
+  }
   if (choices.length === 0 || !value) {
     return (
       <div className="flex min-w-0 flex-col gap-1.5">
@@ -105,7 +124,7 @@ export function RunPicker({ choices, value, onChange, isPending, labelOf }: RunP
   const run = value.run;
   const requested = run ? labelOf(run.requested_tray) : "";
   const actual = run?.actual_media_source ? labelOf(run.actual_media_source) : "";
-  const newest = value.kind === "calibration_page" && value.id === choices.find((c) => c.kind === "calibration_page")?.id;
+  const newest = value.id === defaultId;
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       <SelectField
@@ -115,7 +134,7 @@ export function RunPicker({ choices, value, onChange, isPending, labelOf }: RunP
         onChange={onChange}
       />
       <p className={`${HINT} m-0`}>
-        {newest ? `${t`The newest page of this printer, tray and type.`} ` : ""}
+        {newest ? `${t`The newest print of this printer, tray and type.`} ` : ""}
         {!run
           ? ""
           : actual

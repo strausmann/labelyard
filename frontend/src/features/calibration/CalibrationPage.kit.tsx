@@ -52,6 +52,8 @@ export function routes(extra: Record<string, unknown> = {}) {
   return {
     [`GET ${BASE}/main/page/layout`]: LAYOUT,
     [`GET ${BASE}/main/check-sheets/open`]: noSheet,
+    // No print yet: the readings helper offers no run (a failing list would block the fit, design 7.4).
+    [`GET ${BASE}/main/runs`]: [],
     "GET /api/v1/printers": [PAGE_PRINTER, secondPrinter, PRINTER_A, disabledPrinter],
     [`GET /api/v1/printers/${P}/status`]: pageStatus(P),
     [`GET /api/v1/printers/${secondPrinter.id}/status`]: pageStatus(secondPrinter.id),
