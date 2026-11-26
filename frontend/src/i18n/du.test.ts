@@ -72,8 +72,6 @@ const THIRD_PERSON_EXCEPTIONS: Record<string, string> = {
     "third person, not an address: 'Sie' = the records",
   "The server refused the file: it is larger than 64 KB.":
     "third person, not an address: 'Sie' = the file",
-  "These fitted values are outside the allowed range: {outOfRangeList}. They are not filled in. More than that is a fault of the printer, not something to correct.":
-    "third person, not an address: 'Sie' = the values",
 };
 
 // Word boundaries by Unicode letters: JavaScript's `\b` counts only ASCII letters as word characters, so

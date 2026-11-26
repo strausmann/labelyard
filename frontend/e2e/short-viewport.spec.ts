@@ -465,6 +465,45 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await page.keyboard.press("Escape");
       });
 
+      test("Calibration readings: focused reading, its direction picker and Fit stay in view; live fit moves below", async () => {
+        await prepare(mode);
+        const printers = (await (await page.request.get("/api/v1/printers")).json()) as Array<{ id: string; name: string }>;
+        const printer = printers.find((p) => p.name === "Office page printer")!.id;
+        await page.goto(`/calibration?printer=${printer}&tray=main-tray&type=avery-zweckform-l4736rev&view=readings`);
+        // Three readings, so the live fit has something to show; then the keyboard opens on the third card's field.
+        for (const [crossing, value] of [["S1 · Z1", "0,2"], ["S3 · Z1", "0,3"]] as const) {
+          await page.getByRole("textbox", { name: `Across at ${crossing} (mm)` }).fill(value);
+          await page.getByRole("textbox", { name: `Down at ${crossing} (mm)` }).fill("0,1");
+        }
+        await page.getByRole("textbox", { name: "Down at S1 · Z11 (mm)" }).fill("0,1");
+        const field = page.getByRole("textbox", { name: "Across at S1 · Z11 (mm)" });
+        await field.click();
+        await keyboard(mode);
+        await page.keyboard.type("0,4");
+        const picker = page.getByRole("radiogroup", { name: "Across at S1 · Z11: where the ink lies" });
+        const fit = page.getByRole("button", { name: "Fit", exact: true });
+        await expectInSightOnceSettled(page, field, "the focused reading");
+        await expectInSightOnceSettled(page, picker, "its direction picker");
+        await expectInSightOnceSettled(page, fit, "the Fit button");
+        // Nothing sits on top of them: not the top bar, not the tab bar.
+        const header = (await page.locator("header").first().boundingBox())!;
+        expect((await picker.boundingBox())!.y, "the picker is below the top bar").toBeGreaterThanOrEqual(header.y + header.height - 1);
+        const tabbar = page.locator("[data-tabbar]");
+        if (await tabbar.isVisible()) {
+          const bar = (await tabbar.boundingBox())!;
+          const view = await visible(page);
+          // The Scan disc stands above the bar's top edge: the Fit button ends above the disc.
+          const disc = (await tabbar.locator("a").nth(2).locator("span").first().boundingBox())!;
+          const fitBox = (await fit.boundingBox())!;
+          if (bar.y < view.bottom) expect(fitBox.y + fitBox.height, "Fit ends above the tab bar and its Scan disc").toBeLessThanOrEqual(Math.min(bar.y, disc.y) + 1);
+        }
+        // The live fit does not push the field out: on a phone it sits below the readings.
+        const live = page.getByRole("heading", { name: "Live fit" });
+        await expect(page.getByRole("table", { name: "Result of the fit" })).toBeAttached();
+        if (isPhone(mode)) expect((await live.boundingBox())!.y, "the live fit is below the reading").toBeGreaterThan((await field.boundingBox())!.y);
+        await field.blur();
+      });
+
       test("restore dialog footer stays in view", async () => {
         await prepare(mode);
         // Two saves on the page printer's main tray: the older one offers "Restore these values" (#336, M7).

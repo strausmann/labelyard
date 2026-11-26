@@ -49,10 +49,10 @@ describe("step 2: the readings helper", () => {
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("S1 · Z1");
     expect(rows[0]).toHaveTextContent("0.05 mm");
-    expect(rows[0]).not.toHaveTextContent("check this reading");
+    expect(rows[0]).not.toHaveTextContent("probable misread");
     expect(rows[1]).toHaveTextContent("S3 · Z1");
     expect(rows[1]).toHaveTextContent("0.42 mm");
-    expect(rows[1]).toHaveTextContent("check this reading");
+    expect(rows[1]).toHaveTextContent("probable misread");
     expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.35");
     expect(screen.getByRole("textbox", { name: "Scale X" })).toHaveValue("1.0012");
     expect(screen.getByText("The values are filled in below. Nothing is saved yet.")).toBeVisible();
@@ -67,16 +67,15 @@ describe("step 2: the readings helper", () => {
     expect(within(region).getByRole("table", { name: "Result of the fit" })).toBeVisible();
   });
 
-  it("puts the flag in the cell of the residual it is about, so a phone shows it without scrolling the table sideways", async () => {
+  it("puts the flag in the row of the residual it is about, in three narrow columns that fit a phone", async () => {
     await open({ [`POST ${BASE}/main/fit`]: FIT });
     await fillThree();
     await userEvent.click(await button("Fit"));
     const table = await screen.findByRole("table", { name: "Result of the fit" });
-    expect(within(table).queryByRole("columnheader", { name: "Note" })).toBeNull();
-    const flagged = within(table).getByText("check this reading");
-    expect(flagged.closest("td")).toHaveTextContent("0.42 mm");
-    // Not in a column of its own: the flag would sit past the edge at 360 px.
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(4);
+    const flagged = within(table).getByText("probable misread");
+    expect(flagged.closest("tr")).toHaveTextContent("0.42 mm");
+    // Crossing, residual and the verdict: the across and down readings are in the cards, not repeated here.
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(3);
   });
 
   it("names fitted values that are outside the allowed range, and does not fill them in", async () => {

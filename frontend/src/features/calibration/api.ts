@@ -98,6 +98,8 @@ export function usePrintCalibrationPage(printerId: string) {
       void client.invalidateQueries({ queryKey: statusKey(printerId) });
       // A check print took a pass: the next dialog offers the one after it.
       void client.invalidateQueries({ queryKey: [...calibrationKey(printerId), "check-sheet"] });
+      // Every print is a run: the readings' print picker offers it (and picks it by default) at once.
+      void client.invalidateQueries({ queryKey: [...calibrationKey(printerId), "runs"] });
     },
   });
 }

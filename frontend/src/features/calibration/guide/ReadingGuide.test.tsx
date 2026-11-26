@@ -25,6 +25,28 @@ function show(props: Parameters<typeof ReadingGuide>[0] = { type: TYPE }) {
 const open = async () => userEvent.click(screen.getByRole("button", { name: "How to read the calibration page" }));
 
 describe("the reading guide", () => {
+  it("names the print the readings belong to and the direction buttons", async () => {
+    show();
+    await open();
+    const steps = screen.getByRole("list", { name: "Steps" });
+    expect(steps).toHaveTextContent("Choose the print the readings come from: its run number is printed in the page margin");
+    expect(steps).toHaveTextContent("press the direction buttons for where the ink lies");
+  });
+
+  it("states the geometry rule with its caveat", async () => {
+    show();
+    await open();
+    const rule = screen.getByRole("list", { name: "Printer or sheet type?" });
+    const lines = within(rule).getAllByRole("listitem").map((li) => li.textContent);
+    expect(lines).toEqual([
+      "Equal everywhere: printer offset.",
+      "Growing evenly in both directions: printer scale.",
+      "Growing evenly across the gaps of one type only: its pitch.",
+    ]);
+    // The caveat: a calibration page alone cannot tell them apart, only a check print with another type's correction.
+    expect(screen.getByText(/On a calibration page the fit takes all three in\./)).toBeVisible();
+  });
+
   it("the guide is collapsed and opens on press", async () => {
     show();
     const trigger = screen.getByRole("button", { name: "How to read the calibration page" });

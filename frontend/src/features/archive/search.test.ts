@@ -28,18 +28,10 @@ describe("linkHost (#204)", () => {
   });
 });
 
-describe("parseDecimal", () => {
-  it.each([
-    ["12.5", 12.5],
-    ["12,5", 12.5],
-    [" 0,25 ", 0.25],
-    ["7", 7],
-    ["", null],
-    ["abc", null],
-    // Only the first comma becomes a point: a grouped number is no number (pinned; the zone editor relies on it).
-    ["1.234,5", null],
-  ])("%s → %s", (value, expected) => {
-    expect(parseDecimal(value)).toBe(expected);
+describe("parseDecimal from the archive search", () => {
+  it("the zone editor and the size search take no exponent or hex number (shared/decimal.ts)", () => {
+    expect(parseDecimal("1e1")).toBeNull();
+    expect(parseDecimal("0x10")).toBeNull();
+    expect(parseDecimal("12,5")).toBe(12.5);
   });
 });
-

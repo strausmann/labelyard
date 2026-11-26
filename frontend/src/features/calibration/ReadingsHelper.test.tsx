@@ -21,6 +21,7 @@ vi.mock("../settings/controls", async (importOriginal) => {
   };
 });
 
+import { SHEET_TYPE } from "../test-api";
 import { ReadingsHelper } from "./ReadingsHelper";
 
 beforeAll(() => initI18n("en"));
@@ -30,7 +31,7 @@ describe("the readings rows", () => {
     render(
       <I18nProvider i18n={i18n}>
         <QueryClientProvider client={new QueryClient()}>
-          <ReadingsHelper printerId="p" tray="main" typeKey="T" version={1} cols={4} rows={12} onFitted={() => {}} />
+          <ReadingsHelper printerId="p" tray="main" type={SHEET_TYPE} labelOf={(k) => k} measuredOn={null} admin onFitted={() => {}} />
         </QueryClientProvider>
       </I18nProvider>,
     );
@@ -40,7 +41,7 @@ describe("the readings rows", () => {
     fireEvent.change(screen.getAllByRole("textbox", { name: /^Across at/ })[0]!, { target: { value: "0,5" } });
     expect(screen.getAllByRole("textbox", { name: /^Across at/ })[0]).toHaveValue("0,5");
 
-    // Row 1 renders its two selects again; rows 2 to 4 (six selects) do not.
+    // Card 1 renders its two selects again; cards 2 to 4 (six selects) do not.
     expect(renders.select - before).toBe(2);
   });
 });
