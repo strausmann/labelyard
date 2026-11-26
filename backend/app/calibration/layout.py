@@ -895,6 +895,7 @@ def check_page_layout(
     pass_no: int | None = None,
     crossings: Sequence[tuple[int, int]] | None = None,
     reserved: Sequence[tuple[int, int]] = (),
+    run_line: Box | None = None,
 ) -> PageLayout:
     """The calibration page (or pass 1 of a check sheet that takes ``passes`` passes) for ``g``.
 
@@ -909,9 +910,9 @@ def check_page_layout(
     ``pass_no`` and ``crossings`` lay out one pass of a check sheet (``check_sheet.check_passes``):
     pass 1 is the full page with crosses (mini scale and ``K1``) only at its crossings and no gap
     lines or rulers, and no corner marks around the ``reserved`` crossings of the later passes;
-    passes 2 and 3 are their crosses and, in their run-line slot of pass 1's
-    layout (``run_line``), one run line, and nothing else. Without them the page is the full
-    calibration or check page.
+    passes 2 and 3 are their crosses and one run line in ``run_line`` (the slot pass 1 reserved,
+    moved through both corrections: ``page.later_run_line_box``), and nothing else. Without
+    them the page is the full calibration or check page.
     """
     if g.cols < 2 or g.rows < 2:
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
@@ -951,7 +952,7 @@ def check_page_layout(
             checkerboard=checker,
             margin_text=margin_text,
             pass_no=pass_no,
-            run_line=slots[pass_no - 2] if len(slots) >= pass_no - 1 else None,
+            run_line=run_line if run_line is not None and _inside(run_line.rect_mm(), a) else None,
         )
     # A cross's K label is ink the cell content keeps clear of.
     cell_keep_out = list(keep_out)

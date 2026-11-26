@@ -387,3 +387,47 @@ async def test_a_pruned_pass_closes_its_sheet(env: _Env, monkeypatch: pytest.Mon
     assert await _open(env) is None
     r = await _check(env, "next")
     assert r.status_code == 409 and r.json()["detail"]["error_code"] == "check_sheet_full"
+
+
+async def test_a_later_run_line_lands_in_pass_1s_slot_after_the_correction_moved(
+    env: _Env,
+) -> None:
+    """Codex on #449: the correction changes by 2 mm between pass 1 and pass 2 (L4736, 5 mm
+    margins). Pass 2's run line lands on paper where pass 1 reserved its slot, never on pass 1's
+    printed margin text."""
+    from app.page_render.transform import correction_mm
+    from app.services.page_jobs import snapshot_to_deviation
+
+    async with env.client() as c:
+        r = await c.put(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1",
+            json={"offset_x_mm": 0, "offset_y_mm": 2.0},
+        )
+    assert r.status_code == 200, r.text
+    first = await _payload(env, await _printed(env, "new", "cal-run"))
+    async with env.client() as c:
+        r = await c.put(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1",
+            json={"offset_x_mm": 0, "offset_y_mm": 0},
+        )
+    assert r.status_code == 200, r.text
+    opened = await _open(env, "cal-run")
+    assert opened["run_line_slots"] == 1 and opened["next_pass"] == 2
+    second = await _payload(env, await _printed(env, "next", "cal-run"))
+    layout1, layout2 = payload_layout(first), payload_layout(second)
+    assert layout1.run_line_slots and layout2.run_line is not None
+
+    def on_paper(payload: PagePayload, r: tuple[float, float, float, float]) -> tuple[float, ...]:
+        c = correction_mm(snapshot_to_deviation(payload.calibration), payload.media)
+        pts = [c.apply(p) for p in ((r[0], r[1]), (r[2], r[1]), (r[0], r[3]), (r[2], r[3]))]
+        return (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts),
+                max(p[1] for p in pts))  # fmt: skip
+
+    slot = on_paper(first, layout1.run_line_slots[0].rect_mm())
+    line = on_paper(second, layout2.run_line.rect_mm())
+    assert all(abs(a - b) < 0.02 for a, b in zip(slot, line, strict=True)), (slot, line)
+    for block in layout1.margin_blocks:
+        b = on_paper(first, block.box.rect_mm())
+        assert not (line[0] < b[2] and b[0] < line[2] and line[1] < b[3] and b[1] < line[3])
+    texts = pi.texts(render_calibration_page(second, compress=False))
+    assert any(t.startswith("#") and "· K2 ·" in t for t in texts)

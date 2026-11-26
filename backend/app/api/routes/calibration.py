@@ -23,7 +23,12 @@ from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin, require_print, require_read
 from app.calibration import history, page, runs, scale, service, suggest
-from app.calibration.check_sheet import CheckSheetOpen, check_passes, open_check_sheet
+from app.calibration.check_sheet import (
+    CheckSheetOpen,
+    check_passes,
+    first_pass_correction,
+    open_check_sheet,
+)
 from app.calibration.fit import Reading, fit
 from app.calibration.history import CalibrationHistoryRead
 from app.calibration.layout import MarginText
@@ -43,7 +48,7 @@ from app.db.session import get_session
 from app.repositories import printers as printers_repo
 from app.schemas.problem import ProblemDetail
 from app.services import render_slots
-from app.services.page_jobs import PagePayload
+from app.services.page_jobs import CalibrationSnapshot, PagePayload
 from app.settings_store.registry import SETTINGS
 from app.sheets import type_service as ts
 from app.sheets.errors import PrinterNotFoundError
@@ -365,6 +370,14 @@ async def print_calibration_page(
         async def submit(stamped: PagePayload, job_id: UUID) -> UUID:
             # The run number is known now: a page code that no longer fits is refused, never cut.
             page.check_run_codes(stamped)
+            if isinstance(stamped.detail.get("pass_no"), int) and stamped.detail["pass_no"] > 1:
+                # The run line goes where pass 1 left room, under pass 1's correction (#449).
+                found, first = await first_pass_correction(
+                    session, UUID(stamped.detail["check_sheet_id"])
+                )
+                box = page.later_run_line_box(stamped, _snapshot(first)) if found else None
+                if box is not None:
+                    stamped.detail["run_line_box"] = box
             new_id: UUID = await queue.submit_page_job(
                 printer_id, stamped, api_key_id=auth.api_key_id, source_ip=auth.ip, job_id=job_id
             )
@@ -522,8 +535,14 @@ async def get_open_check_sheet(
         v = await ts.get_version(session, payload.detail["type_key"], payload.detail["version"])
         g = ts.version_geometry(v)
         passes = max(len(check_passes(g.cols, g.rows)), 1)
-        slots = len(page.payload_layout(payload, passes=passes).run_line_slots)
-        return await open_check_sheet(session, printer_id, tray, v.id, run_line_slots=slots)
+        payload.detail["passes_total"] = passes
+        sheet = await open_check_sheet(session, printer_id, tray, v.id, run_line_slots=0)
+        if sheet is None:
+            return None
+        # The slots pass 1 reserved, under the correction it was printed with.
+        found, first = await first_pass_correction(session, sheet.check_sheet_id)
+        slots = page.first_pass_slot_count(payload, _snapshot(first)) if found else 0
+        return sheet.model_copy(update={"run_line_slots": slots})
 
 
 @router.get(
@@ -638,6 +657,10 @@ async def restore_calibration(
             actor=actor(auth),
             note=body.note if body is not None else None,
         )
+
+
+def _snapshot(raw: dict[str, Any] | None) -> CalibrationSnapshot | None:
+    return CalibrationSnapshot.model_validate(raw) if raw is not None else None
 
 
 def _setting(request: Request, key: str) -> object:

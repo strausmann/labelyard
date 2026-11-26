@@ -164,7 +164,9 @@ async def test_calibration_payload_with_run_validates_with_the_1_7_1_models(
     # ``detail`` only, so 1.7.1 still reads (and draws the full check page from) the payload.
     payload.detail["passes_total"] = 3
     passed = run.model_copy(update={"pass_no": 2})
-    raw = runs.stamp(payload, passed, crossings=[(2, 3), (3, 3), (2, 10)]).model_dump(mode="json")
+    stamped = runs.stamp(payload, passed, crossings=[(2, 3), (3, 3), (2, 10)])
+    stamped.detail["run_line_box"] = {"x": 1559.0, "y": 26717.4, "w": 5706.7, "h": 264.6}
+    raw = stamped.model_dump(mode="json")
     assert raw["detail"]["pass_no"] == 2 and raw["detail"]["pass_crossings"][0] == [2, 3]
     assert set(raw["calibration"]) == set(v171.CalibrationSnapshot.model_fields)
     read = _read_by_1_7_1(raw)

@@ -323,6 +323,7 @@ def stamp(
     }
     if run.pass_no is not None and crossings is not None:
         detail["pass_no"] = run.pass_no
+        detail["check_sheet_id"] = str(run.check_sheet_id)
         detail["pass_crossings"] = [list(c) for c in crossings]
         if reserved:
             detail["reserved_crossings"] = [list(c) for c in reserved]

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import product
-from typing import Final
+from typing import Any, Final
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -142,6 +142,27 @@ class CheckSheetOpen(BaseModel):
         ),
     )
     passes: list[CheckSheetPassRead] = Field(description="The printed passes, by pass number.")
+
+
+async def first_pass_correction(
+    session: AsyncSession, sheet_id: UUID
+) -> tuple[bool, dict[str, Any] | None]:
+    """Whether pass 1 of the sheet still has its run, and the correction it was printed with
+    (``calibration_runs.correction``): a later pass puts its run line where pass 1 left room."""
+    row = (
+        await session.execute(
+            select(col(CalibrationRun.correction))
+            .join(
+                CalibrationCheckSheetPass,
+                col(CalibrationCheckSheetPass.run_id) == col(CalibrationRun.id),
+            )
+            .where(
+                col(CalibrationCheckSheetPass.check_sheet_id) == sheet_id,
+                col(CalibrationCheckSheetPass.pass_no) == 1,
+            )
+        )
+    ).first()
+    return (row is not None, row[0] if row is not None else None)
 
 
 async def newest_open_sheet(

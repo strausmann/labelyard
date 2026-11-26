@@ -37,6 +37,7 @@ from app.calibration.layout import (
     CELL_NUMBER_PT,
     CHECKERBOARD_SENTENCE,
     RUN_LINE_PT,
+    Box,
     PageLayout,
     PrintableArea,
     bottom_line_count,
@@ -52,8 +53,9 @@ from app.calibration.layout import (
 )
 from app.calibration.scale import LINE_MM
 from app.page_render.pdf import PageImage, VectorPen, text_width_mm, write_pdf
-from app.page_render.transform import IDENTITY
-from app.services.page_jobs import PagePayload, snapshot_to_deviation
+from app.page_render.transform import IDENTITY, correction_mm
+from app.printer_backends.ipp.attributes import Margins
+from app.services.page_jobs import CalibrationSnapshot, PagePayload, snapshot_to_deviation
 from app.sheets.errors import CalibrationGridTooLargeError, CalibrationTypeUnsuitableError
 from app.sheets.geometry import Geometry
 
@@ -209,6 +211,59 @@ def payload_pass(payload: PagePayload) -> tuple[int, list[tuple[int, int]]] | No
     return pass_no, _crossing_list(crossings)
 
 
+def _first_pass_slots(payload: PagePayload, first: CalibrationSnapshot | None) -> PageLayout:
+    """Pass 1's layout as it was printed: its printable area follows pass 1's correction
+    ``first`` (the tray's offset then) and the printer's hardware margins stored in the payload."""
+    d = payload.detail
+    g = Geometry(**d["geometry"])
+    raw = d.get("hardware_margins")
+    hw = Margins(**raw) if isinstance(raw, Mapping) else None
+    dev1 = snapshot_to_deviation(first)
+    area = printable_area(g, hw, dev1, applied=dev1 if first is not None else None)
+    return check_page_layout(
+        g,
+        area,
+        allow_qr=bool(d.get("allow_qr", True)),
+        passes=_passes_total(d),
+        bottom_lines=bottom_lines_of(payload),
+    )
+
+
+def first_pass_slot_count(payload: PagePayload, first: CalibrationSnapshot | None) -> int:
+    """How many run-line slots pass 1 reserved (pass 1 printed with ``first``)."""
+    return len(_first_pass_slots(payload, first).run_line_slots)
+
+
+def later_run_line_box(
+    payload: PagePayload, first: CalibrationSnapshot | None
+) -> dict[str, float] | None:
+    """Where the run line of pass 2 or 3 goes, in this pass's layout (hundredths of a mm).
+
+    Pass 1 reserved the slot under its own correction ``first``; this pass may print with
+    another. The box is the slot moved through pass 1's correction onto the paper and back
+    through this pass's, so the line lands where pass 1 left room and never over the blocks it
+    printed (review on #449). ``None`` when pass 1 left no slot for this pass or the moved slot
+    leaves this pass's printable area: the pass prints its crosses only.
+    """
+    d = payload.detail
+    pass_no = d.get("pass_no")
+    if not isinstance(pass_no, int) or pass_no < 2:
+        return None
+    slots = _first_pass_slots(payload, first).run_line_slots
+    if len(slots) < pass_no - 1:
+        return None
+    x0, y0, x1, y1 = slots[pass_no - 2].rect_mm()
+    to_paper = correction_mm(snapshot_to_deviation(first), payload.media)
+    back = correction_mm(snapshot_to_deviation(payload.calibration), payload.media).inverse()
+    pts = [back.apply(to_paper.apply(p)) for p in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
+    bx0, by0 = min(p[0] for p in pts), min(p[1] for p in pts)
+    bx1, by1 = max(p[0] for p in pts), max(p[1] for p in pts)
+    a = payload_area(payload).rect_mm()
+    if bx0 < a[0] or by0 < a[1] or bx1 > a[2] or by1 > a[3]:
+        return None
+    return {"x": bx0 * 100, "y": by0 * 100, "w": (bx1 - bx0) * 100, "h": (by1 - by0) * 100}
+
+
 def payload_layout(payload: PagePayload, *, passes: int | None = None) -> PageLayout:
     """The layout of a payload; ``passes`` overrides the payload's ``passes_total`` (the layout
     summary of a page not printed yet)."""
@@ -226,7 +281,17 @@ def payload_layout(payload: PagePayload, *, passes: int | None = None) -> PageLa
         pass_no=chosen[0] if chosen else None,
         crossings=chosen[1] if chosen else None,
         reserved=_crossing_list(d.get("reserved_crossings")) if chosen else (),
+        run_line=_box(d.get("run_line_box")),
     )
+
+
+def _box(raw: object) -> Box | None:
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        return Box(float(raw["x"]), float(raw["y"]), float(raw["w"]), float(raw["h"]))
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 # ---------------------------------------------------------------------------- run codes
@@ -408,6 +473,8 @@ async def build_payload(
         "allow_qr": bool(sheet_type.allow_qr),
         "geometry_diff": await codes.catalog_geometry_diff(session, v),
         "printable_area": asdict(area),
+        # A later pass of a check sheet recomputes pass 1's run-line slots from these.
+        "hardware_margins": facts.margins_hmm.model_dump() if facts.margins_hmm else None,
     }
     return PagePayload(
         kind="calibration_page",

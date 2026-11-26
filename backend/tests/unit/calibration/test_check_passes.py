@@ -87,11 +87,15 @@ from typing import Any  # noqa: E402
 
 from app.calibration import layout as lay  # noqa: E402
 from app.calibration.layout import check_page_layout, printable_area  # noqa: E402
-from app.calibration.page import payload_layout, render_calibration_page  # noqa: E402
+from app.calibration.page import (  # noqa: E402
+    bottom_lines_of,
+    later_run_line_box,
+    payload_layout,
+    render_calibration_page,
+)
 from app.page_render.pdf import PT_PER_MM  # noqa: E402
-from app.page_render.transform import IDENTITY  # noqa: E402
 from app.printer_backends.ipp.attributes import Margins  # noqa: E402
-from app.services.page_jobs import CalibrationSnapshot, PagePayload  # noqa: E402
+from app.services.page_jobs import CalibrationSnapshot, PagePayload, snapshot_to_deviation  # noqa: E402
 
 from tests.helpers import pdf_inspect as pi  # noqa: E402
 
@@ -106,7 +110,8 @@ def _pass_payload(key: str, hw: int, pass_no: int, *, run_no: int = 12) -> PageP
     g = next(g for k, g in _catalog() if k == key)
     doc = loader.load_entry(key)
     passes = check_passes(g.cols, g.rows)
-    area = printable_area(g, _hw(hw), IDENTITY)
+    dev = snapshot_to_deviation(SNAP)
+    area = printable_area(g, _hw(hw), dev, applied=dev)  # as build_payload does for a check
     detail: dict[str, Any] = {
         "type_key": key,
         "version": 1,
@@ -127,7 +132,8 @@ def _pass_payload(key: str, hw: int, pass_no: int, *, run_no: int = 12) -> PageP
     }
     if pass_no == 1:
         detail["reserved_crossings"] = [list(c) for p in passes[1:] for c in p]
-    return PagePayload(
+    detail["hardware_margins"] = {"top": hw, "left": hw, "bottom": hw, "right": hw}
+    payload = PagePayload(
         kind="calibration_page",
         media=g.page_size,
         tray="tray-1",
@@ -136,6 +142,11 @@ def _pass_payload(key: str, hw: int, pass_no: int, *, run_no: int = 12) -> PageP
         calibration=SNAP,
         detail=detail,
     )
+    if pass_no > 1:  # as the route stamps it: the slot pass 1 (same correction here) reserved
+        box = later_run_line_box(payload, SNAP)
+        if box is not None:
+            payload.detail["run_line_box"] = box
+    return payload
 
 
 def _sized(pdf: bytes, mm: float) -> list[pi.PlacedImage]:
@@ -148,7 +159,7 @@ def _longest_stroke_mm(layout: lay.PageLayout) -> float:
 
 def test_pass_1_draws_cell_numbers_codes_and_blocks() -> None:
     key = "avery-zweckform-6121"
-    payload = _pass_payload(key, 500, 1)
+    payload = _pass_payload(key, 300, 1)  # a 3 mm edge: both blocks fit beside the correction
     layout = payload_layout(payload)
     pdf = render_calibration_page(payload, compress=False)
     assert len(_sized(pdf, 10.0)) == len(layout.page_codes) == 4
@@ -229,7 +240,12 @@ def test_run_line_slots_inside_area_and_clear_of_blocks_spots_and_each_other(
     # The run line of each later pass is drawn inside its slot.
     for pass_no in range(2, passes_total + 1):
         later = payload_layout(_pass_payload(key, hw, pass_no))
-        assert later.run_line == (layout.run_line_slots[pass_no - 2] if slots else None)
+        if not slots:
+            assert later.run_line is None
+            continue
+        assert later.run_line is not None
+        want = layout.run_line_slots[pass_no - 2].rect_mm()
+        assert all(abs(x - y) < 1e-6 for x, y in zip(later.run_line.rect_mm(), want, strict=True))
 
 
 def test_a_later_pass_with_a_slot_prints_its_run_line_in_it() -> None:
@@ -275,11 +291,7 @@ def test_a_calibration_page_is_unchanged_by_the_passes() -> None:
     g = next(g for k, g in _catalog() if k == key)
     plain = payload_layout(payload)
     assert plain == check_page_layout(
-        g,
-        plain.area,
-        allow_qr=True,
-        passes=1,
-        bottom_lines=plain.block("bottom").lines,  # type: ignore[union-attr]
+        g, plain.area, allow_qr=True, passes=1, bottom_lines=bottom_lines_of(payload)
     )
     assert any(t.text == "S1" for t in plain.labels) and not any(
         t.text == "K1" for t in plain.labels
@@ -306,3 +318,51 @@ def test_pass_1_draws_no_corner_mark_where_a_later_pass_puts_its_scale() -> None
         assert legs, key  # corner marks are still drawn elsewhere
         hits = [leg for leg in legs for z in zones if _overlap(leg, z)]
         assert hits == [], (key, hits[:3])
+
+
+def test_a_later_run_line_lands_where_pass_1_reserved_it_after_the_correction_changed() -> None:
+    """Codex on #449: the correction moved by 2 mm between pass 1 and pass 2; the run line of
+    pass 2 must land on paper where pass 1 left its slot, never over pass 1's printed blocks."""
+    from app.page_render.transform import Deviation, correction_mm
+
+    key = "avery-zweckform-l4736rev"
+    g = next(g for k, g in _catalog() if k == key)
+    first = CalibrationSnapshot(method="manual", dy_hmm=200)
+    dev1 = Deviation(0, 200, 1_000_000, 1_000_000, 0)
+    one = _pass_payload(key, 500, 1)
+    one = one.model_copy(
+        update={
+            "calibration": first,
+            "detail": {
+                **one.detail,
+                "printable_area": asdict(printable_area(g, _hw(500), dev1, applied=dev1)),
+            },
+        }
+    )
+    layout1 = payload_layout(one)
+    assert layout1.run_line_slots, "L4736 at 5 mm reserves the slot"
+    two = _pass_payload(key, 500, 2)  # printed with no offset (SNAP has dy -0.6 mm)
+    two.detail.pop("run_line_box", None)
+    box = later_run_line_box(two, first)
+    assert box is not None
+    two.detail["run_line_box"] = box
+    layout2 = payload_layout(two)
+    assert layout2.run_line is not None
+    c1 = correction_mm(dev1, g.page_size)
+    from app.services.page_jobs import snapshot_to_deviation
+
+    c2 = correction_mm(snapshot_to_deviation(SNAP), g.page_size)
+
+    def on_paper(c: Any, r: tuple[float, float, float, float]) -> tuple[float, ...]:
+        pts = [c.apply(p) for p in ((r[0], r[1]), (r[2], r[1]), (r[0], r[3]), (r[2], r[3]))]
+        return (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts),
+                max(p[1] for p in pts))  # fmt: skip
+
+    reserved = on_paper(c1, layout1.run_line_slots[0].rect_mm())
+    printed = on_paper(c2, layout2.run_line.rect_mm())
+    assert all(abs(a - b) < 0.02 for a, b in zip(reserved, printed, strict=True))
+    for block in layout1.margin_blocks:
+        assert not _overlap(printed, on_paper(c1, block.box.rect_mm()))
+    # Without the reserved slot (pass 1's run gone) the pass prints its crosses only.
+    two.detail.pop("run_line_box")
+    assert payload_layout(two).run_line is None
