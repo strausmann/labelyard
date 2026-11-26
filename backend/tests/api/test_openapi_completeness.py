@@ -162,8 +162,9 @@ def test_endpoint_count_in_range(openapi_schema: dict[str, Any]) -> None:
       + 1.8.0 #336: calibration runs of a tray (1) -> 113
       + 1.8.0 #336: calibration history and restore, type versions and restore (4) -> 117
       + 1.8.0 #240: a geometry suggestion as a new type version (1) -> 118
-      + 1.8.0 #240: the open check sheet of a tray (1) -> 119
-      + 1.8.0 #241: the probe print and its PDF (2) -> 121
+      + 1.8.0 #240: how a calibration or check page fits a printer and tray (1) -> 119
+      + 1.8.0 #240: the open check sheet of a tray (1) -> 120
+      + 1.8.0 #241: the probe print and its PDF (2) -> 122
       Total = 29+
 
     The range 28-124 is intentionally wide to tolerate minor additions
