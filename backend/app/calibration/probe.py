@@ -24,7 +24,7 @@ a retry draws the same page.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
@@ -329,12 +329,12 @@ def _draw_grid(
 
 
 RUN_CELL_PT_STEPS: Final = (5.0, 4.5, 4.0, 3.5, 3.0)
-"""Sizes the run tries in cell 1 when no margin holds the header."""
+"""Sizes a text placed in a cell tries when no margin holds it."""
 
 
 def _run_candidates(payload: PagePayload) -> list[str]:
-    """The run in cell 1, longest first: with date, without it, as ``#7 14:05``. Every form keeps
-    the run number and (for a printed page) the time."""
+    """The run in a cell, longest first: with date, without it, as ``#7 14:05``. Every form
+    keeps the run number and (for a printed page) the time."""
     d = payload.detail
     run_no, time = d.get("run_no"), d.get("time")
     if not isinstance(run_no, int):
@@ -343,53 +343,89 @@ def _run_candidates(payload: PagePayload) -> list[str]:
     return [_run_text(payload), f"Run #{run_no}{tail}", f"#{run_no}{' ' + time if time else ''}"]
 
 
-def _draw_run_cell(
-    pen: VectorPen,
-    cx: float,
-    cy: float,
-    room: float,
-    lh: float,
-    number: str,
-    run: Sequence[str],
+FOOTER_CANDIDATES: Final = (GRID_FOOTER, "No correction")
+"""The measurement sheet's footer in a cell, longest first; "no correction" is never cut
+(operator, 26.11.2026)."""
+
+
+def _cells(g: Geometry) -> list[tuple[int, float, float, float, float]]:
+    """Every cell in reading order: number, centre and the room for text (width, height)."""
+    lw, lh = g.label_w / 100, g.label_h / 100
+    out = []
+    for r in range(g.rows):
+        for c in range(g.cols):
+            x = (g.margin_left + c * g.pitch_x) / 100
+            y = (g.margin_top + r * g.pitch_y) / 100
+            round_ = g.shape == "round"
+            room_w = lw * (0.7 if round_ else 0.9)
+            room_h = lh * (0.7 if round_ else 1.0)
+            out.append((r * g.cols + c + 1, x + lw / 2, y + lh / 2, room_w, room_h))
+    return out
+
+
+def _stack(
+    cell: tuple[int, float, float, float, float],
+    blocks: Sequence[Sequence[str]],
     area: tuple[float, float, float, float],
-) -> bool:
-    """A cell that carries the run: the number above the run when both fit, else the run alone.
-    The first form and size that fit the cell's width and lie inside the printable ``area`` win;
-    never cut. ``False`` when nothing fits this cell."""
-    number_line = CELL_PT * _PT_MM * _LEADING
-
-    def inside(x: float, y: float, text: str, size: float) -> bool:
-        x0, y0, x1, y1 = text_box_mm(x, y, text, size, "middle")
-        return area[0] <= x0 and x1 <= area[2] and area[1] <= y0 and y1 <= area[3]
-
+) -> list[_Line] | None:
+    """``blocks`` stacked in one cell, the cell number above them when it fits too. Per size
+    (largest first) each block takes its first form that fits the cell's width; the stack must
+    fit the cell's height (0.5 mm clear of its outline) and lie inside the printable ``area``.
+    ``None`` when this cell cannot carry them."""
+    number, cx, cy, room_w, room_h = cell
     for size in RUN_CELL_PT_STEPS:
-        run_line = size * _PT_MM * _LEADING
-        for text in run:
-            if text_width_mm(text, size) > room:
+        step = size * _PT_MM * _LEADING
+        chosen = [next((t for t in b if text_width_mm(t, size) <= room_w), None) for b in blocks]
+        if any(t is None for t in chosen):
+            continue
+        texts = [t for t in chosen if t is not None]
+        with_number = [str(number), *texts]
+        for lines in (with_number, texts):
+            if len(lines) * step + 1.0 > room_h:
                 continue
-            below = cy - 0.1 + run_line
-            if (
-                lh >= number_line + run_line + 1
-                and text_width_mm(number, CELL_PT) <= room
-                and inside(cx, below, text, size)
+            top = cy - len(lines) * step / 2
+            placed = [
+                _Line(cx, top + step * (i + 1) - step * 0.3, t, size) for i, t in enumerate(lines)
+            ]
+            if all(
+                area[0] <= x0 and x1 <= area[2] and area[1] <= y0 and y1 <= area[3]
+                for x0, y0, x1, y1 in (p.box() for p in placed)
             ):
-                pen.text(cx, cy - 0.1, number, size_pt=CELL_PT, anchor="middle")
-                pen.text(cx, below, text, size_pt=size, anchor="middle")
-                return True
-            alone = cy + run_line / 3
-            if lh >= run_line + 0.5 and inside(cx, alone, text, size):
-                pen.text(cx, alone, text, size_pt=size, anchor="middle")
-                return True
-    return False
+                return placed
+    return None
 
 
-def _draw_cells(
-    pen: VectorPen, g: Geometry, area: PrintableArea, run: Sequence[str] | None = None
-) -> None:
-    """Outlines, numbers and ``R<row> C<col>``; ``run`` (when no margin holds the header) goes
-    into the first cell, in reading order, where it fits inside the printable area, in place of
-    its row and column (``_draw_run_cell``)."""
-    pending = run
+def _cell_texts(
+    g: Geometry, area: PrintableArea, blocks: Sequence[Sequence[str]]
+) -> tuple[list[_Line], set[int]]:
+    """Place what no margin holds (the run; on the measurement sheet also its footer) in cells:
+    all blocks in the first cell, in reading order, that carries them together, else each block
+    in the first free cell that carries it. Returns the lines and the cells they took."""
+    if not blocks:
+        return [], set()
+    rect = area.rect_mm()
+    cells = _cells(g)
+    for cell in cells:
+        placed = _stack(cell, blocks, rect)
+        if placed is not None:
+            return placed, {cell[0]}
+    lines: list[_Line] = []
+    taken: set[int] = set()
+    for block in blocks:
+        for cell in cells:
+            if cell[0] in taken:
+                continue
+            placed = _stack(cell, [block], rect)
+            if placed is not None:
+                lines += placed
+                taken.add(cell[0])
+                break
+    return lines, taken
+
+
+def _draw_cells(pen: VectorPen, g: Geometry, taken: Set[int] = frozenset()) -> None:
+    """Outlines, numbers and ``R<row> C<col>``; a cell in ``taken`` carries texts placed by
+    ``_cell_texts`` instead of its own."""
     lw, lh = g.label_w / 100, g.label_h / 100
     radius = (g.corner_radius or 0) / 100
     line = CELL_PT * _PT_MM * _LEADING
@@ -404,13 +440,10 @@ def _draw_cells(
             else:
                 pen.rect(x, y, lw, lh, width_mm=OUTLINE_MM)
             number, where = str(r * g.cols + c + 1), f"R{r + 1} C{c + 1}"
+            if r * g.cols + c + 1 in taken:
+                continue
             cx, cy = x + lw / 2, y + lh / 2
             room = lw * (0.7 if g.shape == "round" else 0.9)
-            if pending is not None and _draw_run_cell(
-                pen, cx, cy, room, lh, number, pending, area.rect_mm()
-            ):
-                pending = None
-                continue
             if lh >= 2 * line + 1 and text_width_mm(where, CELL_PT) <= room:
                 pen.text(cx, cy - 0.1, number, size_pt=CELL_PT, anchor="middle")
                 pen.text(cx, cy - 0.1 + line, where, size_pt=CELL_PT, anchor="middle")
@@ -454,15 +487,16 @@ def _header(payload: PagePayload, g: Geometry, area: PrintableArea) -> list[_Lin
     """Where the header lines go, never across the labels. At the largest size that places at
     least the first line: all lines in the top margin when they fit, else all in the bottom one,
     else split over both (the last lines below) after leaving out the least important. Empty
-    when no margin has room even at 4.5 pt: then cell 1 carries the run (``_draw_cells``)."""
+    when no margin has room even at 4.5 pt: then a cell carries the run (``_cell_texts``)."""
     left, top, right, bottom = area.rect_mm()
     grid_top = g.margin_top / 100
     grid_bottom = (g.margin_top + (g.rows - 1) * g.pitch_y + g.label_h) / 100
     bands = [(top, grid_top - _GAP_MM), (grid_bottom + _GAP_MM, bottom)]
     cx, room = (left + right) / 2, right - left
     for size in HEADER_PT_STEPS:
-        step = size * _PT_MM * _LEADING
-        fits = [max(0, int((b - a) // step)) for a, b in bands]
+        step, em = size * _PT_MM * _LEADING, size * _PT_MM
+        # A line's box (``text_box_mm``) is an em above its baseline and a quarter below.
+        fits = [0 if b - a < 1.25 * em else int((b - a - 1.25 * em) // step) + 1 for a, b in bands]
         lines = header_lines(payload, room_mm=room, size_pt=size)
         wide = [text_width_mm(t, size) > room for t in lines]
         wanted = [i for i in _PRIORITY if not wide[i]][: fits[0] + fits[1]]
@@ -476,8 +510,8 @@ def _header(payload: PagePayload, g: Geometry, area: PrintableArea) -> list[_Lin
         else:
             below = min(fits[1], len(kept))
             above = len(kept) - below
-        ys = [bands[0][0] + step * (i + 1) - 0.4 for i in range(above)]
-        ys += [bands[1][0] + step * (i + 1) - 0.4 for i in range(below)]
+        ys = [bands[0][0] + em + step * i for i in range(above)]
+        ys += [bands[1][0] + em + step * i for i in range(below)]
         return [_Line(cx, y, t, size) for y, t in zip(ys, kept, strict=True)]
     return []
 
@@ -489,6 +523,9 @@ def _overlaps(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
 def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
     """Draw the probe page (black only): the grid first, then labels, zones, the ID and texts.
 
+    What no margin holds goes into cells: the run, and on the measurement sheet its footer,
+    which is never missing (operator, 26.11.2026). The grid labels keep clear of every text.
+
     On the measurement sheet only the grid lines are the page's own coordinates; the ID
     rectangle, the printable area that bounds the grid labels, and the header position follow
     the tray's stored correction (where a sheet code would land on this printer)."""
@@ -496,15 +533,21 @@ def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
     g = Geometry(**d["geometry"])
     area = _area(payload, g)
     header = _header(payload, g, area)
+    blocks: list[Sequence[str]] = []
+    if not header:
+        blocks.append(_run_candidates(payload))
+    if d.get("grid") and GRID_FOOTER not in {h.text for h in header}:
+        blocks.append(FOOTER_CANDIDATES)
+    in_cells, taken = _cell_texts(g, area, blocks)
     if d.get("grid"):
-        _draw_grid(pen, payload.media, area, [h.box() for h in header])
-    _draw_cells(pen, g, area, run=None if header else _run_candidates(payload))
+        _draw_grid(pen, payload.media, area, [t.box() for t in (*header, *in_cells)])
+    _draw_cells(pen, g, taken)
     _draw_zones(pen, _rects(d.get("zones")))
     id_rect = d.get("id_rect")
     if isinstance(id_rect, Mapping):
         _draw_id_rect(pen, _rects([id_rect])[0])
-    for h in header:
-        pen.text(h.x, h.y, h.text, size_pt=h.size_pt, anchor="middle")
+    for t in (*header, *in_cells):
+        pen.text(t.x, t.y, t.text, size_pt=t.size_pt, anchor="middle")
 
 
 def render_probe_page(payload: PagePayload, *, compress: bool = True) -> bytes:

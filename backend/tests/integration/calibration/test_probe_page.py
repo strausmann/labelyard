@@ -474,3 +474,46 @@ def test_the_run_survives_in_a_small_fallback_cell(g: Geometry, run_no: int) -> 
     left, top, right, bottom = printable_area(g, None, IDENTITY).rect_mm()
     for x0, y0, x1, y1 in runs:
         assert left <= x0 and x1 <= right and top <= y0 and y1 <= bottom, (x0, y0, x1, y1)
+
+
+@pytest.mark.parametrize("hw", [300, 500, 800])
+def test_every_catalog_measurement_sheet_says_no_correction(hw: int) -> None:
+    """(guard, operator 26.11.2026) The measurement sheet's footer is never missing: where no
+    margin holds it, a cell carries it with the run, inside the printable area and clear of every
+    grid label."""
+    from app.calibration.layout import printable_area
+    from app.page_render.pdf import text_width_mm
+    from app.page_render.transform import IDENTITY, page_size_mm
+    from app.printer_backends.ipp.attributes import Margins
+    from app.services.page_jobs import PagePayload
+
+    for key, g in _catalog():
+        area = printable_area(g, Margins(top=hw, left=hw, bottom=hw, right=hw), IDENTITY)
+        payload = PagePayload(
+            kind="probe_page", media=g.page_size, tray="tray-1", render_dpi=600,
+            job_name="Probe", calibration=None,
+            detail={
+                "type_key": key, "version": 1, "printer_name": "Office printer", "date":
+                "2026-11-25", "grid": True, "geometry": asdict(g), "zones": [], "id_rect": None,
+                "printable_area": asdict(area), "run_no": 123456, "time": "14:05",
+            },
+        )  # fmt: skip
+        pdf = probe.render_probe_page(payload, compress=False)
+        page_h = page_size_mm(g.page_size)[1] * PT_PER_MM
+        sizes = [a[-1] for op, a in _ops(pdf) if op == "Tf"]
+        placed = []
+        for text, (x_pt, y_pt), size in zip(
+            pi.texts(pdf), pi.text_positions(pdf), sizes, strict=True
+        ):
+            x, y = x_pt / PT_PER_MM, (page_h - y_pt) / PT_PER_MM
+            em = size * 25.4 / 72
+            placed.append((text, (x, y - em, x + text_width_mm(text, size), y + em * 0.25)))
+        footers = [b for t, b in placed if "no correction" in t.lower()]
+        assert footers, (key, hw)
+        assert any("#123456" in t and "14:05" in t for t, _ in placed), (key, hw)
+        left, top, right, bottom = area.rect_mm()
+        labels = [b for t, b in placed if t.isdigit() and int(t) % 10 == 0 and int(t) >= 10]
+        for x0, y0, x1, y1 in footers:
+            assert left <= x0 and x1 <= right and top <= y0 and y1 <= bottom, (key, hw)
+            for lx0, ly0, lx1, ly1 in labels:
+                assert lx1 <= x0 or x1 <= lx0 or ly1 <= y0 or y1 <= ly0, (key, hw)
