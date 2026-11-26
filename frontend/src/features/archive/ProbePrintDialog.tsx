@@ -45,6 +45,14 @@ export function ProbePrintDialog({ isOpen, onClose, ...rest }: ProbePrintDialogP
   );
 }
 
+/**
+ * The name the server gives the PDF in its Content-Disposition (`download_probe_page`): `probe-<key>-v<n>.pdf` or
+ * `measurement-sheet-<key>-v<n>.pdf`, anything but letters, digits, `.`, `_` and `-` replaced by `_`. A plain click
+ * and a middle click then save the same file.
+ */
+export const probeFileName = (type: TypeRef, grid: boolean): string =>
+  `${`${grid ? "measurement-sheet" : "probe"}-${type.key}`.replace(/[^A-Za-z0-9._-]/g, "_")}-v${type.version}.pdf`;
+
 /** A printer whose fresh status says it does not answer. A stale or missing reading never counts (design 7.3). */
 const freshlyOffline = (status: PrinterStatus | undefined): boolean => !!status && status.polled !== false && !status.stale && status.online === false;
 
@@ -100,7 +108,7 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
   return (
     <>
       <p className={`${HINT} m-0 [overflow-wrap:anywhere]`}>
-        {t`Prints the outline of every label so you can hold the page against a real sheet. No sheet is used, no cell is reserved.`}
+        {t`Prints the outline of every label so you can hold the page against a real sheet. The archive uses no sheet and reserves no cell.`}
       </p>
       <SelectField
         label={t`Printer`}
@@ -125,12 +133,18 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
               setChosenTray(key);
             }}
           />
+        ) : calibration.isError ? (
+          <p role="alert" className="m-0 text-bad [overflow-wrap:anywhere]">
+            {errorText(calibration.error, t`The trays of this printer could not be loaded.`)}
+          </p>
         ) : (
           <p className="m-0">
             <span className="text-small font-bold">{t`Tray`}</span> <span>{tray ? tray.label : t`This printer has no tray to print from.`}</span>
           </p>
         )}
-        {tray && !traysLoading ? <p className={`${HINT} m-0`}>{grid ? t`The measurement sheet is drawn without correction, so its millimetres are the page's own.` : correctionWords(tray.row)}</p> : null}
+        {tray && !traysLoading ? <p className={`${HINT} m-0`}>{grid
+              ? t`Print it on a real sheet of this type and photograph it to read where the vendor's preprint sits. The grid is drawn without correction, so its millimetres are the page's own.`
+              : correctionWords(tray.row)}</p> : null}
       </div>
       <Checkbox
         isSelected={grid}
@@ -150,6 +164,8 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
         </span>
         <span className="[overflow-wrap:anywhere]">{t`Measurement sheet: add a millimetre grid, no correction`}</span>
       </Checkbox>
+      {/* Polite: a printer chosen while it is offline disables Print, and the reason is read out with it. */}
+      <div aria-live="polite" className="flex min-w-0 flex-col">
       {offline || refusedOffline ? (
         <Note tone="bad" role={refusedOffline ? "alert" : "note"} title={t`${printer.name} is offline`}>
           {status.data?.captured_at
@@ -158,11 +174,14 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
         </Note>
       ) : held ? (
         <Note tone="warn" title={t`Held while the device is swapped`}>
-          {t`The hub sees a different device behind this printer. Like a calibration page, a probe page is not printed until an admin confirms the device on the printer's page: the stored correction would be wrong for it.`}
+          {grid
+            ? t`The hub sees a different device behind this printer. The measurement sheet uses no correction, but it waits too until an admin confirms the device on the printer's page: the hub prints no page for a device nobody has confirmed.`
+            : t`The hub sees a different device behind this printer. Like a calibration page, a probe page is not printed until an admin confirms the device on the printer's page: the stored correction would be wrong for it.`}
         </Note>
       ) : (
         <Note tone="info">{t`It goes through the print queue: you can see it under Jobs and retry it.`}</Note>
       )}
+      </div>
       {printError ? <p role="alert" className="m-0 text-bad [overflow-wrap:anywhere]">{printError}</p> : null}
       {downloadError ? <p role="alert" className="m-0 text-bad [overflow-wrap:anywhere]">{downloadError}</p> : null}
       {!canPrint ? <p className={`${HINT} m-0`}>{t`Printing needs a print or admin key.`}</p> : null}
@@ -173,10 +192,10 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
             href={pdfUrl}
             download
             aria-disabled={download.isPending || undefined}
-            onClick={(event) => download.start(event, pdfUrl, grid ? "measurement-sheet" : "probe-page", type.key)}
-            className={`${SECONDARY_BUTTON} no-underline`}
+            onClick={(event) => download.start(event, pdfUrl, probeFileName(type, grid))}
+            className={`${SECONDARY_BUTTON} no-underline aria-disabled:opacity-60`}
           >
-            {t`Download PDF`}
+            {download.isPending ? t`Downloading…` : t`Download PDF`}
           </a>
         ) : null}
         <Button isDisabled={!canPrint || !tray || traysLoading || offline || held || print.isPending} onPress={send} className={PRIMARY_BUTTON}>
@@ -241,7 +260,7 @@ function useProbeDownload() {
     isPending: state.pending,
     error: state.error,
     reset: () => setState({ pending: false, error: null }),
-    start: (event: MouseEvent<HTMLAnchorElement>, url: string, name: string, typeKey: string) => {
+    start: (event: MouseEvent<HTMLAnchorElement>, url: string, fileName: string) => {
       // A modified click (new tab, save as) is the browser's: it gets the plain address.
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
@@ -252,7 +271,7 @@ function useProbeDownload() {
           const href = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = href;
-          link.download = `${name}-${typeKey}.pdf`;
+          link.download = fileName;
           link.click();
           // The browser has taken the file once the click ran; the address is freed after it.
           setTimeout(() => URL.revokeObjectURL(href), 0);

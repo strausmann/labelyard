@@ -379,6 +379,20 @@ describe("test page job", () => {
     expect(within(screen.getByRole("region", { name: "Test page" })).getByText("Main tray")).toBeVisible();
   });
 
+  it("does not talk about cells when a printing probe page is cancelled", async () => {
+    const payload = { kind: "probe_page", tray: "main", media: "A4", detail: { type_key: TYPE_KEY, version: 1, grid: false } };
+    const extra = {
+      [`GET /api/v1/sheet-types/${TYPE_KEY}`]: TYPE,
+      [`GET /api/v1/printers/${PAGE_PRINTER.id}/status`]: pageStatus(PAGE_PRINTER.id),
+      [`POST /api/v1/jobs/${ID}/cancel`]: job(ID, PAGE_PRINTER.id, "printing", { template_key: null, payload }),
+    };
+    mockApi(routes("printing", { payload }, extra));
+    await renderApp({ path: `/jobs/${ID}` });
+    await userEvent.click(await screen.findByRole("button", { name: /Cancel/ }));
+    expect(await screen.findByText("Asked the printer to cancel.")).toBeVisible();
+    expect(screen.queryByText(/The cells are settled/)).toBeNull();
+  });
+
   it("does not talk about cells when a printing test page is cancelled", async () => {
     mockApi(routes("printing", { payload: { kind: "test_page", media: "A4", tray: "main", detail: {} } }, { [`POST /api/v1/jobs/${ID}/cancel`]: job(ID, PAGE_PRINTER.id, "printing") }));
     await renderApp({ path: `/jobs/${ID}` });

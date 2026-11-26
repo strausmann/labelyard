@@ -91,7 +91,7 @@ describe("the probe print dialog (#241, M9)", () => {
     expect(grid).not.toBeChecked();
     await userEvent.click(grid);
     // The grid is drawn without correction, whatever the tray holds.
-    expect(await d.findByText("The measurement sheet is drawn without correction, so its millimetres are the page's own.")).toBeVisible();
+    expect(await d.findByText(/The grid is drawn without correction, so its millimetres are the page's own\./)).toBeVisible();
     await userEvent.click(d.getByRole("button", { name: "Print probe page" }));
     await waitFor(() => expect(posts(calls)).toHaveLength(1));
     expect(JSON.parse(posts(calls)[0]!.body!)).toEqual({ type: "L4736REV", version: 1, grid: true });
@@ -141,6 +141,12 @@ describe("the probe print dialog (#241, M9)", () => {
       { detail: { type: "printer-unavailable", title: "Printer is not available to the print queue", status: 409, detail: "not known" } },
       "The print queue does not know this printer yet. Try again in a moment.",
     ],
+    [
+      "device swapped",
+      409,
+      { detail: { type: "printer-identity-mismatch", title: "Printer identity mismatch", status: 409, detail: "held" } },
+      "This printer may be a different device now. An admin has to confirm it on the printer's page first.",
+    ],
   ])("refusal %s shown in words", async (_name, code, body, words) => {
     const { dialog: d } = await openDialog({ [`POST ${calibration(P)}/main/probe`]: respond(code, body) });
     await userEvent.click(d.getByRole("button", { name: "Print probe page" }));
@@ -173,14 +179,92 @@ describe("the probe print dialog (#241, M9)", () => {
     URL.revokeObjectURL = revoke;
     try {
       const pdf = () => new Response(new Uint8Array([37, 80, 68, 70]), { status: 200, headers: { "Content-Type": "application/pdf" } });
+      // The file goes to the browser through a click on a temporary link; jsdom cannot follow it, so the click is caught.
+      const saved: string[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+        saved.push(`${this.href} ${this.download}`);
+      });
       const { dialog: d } = await openDialog({ [`GET ${calibration(P)}/main/probe/pdf`]: pdf });
       await userEvent.click(await d.findByRole("link", { name: "Download PDF" }));
-      await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(revoke).toHaveBeenCalledWith("blob:probe"));
+      // The same name as the server's Content-Disposition, so a middle click and a plain click save the same file.
+      expect(saved).toEqual(["blob:probe probe-L4736REV-v1.pdf"]);
+      expect(create).toHaveBeenCalledTimes(1);
       expect(d.queryByRole("alert")).toBeNull();
+      click.mockRestore();
     } finally {
       URL.createObjectURL = saved.create;
       URL.revokeObjectURL = saved.revoke;
     }
+  });
+
+  it("the measurement sheet downloads under the server's name, the key made safe (parentheses become _)", async () => {
+    const create = vi.fn(() => "blob:grid");
+    const keep = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = vi.fn();
+    const saved: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download);
+    });
+    try {
+      const odd = { ...DETAIL, key: "L4736(REV)", current_version: 3 };
+      const pdf = () => new Response(new Uint8Array([37, 80, 68, 70]), { status: 200, headers: { "Content-Type": "application/pdf" } });
+      mockApi(routes({
+        "GET /api/v1/sheet-types": [odd],
+        "GET /api/v1/sheet-types/L4736(REV)": odd,
+        [`GET ${calibration(P)}/main/probe/pdf`]: pdf,
+      }));
+      await renderApp({ path: "/sheets/archive?type=L4736(REV)" });
+      await userEvent.click(await screen.findByRole("button", { name: "Measurement sheet" }));
+      const d = within(await screen.findByRole("dialog", { name: "Probe print on plain paper" }));
+      await userEvent.click(await d.findByRole("link", { name: "Download PDF" }));
+      await waitFor(() => expect(saved).toEqual(["measurement-sheet-L4736_REV_-v3.pdf"]));
+    } finally {
+      click.mockRestore();
+      URL.createObjectURL = keep.create;
+      URL.revokeObjectURL = keep.revoke;
+    }
+  });
+
+  it("a download in progress says so", async () => {
+    let answer: (r: Response) => void = () => {};
+    const slow = () => new Promise<Response>((resolve) => (answer = resolve));
+    const { dialog: d } = await openDialog({ [`GET ${calibration(P)}/main/probe/pdf`]: slow });
+    await userEvent.click(await d.findByRole("link", { name: "Download PDF" }));
+    expect(await d.findByRole("link", { name: "Downloading…" })).toHaveAttribute("aria-disabled", "true");
+    answer(new Response(JSON.stringify({ detail: { type: "render-timeout", title: "t", status: 504, detail: "x" } }), { status: 504, headers: { "Content-Type": "application/json" } }));
+    expect(await d.findByRole("link", { name: "Download PDF" })).toBeVisible();
+  });
+
+  it("the measurement sheet says to print it on a real sheet and photograph it", async () => {
+    const { dialog: d } = await openDialog({}, "Measurement sheet");
+    expect(await d.findByText("Print it on a real sheet of this type and photograph it to read where the vendor's preprint sits. The grid is drawn without correction, so its millimetres are the page's own.")).toBeVisible();
+    // The intro speaks of the archive, so it does not contradict printing on a real sheet.
+    expect(d.getByText("Prints the outline of every label so you can hold the page against a real sheet. The archive uses no sheet and reserves no cell.")).toBeVisible();
+  });
+
+  it("the offline note is announced when it holds the button", async () => {
+    const { dialog: d } = await openDialog({ [`GET /api/v1/printers/${SECOND.id}/status`]: pageStatus(SECOND.id, { online: false, stale: false }) });
+    await d.findByText("The current correction of this tray is applied: dx +0.41 mm, dy −0.66 mm.");
+    await choose(d, /Printer/, "Archive laser");
+    const note = await d.findByText("Archive laser is offline");
+    expect(note.closest("[aria-live='polite']")).not.toBeNull();
+    expect(d.getByRole("button", { name: "Print probe page" })).toBeDisabled();
+  });
+
+  it("trays that cannot be loaded are said as an error, not as a printer without trays", async () => {
+    const { dialog: d } = await openDialog({ [`GET ${calibration(P)}`]: respond(500, { detail: "boom" }) });
+    expect(await d.findByRole("alert")).toHaveTextContent("The trays of this printer could not be loaded.");
+    expect(d.queryByText("This printer has no tray to print from.")).toBeNull();
+    expect(d.getByRole("button", { name: "Print probe page" })).toBeDisabled();
+  });
+
+  it("the swap note on the measurement sheet gives a reason without the correction", async () => {
+    const { dialog: d } = await openDialog({ [`GET /api/v1/printers/${P}/status`]: pageStatus(P, { identity_mismatch: true }) }, "Measurement sheet");
+    expect(await d.findByText("Held while the device is swapped")).toBeVisible();
+    expect(d.getByText(/the hub prints no page for a device nobody has confirmed/)).toBeVisible();
+    expect(d.queryByText(/stored correction/)).toBeNull();
   });
 
   it("a read key can download but not print", async () => {

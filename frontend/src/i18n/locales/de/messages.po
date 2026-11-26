@@ -2245,6 +2245,10 @@ msgstr "PDF herunterladen"
 msgid "Download settings"
 msgstr "Einstellungen herunterladen"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Downloading…"
+msgstr "Wird heruntergeladen…"
+
 #: src/features/archive/SheetFrontPanel.tsx
 msgid "Draft areas, saved code position"
 msgstr "Bereiche im Entwurf, Code-Lage gespeichert"
@@ -4676,6 +4680,10 @@ msgstr "Druckbestätigung"
 msgid "Print Grocy's labels"
 msgstr "Grocys Etiketten drucken"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Print it on a real sheet of this type and photograph it to read where the vendor's preprint sits. The grid is drawn without correction, so its millimetres are the page's own."
+msgstr "Drucke ihn auf einen echten Bogen dieses Typs und fotografiere ihn, um abzulesen, wo der Vordruck des Herstellers liegt. Das Raster wird ohne Korrektur gezeichnet, seine Millimeter sind also die der Seite selbst."
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Print it onto a real sheet of labels (the sheet is used up). The page is always printed without correction, so what you measure is the printer's own deviation."
 msgstr "Drucke sie auf einen echten Etikettenbogen (der Bogen ist danach verbraucht). Die Seite wird immer ohne Korrektur gedruckt, du misst also die eigene Abweichung des Druckers."
@@ -4929,8 +4937,8 @@ msgid "Prints the code in the free band around the labels. No extra pass through
 msgstr "Druckt den Code in den freien Rand um die Etiketten. Kein zusätzlicher Durchgang durch den Drucker."
 
 #: src/features/archive/ProbePrintDialog.tsx
-msgid "Prints the outline of every label so you can hold the page against a real sheet. No sheet is used, no cell is reserved."
-msgstr "Druckt den Umriss jedes Etiketts, damit du die Seite gegen einen echten Bogen halten kannst. Es wird kein Bogen verbraucht und keine Zelle reserviert."
+msgid "Prints the outline of every label so you can hold the page against a real sheet. The archive uses no sheet and reserves no cell."
+msgstr "Druckt den Umriss jedes Etiketts, damit du die Seite gegen einen echten Bogen halten kannst. Das Archiv verbraucht keinen Bogen und reserviert keine Zelle."
 
 #: src/features/calibration/LiveFit.tsx
 msgid "probable misread"
@@ -6759,6 +6767,10 @@ msgstr "Der Hub wurde neu gestartet, während dieses Etikett auf den nächsten T
 msgid "The hub sees a different device behind this printer. Like a calibration page, a probe page is not printed until an admin confirms the device on the printer's page: the stored correction would be wrong for it."
 msgstr "Der Hub sieht hinter diesem Drucker ein anderes Gerät. Wie eine Kalibrierseite wird ein Probedruck erst gedruckt, wenn ein Admin das Gerät auf der Seite des Druckers bestätigt: Die gespeicherte Korrektur wäre für dieses Gerät falsch."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The hub sees a different device behind this printer. The measurement sheet uses no correction, but it waits too until an admin confirms the device on the printer's page: the hub prints no page for a device nobody has confirmed."
+msgstr "Der Hub sieht hinter diesem Drucker ein anderes Gerät. Der Messbogen verwendet keine Korrektur, wartet aber ebenfalls, bis ein Admin das Gerät auf der Seite des Druckers bestätigt: Der Hub druckt keine Seite auf einem Gerät, das niemand bestätigt hat."
+
 #: src/features/printers/wiring.tsx
 msgid "The hub tries again by itself."
 msgstr "Der Hub versucht es von selbst erneut."
@@ -6979,10 +6991,6 @@ msgstr "Der Randcode konnte nicht gedruckt werden."
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "The margin could not be checked on this printer."
 msgstr "Der Rand konnte auf diesem Drucker nicht geprüft werden."
-
-#: src/features/archive/ProbePrintDialog.tsx
-msgid "The measurement sheet is drawn without correction, so its millimetres are the page's own."
-msgstr "Der Messbogen wird ohne Korrektur gezeichnet, seine Millimeter sind also die der Seite selbst."
 
 #: src/features/archive/errors.ts
 msgid "The measurements are the same as in the current version. Change something first."
@@ -7574,6 +7582,10 @@ msgstr "Das gewählte Fach gibt es an diesem Drucker nicht. Er meldet: {list}."
 #: src/features/sheets/print/errors.ts
 msgid "The tray you chose is not available: the printer reports no trays."
 msgstr "Das gewählte Fach gibt es nicht: Der Drucker meldet keine Fächer."
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The trays of this printer could not be loaded."
+msgstr "Die Fächer dieses Druckers konnten nicht geladen werden."
 
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The two edges of the gap between two columns: the sides of the labels."

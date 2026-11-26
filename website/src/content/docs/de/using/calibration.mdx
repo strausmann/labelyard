@@ -19,7 +19,7 @@ Das machst du einmal je Drucker und Fach und noch einmal, wenn du das Papier ode
 
 ## Schritt 1: Kalibrierseite drucken
 
-Wähle den Drucker, das Fach und den Bogentyp und drücke **Kalibrierseite drucken** (oder lade das PDF herunter und drucke es selbst). Die Seite zeigt die Schnittlinien des Bogentyps und an jeder Kreuzung zwischen vier Etiketten eine kleine Skala.
+Wähle den Drucker, das Fach und den Bogentyp und drücke **Kalibrierseite drucken (ohne Korrektur)** (oder lade das PDF herunter und drucke es selbst). Die Seite zeigt die Schnittlinien des Bogentyps und an jeder Kreuzung zwischen vier Etiketten eine kleine Skala.
 
 Die Seite startet mit dem Fach, aus dem deine Bogen zuletzt gedruckt wurden. Kalibriere dieses Fach; die Seite warnt, wenn die Kalibrierseite aus einem anderen Fach kam.
 
@@ -144,7 +144,7 @@ Für den Kontrolldruck gilt dieselbe Regel: Liegt jede Kreuzung innerhalb von ±
 
 Bevor du einen Etikettenbogen verbrauchst, kannst du auf Normalpapier sehen, ob ein Bogentyp passt. Der **Probedruck** zeichnet den Umriss jedes Etiketts des Typs mit seiner Nummer und seiner Zeile und Spalte (`R2 C3`), die vorgedruckten Flächen schraffiert und den Platz des Bogencodes gestrichelt. Er verwendet die aktuelle Korrektur des Fachs. Halte die Seite vor einem Fenster oder einer Lampe gegen einen echten Bogen: Liegen die Umrisse auf den Schnitten, stimmen Bogentyp und Korrektur.
 
-Du öffnest ihn mit **Probedruck auf Normalpapier** an einem Bogentyp im [Bogenarchiv](/de/using/sheets/) oder neben **Kalibrierseite drucken** im Reiter **Seite drucken**. Wähle Drucker und Fach und drücke **Probedruck drucken**, oder **PDF herunterladen**, um ihn selbst zu drucken. Es wird kein Bogen verbraucht und keine Zelle reserviert. Die Seite läuft wie jede andere über die Druckwarteschlange: Du findest sie unter **Aufträge**, wo du sie abbrechen oder wiederholen kannst, und sie bekommt die nächste Laufnummer des Fachs, daher führt der **Verlauf** sie zusammen mit den Kalibrierseiten.
+Du öffnest ihn mit **Probedruck auf Normalpapier** an einem Bogentyp im [Bogenarchiv](/de/using/sheets/) oder neben **Kalibrierseite drucken (ohne Korrektur)** im Reiter **Seite drucken**. Wähle Drucker und Fach und drücke **Probedruck drucken**, oder **PDF herunterladen**, um ihn selbst zu drucken. Das Archiv verbraucht keinen Bogen und reserviert keine Zelle; die Seite geht auf Normalpapier. Die Seite läuft wie jede andere über die Druckwarteschlange: Du findest sie unter **Aufträge**, wo du sie abbrechen oder wiederholen kannst, und sie bekommt die nächste Laufnummer des Fachs, daher führt der **Verlauf** sie zusammen mit den Kalibrierseiten.
 
 Der Dialog sagt vor dem Druck, wenn der neueste Status des Druckers sagt, dass er offline ist (schalte ihn ein oder wähle einen anderen Drucker), und wenn der Hub hinter dem Drucker ein anderes Gerät sieht: Dann wird kein Probedruck gedruckt, bis ein Admin das Gerät bestätigt, denn die gespeicherte Korrektur wäre für dieses Gerät falsch.
 
@@ -152,7 +152,7 @@ Der Dialog sagt vor dem Druck, wenn der neueste Status des Druckers sagt, dass e
 
 Der **Messbogen** ist der Probedruck mit einem Millimeterraster über die ganze Seite: eine Linie je Millimeter, alle 5 mm eine kräftigere und alle 10 mm eine Zahl, gezählt ab der oberen linken Ecke der Seite. Er wird **ohne** Korrektur gezeichnet, das Raster zeigt also die eigenen Millimeter der Seite. Damit findest du heraus, wo der Vordruck eines Herstellers (ein Logo, ein gedruckter Rand, ein Textfeld) auf einem Bogen liegt:
 
-1. Wähle **Messbogen** am Bogentyp oder setze im Dialog den Haken bei **Messbogen**.
+1. Wähle **Messbogen** am Bogentyp oder setze im Dialog den Haken bei **Messbogen: Millimeterraster dazu, ohne Korrektur**.
 2. Drucke ihn **auf einen echten Bogen** des Typs, nicht auf Normalpapier, damit Vordruck und Raster auf derselben Seite landen.
 3. Fotografiere den Bogen gerade von oben, in voller Auflösung und bei gleichmäßigem Licht. Zoome an die Kanten jeder vorgedruckten Fläche heran und lies ihre Lage am Raster ab.
 4. Trage das Abgelesene als vorgedruckte Flächen des Bogentyps ein (siehe [Bögen und Layouts](/de/using/sheets/)).
