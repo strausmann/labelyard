@@ -774,6 +774,10 @@ msgstr "Ein Druck wurde abgelehnt"
 msgid "A printer list is stored on this key. Ignored for admin keys: an admin key acts on every printer."
 msgstr "An diesem Schlüssel ist eine Druckerliste gespeichert. Bei Admin-Schlüsseln wird die Liste ignoriert: Ein Admin-Schlüssel gilt für jeden Drucker."
 
+#: src/features/calibration/errors.ts
+msgid "A probe print has no readings that could be a correction. Choose the calibration page the readings come from."
+msgstr "Ein Probedruck hat keine Messwerte, die eine Korrektur sein könnten. Wähle die Kalibrierseite, von der die Messwerte stammen."
+
 #. placeholder {0}: MAX.code
 #: src/features/archive/TypeForm.tsx
 msgid "A product code is at most {0} characters."
@@ -6851,6 +6855,10 @@ msgstr "Der Link im QR-Code ist {length} Bytes lang, dieses Layout fasst aber h�
 #: src/features/printers/printErrorText.ts
 msgid "The link in the QR code is too long for this layout."
 msgstr "Der Link im QR-Code ist für dieses Layout zu lang."
+
+#: src/features/calibration/RunPicker.tsx
+msgid "The list of prints could not be refreshed; it shows the prints known so far."
+msgstr "Die Liste der Drucke konnte nicht aktualisiert werden; sie zeigt die bisher bekannten Drucke."
 
 #: src/features/archive/errors.ts
 msgid "The list of product codes"

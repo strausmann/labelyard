@@ -384,21 +384,26 @@ describe("guided readings", () => {
     expect(put.readings).toBeUndefined();
   });
 
-  it("says in words when the hub refuses a check print's run as a correction", async () => {
-    await open(
-      withRuns({
-        [`POST ${BASE}/main/fit`]: FIT,
-        [`PUT ${BASE}/main`]: () => respond(422, apiErrorBody("run_is_a_check_print", "No.")),
-      }),
-    );
-    await chooseRun(/^#12 · calibration page/);
-    await fillThreePlain();
-    await userEvent.click(await button("Fit"));
-    await screen.findByText("From the readings of print #12.");
-    await userEvent.click(await button("Save for this printer and tray"));
-    expect(
-      await screen.findByText("These readings come from a check print. They show what is left with the stored correction and are never saved as a correction."),
-    ).toBeVisible();
+  it("says in words when the hub refuses a check or probe print's run as a correction", async () => {
+    const words: [string, string][] = [
+      ["run_is_a_check_print", "These readings come from a check print. They show what is left with the stored correction and are never saved as a correction."],
+      ["run_is_a_probe_print", "A probe print has no readings that could be a correction. Choose the calibration page the readings come from."],
+    ];
+    for (const [code, sentence] of words) {
+      const view = await open(
+        withRuns({
+          [`POST ${BASE}/main/fit`]: FIT,
+          [`PUT ${BASE}/main`]: () => respond(422, apiErrorBody(code, "No.")),
+        }),
+      );
+      await chooseRun(/^#12 · calibration page/);
+      await fillThreePlain();
+      await userEvent.click(await button("Fit"));
+      await screen.findByText("From the readings of print #12.");
+      await userEvent.click(await button("Save for this printer and tray"));
+      expect(await screen.findByText(sentence)).toBeVisible();
+      view.unmount();
+    }
   });
 
   it("the print is pinned once a reading is typed: a newer print appearing later does not take the readings", async () => {
@@ -474,5 +479,43 @@ describe("guided readings", () => {
     await new Promise((r) => setTimeout(r, 100));
     expect(screen.queryByText("The values are filled in below. Nothing is saved yet.")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.4");
+  });
+
+  it("a sheet type that has lost the print's version says so instead of loading forever", async () => {
+    const typeV2 = { ...SHEET_TYPE, current_version: 2 };
+    const { calls } = await open(
+      withRuns({
+        "GET /api/v1/sheet-types": [typeV2],
+        // The detail loads, but version 1 (the print's) is gone from it.
+        "GET /api/v1/sheet-types/L4736REV": { ...typeV2, versions: [{ version: 2, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "b", sheets: 0 }] },
+        [`POST ${BASE}/main/fit`]: FIT,
+      }),
+    );
+    expect(await screen.findByText(/The sheet of print #14 \(version 1\) could not be loaded/, {}, { timeout: 10_000 })).toBeVisible();
+    expect(screen.queryByText(/Loading the sheet of print/)).toBeNull();
+    expect(screen.queryByRole("group", { name: "Reading 1" })).toBeNull();
+    expect(only(calls, "POST", "/fit")).toHaveLength(0);
+  });
+
+  it("a failed refresh of the prints keeps the list it has: the picker and Fit stay, a hint says so", async () => {
+    let fail = false;
+    const view = await open(
+      withRuns({
+        [`GET ${BASE}/main/runs`]: () => (fail ? respond(500, apiErrorBody("internal", "Boom.")) : RUNS),
+        [`POST ${BASE}/main/fit`]: FIT,
+      }),
+    );
+    const picker = await screen.findByRole("button", { name: /Readings from print/ });
+    await waitFor(() => expect(picker).toHaveTextContent("pass 2, run #14"));
+    fail = true;
+    await act(() => view.queryClient.invalidateQueries());
+    expect(
+      await screen.findByText("The list of prints could not be refreshed; it shows the prints known so far.", {}, { timeout: 10_000 }),
+    ).toBeVisible();
+    expect(screen.queryByText(/could not be loaded, so the readings cannot be tied to one/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Readings from print/ })).toHaveTextContent("pass 2, run #14");
+    await chooseRun(/^#12 · calibration page/);
+    await fillThreePlain();
+    expect(await button("Fit")).toBeEnabled();
   });
 });

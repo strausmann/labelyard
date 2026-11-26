@@ -199,7 +199,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const [fitted, setFitted] = useState<FitResult | null>(null);
   const [outcome, setOutcome] = useState<"filled" | "check" | null>(null);
 
-  const { choices, defaultChoice, isPending: runsPending, isError: runsFailed } = useRunChoices(printerId, tray, {
+  const { choices, defaultChoice, isPending: runsPending, isError: runsFailed, refreshFailed } = useRunChoices(printerId, tray, {
     key: type.key,
     version: type.current_version,
   });
@@ -213,7 +213,12 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const detail = useSheetType(type.key, version !== type.current_version);
   const printed = version !== type.current_version ? detail.data?.versions.find((v) => v.version === version)?.geometry : undefined;
   // Until that version's grid is known (or when it cannot be loaded) nothing is read: not on the current grid either.
-  const gridState: "ready" | "loading" | "error" = version === type.current_version || printed ? "ready" : detail.isError ? "error" : "loading";
+  const gridState: "ready" | "loading" | "error" = version === type.current_version || printed
+      ? "ready"
+      : // A detail that loaded without the print's version (deleted since) is as final as a failed load.
+        detail.isError || detail.isSuccess
+        ? "error"
+        : "loading";
   const { cols, rows } = printed ?? type.geometry;
   // Another grid: the readings start again at its suggested crossings (they belong to another page).
   const [grid, setGrid] = useState(`${cols}x${rows}`);
@@ -373,6 +378,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
             }}
             isPending={runsPending}
             isError={runsFailed}
+            refreshFailed={refreshFailed}
             defaultId={defaultChoice?.id ?? null}
             labelOf={labelOf}
           />

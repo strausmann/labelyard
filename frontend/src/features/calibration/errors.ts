@@ -73,6 +73,8 @@ export function useCalibrationErrorText(): (error: unknown, fallback?: string, r
           return t`That version of the sheet type does not exist.`;
         case "run_is_a_check_print":
           return t`These readings come from a check print. They show what is left with the stored correction and are never saved as a correction.`;
+        case "run_is_a_probe_print":
+          return t`A probe print has no readings that could be a correction. Choose the calibration page the readings come from.`;
         case "check_sheet_full":
           return t`That check sheet has no free pass left. Print on a new sheet.`;
       }

@@ -82,7 +82,14 @@ export function useRunChoices(printerId: string, tray: string, type: { key: stri
   // the check print. With no run of the current version, the newest of the type.
   const newest = (list: RunChoice[]) => list.reduce<RunChoice | null>((best, c) => (best === null || c.run_no > best.run_no ? c : best), null);
   const defaultChoice = newest(choices.filter((c) => c.version === type.version)) ?? newest(choices);
-  return { choices, defaultChoice, isPending: runs.isPending, isError: runs.isError };
+  // A failed background refresh keeps the list it had: only a first load that failed leaves no prints to choose from.
+  return {
+    choices,
+    defaultChoice,
+    isPending: runs.isPending,
+    isError: runs.isError && runs.data === undefined,
+    refreshFailed: runs.isError && runs.data !== undefined,
+  };
 }
 
 export interface RunPickerProps {
@@ -92,6 +99,8 @@ export interface RunPickerProps {
   isPending: boolean;
   /** The prints could not be loaded: the readings cannot be tied to one. */
   isError: boolean;
+  /** A refresh failed while the list from before is still shown. */
+  refreshFailed?: boolean;
   /** The choice made when nobody chose; the hint calls it the newest. */
   defaultId: string | null;
   /** The label of a tray key, for the line about where the page came from. */
@@ -99,7 +108,7 @@ export interface RunPickerProps {
 }
 
 /** "Readings from print #12": the readings and the fit belong to that print (design 7.4). */
-export function RunPicker({ choices, value, onChange, isPending, isError, defaultId, labelOf }: RunPickerProps) {
+export function RunPicker({ choices, value, onChange, isPending, isError, refreshFailed, defaultId, labelOf }: RunPickerProps) {
   const { t } = useLingui();
   if (isError) {
     return (
@@ -143,6 +152,7 @@ export function RunPicker({ choices, value, onChange, isPending, isError, defaul
               ? t`Printed from ${requested}, as requested.`
               : t`Requested from ${requested}; the printer did not say which tray it took.`}
       </p>
+      {refreshFailed && <p className={`${HINT} m-0`}>{t`The list of prints could not be refreshed; it shows the prints known so far.`}</p>}
     </div>
   );
 }
