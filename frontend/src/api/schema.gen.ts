@@ -839,7 +839,8 @@ export interface paths {
          * The open check sheet of a printer, tray and sheet type version, if any
          * @description The newest check sheet with a free pass, for the print dialog's "Print on the same sheet?
          *     (pass 2 of 3)"; `null` when there is none (every pass printed, or no sheet started).
-         *     `run_line_slots` is computed for the printer and tray as they are now. Nothing is stored.
+         *     `run_line_slots` are the slots pass 1 reserved in the layout it was printed with (0 once its
+         *     job was cleaned up). Nothing is stored.
          */
         get: operations["get_open_check_sheet_api_v1_printers__printer_id__calibration__tray__check_sheets_open_get"];
         put?: never;

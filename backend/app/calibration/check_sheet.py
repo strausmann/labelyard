@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import product
-from typing import Any, Final
+from typing import Final
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -40,6 +40,8 @@ from app.models.calibration_run import (
     CalibrationCheckSheetPass,
     CalibrationRun,
 )
+from app.models.job import Job
+from app.services.page_jobs import PagePayload
 
 __all__ = [
     "MAX_PASSES",
@@ -47,6 +49,7 @@ __all__ = [
     "CheckSheetPassRead",
     "Crossing",
     "check_passes",
+    "first_pass_payload",
     "newest_open_sheet",
     "open_check_sheet",
 ]
@@ -144,14 +147,14 @@ class CheckSheetOpen(BaseModel):
     passes: list[CheckSheetPassRead] = Field(description="The printed passes, by pass number.")
 
 
-async def first_pass_correction(
-    session: AsyncSession, sheet_id: UUID
-) -> tuple[bool, dict[str, Any] | None]:
-    """Whether pass 1 of the sheet still has its run, and the correction it was printed with
-    (``calibration_runs.correction``): a later pass puts its run line where pass 1 left room."""
+async def first_pass_payload(session: AsyncSession, sheet_id: UUID) -> PagePayload | None:
+    """The stamped payload pass 1 of the sheet was printed from, while its job row is kept: a
+    later pass puts its run line where that layout left room. ``None`` when pass 1's run or job
+    is gone (the later pass then prints its crosses only)."""
     row = (
         await session.execute(
-            select(col(CalibrationRun.correction))
+            select(col(Job.payload))
+            .join(CalibrationRun, col(CalibrationRun.job_id) == col(Job.id))
             .join(
                 CalibrationCheckSheetPass,
                 col(CalibrationCheckSheetPass.run_id) == col(CalibrationRun.id),
@@ -162,7 +165,12 @@ async def first_pass_correction(
             )
         )
     ).first()
-    return (row is not None, row[0] if row is not None else None)
+    if row is None:
+        return None
+    try:
+        return PagePayload.model_validate(row[0])
+    except ValueError:
+        return None
 
 
 async def newest_open_sheet(

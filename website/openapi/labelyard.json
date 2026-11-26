@@ -13921,7 +13921,7 @@
     },
     "/api/v1/printers/{printer_id}/calibration/{tray}/check-sheets/open": {
       "get": {
-        "description": "The newest check sheet with a free pass, for the print dialog's \"Print on the same sheet?\n(pass 2 of 3)\"; `null` when there is none (every pass printed, or no sheet started).\n`run_line_slots` is computed for the printer and tray as they are now. Nothing is stored.",
+        "description": "The newest check sheet with a free pass, for the print dialog's \"Print on the same sheet?\n(pass 2 of 3)\"; `null` when there is none (every pass printed, or no sheet started).\n`run_line_slots` are the slots pass 1 reserved in the layout it was printed with (0 once its\njob was cleaned up). Nothing is stored.",
         "operationId": "get_open_check_sheet_api_v1_printers__printer_id__calibration__tray__check_sheets_open_get",
         "parameters": [
           {

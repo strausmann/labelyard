@@ -132,7 +132,6 @@ def _pass_payload(key: str, hw: int, pass_no: int, *, run_no: int = 12) -> PageP
     }
     if pass_no == 1:
         detail["reserved_crossings"] = [list(c) for p in passes[1:] for c in p]
-    detail["hardware_margins"] = {"top": hw, "left": hw, "bottom": hw, "right": hw}
     payload = PagePayload(
         kind="calibration_page",
         media=g.page_size,
@@ -142,8 +141,8 @@ def _pass_payload(key: str, hw: int, pass_no: int, *, run_no: int = 12) -> PageP
         calibration=SNAP,
         detail=detail,
     )
-    if pass_no > 1:  # as the route stamps it: the slot pass 1 (same correction here) reserved
-        box = later_run_line_box(payload, SNAP)
+    if pass_no > 1:  # as the route stamps it: the slot pass 1 (same printer, same correction)
+        box = later_run_line_box(payload, _pass_payload(key, hw, 1))
         if box is not None:
             payload.detail["run_line_box"] = box
     return payload
@@ -320,9 +319,13 @@ def test_pass_1_draws_no_corner_mark_where_a_later_pass_puts_its_scale() -> None
         assert hits == [], (key, hits[:3])
 
 
-def test_a_later_run_line_lands_where_pass_1_reserved_it_after_the_correction_changed() -> None:
-    """Codex on #449: the correction moved by 2 mm between pass 1 and pass 2; the run line of
-    pass 2 must land on paper where pass 1 left its slot, never over pass 1's printed blocks."""
+@pytest.mark.parametrize("hw_later", [500, 300], ids=["same-margins", "margins-now-3-mm"])
+def test_a_later_run_line_lands_where_pass_1_reserved_it_after_the_correction_changed(
+    hw_later: int,
+) -> None:
+    """Codex on #449: the correction moved by 2 mm between pass 1 and pass 2, and the printer may
+    report other hardware margins by then; the run line of pass 2 lands on paper where pass 1's
+    printed layout left its slot, never over pass 1's printed blocks."""
     from app.page_render.transform import Deviation, correction_mm
 
     key = "avery-zweckform-l4736rev"
@@ -341,9 +344,9 @@ def test_a_later_run_line_lands_where_pass_1_reserved_it_after_the_correction_ch
     )
     layout1 = payload_layout(one)
     assert layout1.run_line_slots, "L4736 at 5 mm reserves the slot"
-    two = _pass_payload(key, 500, 2)  # printed with no offset (SNAP has dy -0.6 mm)
+    two = _pass_payload(key, hw_later, 2)  # SNAP: dy -0.6 mm, perhaps other margins
     two.detail.pop("run_line_box", None)
-    box = later_run_line_box(two, first)
+    box = later_run_line_box(two, one)
     assert box is not None
     two.detail["run_line_box"] = box
     layout2 = payload_layout(two)

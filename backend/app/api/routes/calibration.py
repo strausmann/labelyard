@@ -26,7 +26,7 @@ from app.calibration import history, page, runs, scale, service, suggest
 from app.calibration.check_sheet import (
     CheckSheetOpen,
     check_passes,
-    first_pass_correction,
+    first_pass_payload,
     open_check_sheet,
 )
 from app.calibration.fit import Reading, fit
@@ -48,7 +48,7 @@ from app.db.session import get_session
 from app.repositories import printers as printers_repo
 from app.schemas.problem import ProblemDetail
 from app.services import render_slots
-from app.services.page_jobs import CalibrationSnapshot, PagePayload
+from app.services.page_jobs import PagePayload
 from app.settings_store.registry import SETTINGS
 from app.sheets import type_service as ts
 from app.sheets.errors import PrinterNotFoundError
@@ -372,10 +372,8 @@ async def print_calibration_page(
             page.check_run_codes(stamped)
             if isinstance(stamped.detail.get("pass_no"), int) and stamped.detail["pass_no"] > 1:
                 # The run line goes where pass 1 left room, under pass 1's correction (#449).
-                found, first = await first_pass_correction(
-                    session, UUID(stamped.detail["check_sheet_id"])
-                )
-                box = page.later_run_line_box(stamped, _snapshot(first)) if found else None
+                first = await first_pass_payload(session, UUID(stamped.detail["check_sheet_id"]))
+                box = page.later_run_line_box(stamped, first) if first is not None else None
                 if box is not None:
                     stamped.detail["run_line_box"] = box
             new_id: UUID = await queue.submit_page_job(
@@ -525,7 +523,8 @@ async def get_open_check_sheet(
 ) -> CheckSheetOpen | None:
     """The newest check sheet with a free pass, for the print dialog's "Print on the same sheet?
     (pass 2 of 3)"; `null` when there is none (every pass printed, or no sheet started).
-    `run_line_slots` is computed for the printer and tray as they are now. Nothing is stored."""
+    `run_line_slots` are the slots pass 1 reserved in the layout it was printed with (0 once its
+    job was cleaned up). Nothing is stored."""
     check_printer_access(auth, printer_id)
     with mapped():
         payload = await page.build_payload(
@@ -533,15 +532,12 @@ async def get_open_check_sheet(
             time_zone=str(_setting(request, "general.time_zone")),
         )  # fmt: skip
         v = await ts.get_version(session, payload.detail["type_key"], payload.detail["version"])
-        g = ts.version_geometry(v)
-        passes = max(len(check_passes(g.cols, g.rows)), 1)
-        payload.detail["passes_total"] = passes
         sheet = await open_check_sheet(session, printer_id, tray, v.id, run_line_slots=0)
         if sheet is None:
             return None
-        # The slots pass 1 reserved, under the correction it was printed with.
-        found, first = await first_pass_correction(session, sheet.check_sheet_id)
-        slots = page.first_pass_slot_count(payload, _snapshot(first)) if found else 0
+        # The slots pass 1 reserved, in the layout it was printed with.
+        first = await first_pass_payload(session, sheet.check_sheet_id)
+        slots = len(page.payload_layout(first).run_line_slots) if first is not None else 0
         return sheet.model_copy(update={"run_line_slots": slots})
 
 
@@ -657,10 +653,6 @@ async def restore_calibration(
             actor=actor(auth),
             note=body.note if body is not None else None,
         )
-
-
-def _snapshot(raw: dict[str, Any] | None) -> CalibrationSnapshot | None:
-    return CalibrationSnapshot.model_validate(raw) if raw is not None else None
 
 
 def _setting(request: Request, key: str) -> object:
