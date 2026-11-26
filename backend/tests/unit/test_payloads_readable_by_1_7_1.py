@@ -442,3 +442,88 @@ async def test_a_new_key_in_a_forbid_model_is_refused_by_1_7_1() -> None:
         v171.FeedMarkPayload.model_validate({**mark, "anchor": "top_left"})
     with pytest.raises(ValueError):
         v171.MarginIdPayload.model_validate({"text": "x", "usable_hmm": 1, "new": 1})
+
+
+async def test_non_probe_payloads_validate_with_the_1_7_1_models(
+    factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """(guard, #241 P1) Every page kind this release writes, except ``probe_page``, is built by
+    its production builder in its 1.8.0 form (runs, run codes, printable area, the ID rectangle)
+    and read by 1.7.1. A new kind fails here until it has a case or a downgrade that removes it,
+    as P1 does for the probe page, which 1.7.1 refuses."""
+    from app.calibration import probe, runs
+    from app.models.calibration_run import CalibrationRun
+    from app.services.page_jobs import PAGE_KINDS, PagePayload
+
+    printer = await _ipp_printer(factory)
+    await _sheet_type(factory, "acme-48")
+    async with factory() as s:
+        s.add(
+            PrinterCalibration(
+                printer_id=printer.id, tray_key="auto", method="manual", offset_x_hmm=12,
+                offset_y_hmm=-7, scale_x_ppm=1_000_400, scale_y_ppm=999_800, rotation_udeg=150,
+            )
+        )  # fmt: skip
+        await s.commit()
+        built = [
+            await calibration_page.build_payload(
+                s, printer.id, "auto", type_key="acme-48", version=None, corrected=corrected
+            )
+            for corrected in (False, True)
+        ]
+        t = (await s.execute(select(SheetType).where(SheetType.key == "acme-48"))).scalar_one()
+        v = (
+            await s.execute(select(SheetTypeVersion).where(SheetTypeVersion.type_id == t.id))
+        ).scalar_one()
+        sheet = Sheet(
+            id=uuid4(), code="ACME48-0001", type_id=t.id, type_version_id=v.id,
+            created_at=datetime(2026, 11, 21, tzinfo=UTC),
+        )  # fmt: skip
+        back = await sps._back_payload(
+            s, sheet, tray_key="auto", printer_id=printer.id, scan=lambda c: f"https://x/{c}"
+        )
+        probe_payload = await probe.build_probe_payload(
+            s, printer.id, "auto", type_key="acme-48", version=None, grid=False, time_zone="UTC"
+        )
+    run = CalibrationRun(
+        printer_id=printer.id, tray="auto", run_no=7, kind="check_page", job_id=uuid4(),
+        type_version_id=v.id, requested_tray="auto",
+        created_at=datetime(2026, 11, 21, 14, 5, tzinfo=UTC),
+    )  # fmt: skip
+    stamped = [runs.stamp(p, run).model_dump(mode="json") for p in built]
+    for raw in stamped:
+        calibration_page.check_run_codes(PagePayload.model_validate(raw))
+        assert raw["detail"]["printable_area"] and raw["detail"]["run_no"] == 7
+    placement = MarginPlacement(
+        band="top", corner="top_left", depth_hmm=1530, qr=True, x_hmm=5085, y_hmm=500,
+        w_hmm=4000, content="qr_code",
+    )  # fmt: skip
+    mark = FeedMarkPlacement(
+        text="Feed", x_hmm=17000, baseline_y_hmm=600, size_pt=7.0, width_hmm=800, end="top_left"
+    )
+    test_page = build_test_page_payload(
+        printer, "auto", "A4", HardwareMargins(top=4.2, left=4.2, bottom=4.2, right=4.2),
+        datetime(2026, 11, 21, 12, 0, tzinfo=UTC), "1.8.0", "https://hub.example.invalid/p",
+    )  # fmt: skip
+    written = [
+        *stamped,
+        _page_with(placement, mark),
+        back.model_dump(mode="json"),
+        test_page.model_dump(mode="json"),
+        loading_page_payload("auto", "A4", "de").model_dump(mode="json"),
+    ]
+    kinds = {raw["kind"] for raw in written}
+    assert kinds == set(PAGE_KINDS) - {"probe_page"}
+    for raw in written:
+        read = _read_by_1_7_1(raw)
+        if read.calibration is not None:
+            assert set(raw["calibration"]) == set(v171.CalibrationSnapshot.model_fields)
+        if read.kind == "sheet_page":
+            v171.SheetPageDetail.model_validate(read.detail)
+        elif read.kind == "sheet_back_page":
+            v171.SheetBackDetail.model_validate(read.detail)
+        elif read.kind == "calibration_page":
+            v171.Geometry(**read.detail["geometry"])
+    # The probe page is the one kind 1.7.1 refuses; the P1 downgrade removes its jobs.
+    with pytest.raises(ValueError):
+        _read_by_1_7_1(runs.stamp(probe_payload, run).model_dump(mode="json"))

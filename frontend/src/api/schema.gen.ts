@@ -970,6 +970,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Print the probe page or the measurement sheet on plain paper (no sheet is created)
+         * @description Queue a probe page: every label outline of the sheet type with its number and row and
+         *     column, the preprint zones hatched and the planned sheet-ID rectangle dashed, drawn with the
+         *     tray's current correction (the measurement sheet, `grid`, without any). No sheet, reservation
+         *     or cell changes; the page takes the tray's next run number and can be retried from Jobs.
+         */
+        post: operations["print_probe_page_api_v1_printers__printer_id__calibration__tray__probe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/probe/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the probe page or the measurement sheet as a PDF
+         * @description The page the job would print, without a run (no run number and time).
+         */
+        get: operations["download_probe_page_api_v1_printers__printer_id__calibration__tray__probe_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/printers/{printer_id}/calibration/{tray}/runs": {
         parameters: {
             query?: never;
@@ -4671,6 +4714,38 @@ export interface components {
             queue?: components["schemas"]["PrinterQueueSettings"] | null;
             /** Trays */
             trays?: components["schemas"]["TrayIn"][] | null;
+        };
+        /** ProbeJobAccepted */
+        ProbeJobAccepted: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /**
+             * Run No
+             * @description The run number the page carries (per printer and tray).
+             */
+            run_no: number;
+        };
+        /** ProbeRequest */
+        ProbeRequest: {
+            /**
+             * Grid
+             * @description Print the measurement sheet: the probe page plus a millimetre grid over the whole page (lines every 1 mm, heavier every 5 mm, labelled every 10 mm, origin at the page's top-left corner), drawn without any correction.
+             * @default false
+             */
+            grid: boolean;
+            /**
+             * Type
+             * @description Sheet type key.
+             */
+            type: string;
+            /**
+             * Version
+             * @description Defaults to the current version.
+             */
+            version?: number | null;
         };
         /**
          * ProbeSummary
@@ -9028,6 +9103,130 @@ export interface operations {
                 content?: never;
             };
             /** @description The page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`). The drawing goes on: the key's next download answers 429 until it has ended. */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    print_probe_page_api_v1_printers__printer_id__calibration__tray__probe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProbeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeJobAccepted"];
+                };
+            };
+            /** @description The key lacks the print scope (`insufficient_scope`) or may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such printer (`printer_not_found`) or sheet type. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The printer is disabled (`printer_disabled`), is a tape printer (`media_kind_mismatch`), its fresh status says it is offline (`printer-offline`; a stale status never refuses), it is not known to the print queue (`printer-unavailable`), or the device behind it changed (`printer-identity-mismatch`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The tray is not an enabled tray of the printer (`tray_unknown`), or the grid has more than 2500 cells (`calibration_grid_too_large`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    download_probe_page_api_v1_printers__printer_id__calibration__tray__probe_pdf_get: {
+        parameters: {
+            query: {
+                /** @description Sheet type key. */
+                type: string;
+                /** @description Defaults to the current version. */
+                version?: number | null;
+                /** @description The measurement sheet: with the millimetre grid, uncorrected. */
+                grid?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The probe page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description The key may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The tray is not an enabled tray of the printer (`tray_unknown`), or the grid has more than 2500 cells (`calibration_grid_too_large`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A render of the key is stuck past the time limit (`too-many-previews`). The body has the rate limit's shape (`retry_after_seconds`). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No render slot became free in time (`render-unavailable`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`). */
             504: {
                 headers: {
                     [name: string]: unknown;

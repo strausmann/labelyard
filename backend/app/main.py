@@ -133,7 +133,8 @@ from app.auth.sessions import purge_expired as purge_expired_sessions
 from app.auth.sessions import warn_if_insecure as warn_if_insecure_cookies
 from app.build_info import PROJECT_LICENSE, public_repo_url
 from app.calibration.page import render_calibration_page
-from app.calibration.runs import RunMediaSource
+from app.calibration.probe import render_probe_page
+from app.calibration.runs import RUN_PAGE_KINDS, RunMediaSource
 from app.config import get_settings
 from app.config_legacy import listen_port_warning, report_from_process, warn_legacy_env
 from app.db.engine import async_session, engine
@@ -441,7 +442,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     register_recovery_check("sheet_page", sheet_recovery)
     # #336: the tray a calibration page was really printed from goes to its run (ADR 0029).
     run_media_source = RunMediaSource(async_session)
-    register_media_source_listener("calibration_page", run_media_source)
+    for _run_kind in RUN_PAGE_KINDS:  # calibration and check pages, probe pages (#241)
+        register_media_source_listener(_run_kind, run_media_source)
     # Persisted manual pauses must be in place before any worker task exists.
     async with async_session() as _pause_session:
         _initially_paused = await load_manual_pauses(_pause_session)
@@ -473,7 +475,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await cleanup_task.stop()
         unregister_outcome_handler("sheet_page", sheet_outcome)
         unregister_recovery_check("sheet_page", sheet_recovery)
-        unregister_media_source_listener("calibration_page", run_media_source)
+        for _run_kind in RUN_PAGE_KINDS:
+            unregister_media_source_listener(_run_kind, run_media_source)
         await engine.dispose()
         # Close shared HTTP clients held by integration plugins that support it.
         # Plugins that pre-date connection pooling may not have aclose(); skip them.
@@ -648,6 +651,7 @@ register_page_renderer("sheet_page", render_sheet_page)
 register_page_renderer("test_page", render_test_page)
 register_page_renderer("sheet_back_page", render_sheet_back_page)
 register_page_renderer("tray_loading_page", render_tray_loading_page)
+register_page_renderer("probe_page", render_probe_page)
 
 
 def _may_name_default_printer(auth: AuthContext | None, state: Any) -> bool:

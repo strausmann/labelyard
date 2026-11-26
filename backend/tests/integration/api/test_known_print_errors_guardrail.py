@@ -290,6 +290,9 @@ NET = [
          "app.sheets.print_service.preview", "dt", _SHEET_BODY),
     Case("calibration-page", "/api/v1/printers/{printer_id}/calibration/{tray}/page",
          "app.calibration.page.build_payload", "dt", {"type": "acme-t1"}),
+    # #241: the probe route checks the page printer first (the hub's printer is a tape printer).
+    Case("probe-page", "/api/v1/printers/{printer_id}/calibration/{tray}/probe",
+         "app.calibration.service.page_printer", "dt", {"type": "acme-t1"}),
     Case("job-retry", "/api/v1/jobs/{job_id}/retry",
          "app.services.print_queue.PrintQueue.enqueue_persisted", "dt"),
 ]  # fmt: skip

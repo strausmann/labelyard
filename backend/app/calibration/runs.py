@@ -39,7 +39,7 @@ from app.models.calibration_run import (
 from app.models.job import PAGE_KIND_EXPR, Job, json_at
 from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories.write_lock import write_transaction
-from app.services.page_jobs import PagePayload
+from app.services.page_jobs import PageKind, PagePayload
 from app.settings_store.registry import SETTINGS
 from app.sheets.errors import CheckSheetFullError
 from app.sheets.text import sanitise_text
@@ -55,6 +55,9 @@ _JOB_RETENTION: Final = int(SETTINGS["jobs.retention_days"].default)
 """``jobs.retention_days`` when the caller does not pass the setting."""
 
 RunKind = Literal["calibration_page", "check_page", "probe_page"]
+RUN_PAGE_KINDS: Final[tuple[PageKind, ...]] = ("calibration_page", "probe_page")
+"""The page job kinds that belong to a run (a check page is a ``calibration_page`` job): their
+retries are listed with the run, and the tray the printer took is recorded for them."""
 
 _RUN_ID_EXPR = json_at("$.detail.run_id")
 _RETRY_OF_EXPR = json_at("$.retry_of")
@@ -523,7 +526,7 @@ async def list_runs(
         await session.execute(
             select(col(Job.id), col(Job.created_at), col(Job.payload)).where(
                 col(Job.printer_id) == printer_id,
-                literal_column(PAGE_KIND_EXPR) == "calibration_page",
+                literal_column(PAGE_KIND_EXPR).in_(RUN_PAGE_KINDS),
                 literal_column(_RUN_ID_EXPR).in_(list(by_id)),
                 literal_column(_RETRY_OF_EXPR).is_not(None),
             )
@@ -624,7 +627,7 @@ async def record_media_source(
 
 
 class RunMediaSource:
-    """The page job runner's ``MediaSourceListener`` for calibration pages."""
+    """The page job runner's ``MediaSourceListener`` for the kinds of ``RUN_PAGE_KINDS``."""
 
     def __init__(self, factory: async_sessionmaker[AsyncSession]) -> None:
         self._factory = factory

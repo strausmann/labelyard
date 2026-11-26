@@ -22,7 +22,7 @@ from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin, require_print, require_read
-from app.calibration import history, page, runs, scale, service, suggest
+from app.calibration import history, page, probe, runs, scale, service, suggest
 from app.calibration.check_sheet import (
     CheckSheetOpen,
     check_passes,
@@ -44,6 +44,7 @@ from app.calibration.model import (
 )
 from app.calibration.runs import CalibrationRunRead
 from app.calibration.suggest import GeometrySuggestion, SuggestionUnavailable
+from app.config import get_settings
 from app.db.session import get_session
 from app.repositories import printers as printers_repo
 from app.schemas.problem import ProblemDetail
@@ -51,7 +52,7 @@ from app.services import render_slots
 from app.services.page_jobs import PagePayload
 from app.settings_store.registry import SETTINGS
 from app.sheets import type_service as ts
-from app.sheets.errors import PrinterNotFoundError
+from app.sheets.errors import PrinterNotFoundError, SheetPrinterDisabledError
 from app.sheets.print_service import RenderTimeoutApiError, RenderUnavailableApiError
 
 router = APIRouter(prefix="/api/v1/printers", tags=["calibration"])
@@ -755,11 +756,215 @@ async def download_calibration_page(
     # No read transaction stays open while the page draws (#405), as in the other bounded renders.
     await session.commit()
     # What the job renders, under the process-wide render slots like the sheet preview (#358).
+    pdf = await _render_download(
+        page.render_calibration_page, payload, label=f"calibration:{printer_id}", auth=auth
+    )
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", f"calibration-{payload.detail['type_key']}")
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}-v{payload.detail["version"]}.pdf"'
+        },
+    )
+
+
+# ---------------------------------------------------------------------------- probe print
+
+
+class ProbeRequest(BaseModel):
+    type: str = Field(min_length=1, max_length=200, description="Sheet type key.")
+    version: int | None = Field(default=None, ge=1, description="Defaults to the current version.")
+    grid: bool = Field(
+        default=False,
+        description=(
+            "Print the measurement sheet: the probe page plus a millimetre grid over the whole "
+            "page (lines every 1 mm, heavier every 5 mm, labelled every 10 mm, origin at the "
+            "page's top-left corner), drawn without any correction."
+        ),
+    )
+
+
+class ProbeJobAccepted(BaseModel):
+    job_id: UUID
+    run_no: int = Field(description="The run number the page carries (per printer and tray).")
+
+
+_PROBE_DOWNLOAD_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {"content": {"application/pdf": {}}, "description": "The probe page."},
+    status.HTTP_403_FORBIDDEN: {
+        "description": "The key may not use this printer (`printer_not_allowed`)."
+    },
+    status.HTTP_422_UNPROCESSABLE_CONTENT: {
+        "description": (
+            "The tray is not an enabled tray of the printer (`tray_unknown`), or the grid has "
+            "more than 2500 cells (`calibration_grid_too_large`)."
+        )
+    },
+    status.HTTP_429_TOO_MANY_REQUESTS: {
+        "description": (
+            "A render of the key is stuck past the time limit (`too-many-previews`). The "
+            "body has the rate limit's shape (`retry_after_seconds`)."
+        )
+    },
+    status.HTTP_503_SERVICE_UNAVAILABLE: {
+        "description": "No render slot became free in time (`render-unavailable`)."
+    },
+    status.HTTP_504_GATEWAY_TIMEOUT: {
+        "description": (
+            "The page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`)."
+        )
+    },
+}
+
+
+@router.post(
+    "/{printer_id}/calibration/{tray}/probe",
+    response_model=ProbeJobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": (
+                "The key lacks the print scope (`insufficient_scope`) or may not use this "
+                "printer (`printer_not_allowed`)."
+            )
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "No such printer (`printer_not_found`) or sheet type."
+        },
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "The printer is disabled (`printer_disabled`), is a tape printer "
+                "(`media_kind_mismatch`), its fresh status says it is offline "
+                "(`printer-offline`; a stale status never refuses), it is not known to the print "
+                "queue (`printer-unavailable`), or the device behind it changed "
+                "(`printer-identity-mismatch`)."
+            )
+        },
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": (
+                "The tray is not an enabled tray of the printer (`tray_unknown`), or the grid has "
+                "more than 2500 cells (`calibration_grid_too_large`)."
+            )
+        },
+    },
+    summary="Print the probe page or the measurement sheet on plain paper (no sheet is created)",
+)
+async def print_probe_page(
+    request: Request,
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    body: ProbeRequest,
+    session: SessionDep,
+    auth: PrintDep,
+) -> ProbeJobAccepted:
+    """Queue a probe page: every label outline of the sheet type with its number and row and
+    column, the preprint zones hatched and the planned sheet-ID rectangle dashed, drawn with the
+    tray's current correction (the measurement sheet, `grid`, without any). No sheet, reservation
+    or cell changes; the page takes the tray's next run number and can be retried from Jobs."""
+    check_printer_access(auth, printer_id)
+    with mapped():
+        printer = await service.page_printer(session, printer_id)
+        if not printer.enabled:
+            raise SheetPrinterDisabledError()
+    queue = getattr(request.app.state, "print_queue", None)
+    ensure_not_held(queue, printer_id)  # #231
+    if await probe.fresh_offline(
+        session, printer_id, probe_interval_s=get_settings().sse_probe_interval_s
+    ):
+        raise _printer_offline(printer_id)
+    with mapped():
+        time_zone = str(_setting(request, "general.time_zone"))
+        payload = await probe.build_probe_payload(
+            session, printer_id, tray, type_key=body.type, version=body.version, grid=body.grid,
+            time_zone=time_zone,
+        )  # fmt: skip
+        if queue is None:
+            raise _printer_unavailable(printer_id)
+        version = await ts.get_version(
+            session, payload.detail["type_key"], payload.detail["version"]
+        )
+
+        async def submit(stamped: PagePayload, job_id: UUID) -> UUID:
+            new_id: UUID = await queue.submit_page_job(
+                printer_id, stamped, api_key_id=auth.api_key_id, source_ip=auth.ip, job_id=job_id
+            )
+            return new_id
+
+        # #336: the run is committed before the job; a failed submit deletes it again (ADR 0029).
+        try:
+            run, job_id = await runs.submit_with_run(
+                session,
+                payload,
+                printer_id=printer_id,
+                kind="probe_page",
+                type_version_id=version.id,
+                actor=actor(auth),
+                submit=submit,
+                time_zone=time_zone,
+                retention_days=_job_retention_days(request),
+            )
+        except KeyError:
+            raise _printer_unavailable(printer_id) from None
+    # ``run`` is a detached snapshot (``submit_with_run``); only its number is read.
+    return ProbeJobAccepted(job_id=job_id, run_no=run.run_no)
+
+
+@router.get(
+    "/{printer_id}/calibration/{tray}/probe/pdf",
+    response_class=Response,
+    responses=_PROBE_DOWNLOAD_RESPONSES,
+    summary="Download the probe page or the measurement sheet as a PDF",
+)
+async def download_probe_page(
+    request: Request,
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    session: SessionDep,
+    auth: ReadDep,
+    type_key: Annotated[
+        str, Query(alias="type", min_length=1, max_length=200, description="Sheet type key.")
+    ],
+    version: Annotated[
+        int | None, Query(ge=1, description="Defaults to the current version.")
+    ] = None,
+    grid: Annotated[
+        bool, Query(description="The measurement sheet: with the millimetre grid, uncorrected.")
+    ] = False,
+) -> Response:
+    """The page the job would print, without a run (no run number and time)."""
+    check_printer_access(auth, printer_id)
+    with mapped():
+        payload = await probe.build_probe_payload(
+            session, printer_id, tray, type_key=type_key, version=version, grid=grid,
+            time_zone=str(_setting(request, "general.time_zone")),
+        )  # fmt: skip
+    # No read transaction stays open while the page draws (#405).
+    await session.commit()
+    pdf = await _render_download(
+        probe.render_probe_page, payload, label=f"probe:{printer_id}", auth=auth
+    )
+    what = "measurement-sheet" if grid else "probe"
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", f"{what}-{payload.detail['type_key']}")
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}-v{payload.detail["version"]}.pdf"'
+        },
+    )
+
+
+async def _render_download(
+    render: Any, payload: PagePayload, *, label: str, auth: AuthContext
+) -> bytes:
+    """Draw ``payload`` under the render slots (#358) and map their refusals to the answers the
+    download routes document (504, 503, 429)."""
     try:
-        pdf = await render_slots.render_bounded(
-            page.render_calibration_page,
+        pdf: bytes = await render_slots.render_bounded(
+            render,
             payload,
-            label=f"calibration:{printer_id}",
+            label=label,
             owner=render_slots.owner_of(auth.api_key_id, auth.session_id),
         )
     except render_slots.RenderTimeoutError:
@@ -779,14 +984,7 @@ async def download_calibration_page(
             },
             headers={"Retry-After": str(_DOWNLOAD_RETRY_AFTER_S)},
         ) from None
-    name = re.sub(r"[^A-Za-z0-9._-]", "_", f"calibration-{payload.detail['type_key']}")
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{name}-v{payload.detail["version"]}.pdf"'
-        },
-    )
+    return pdf
 
 
 def _printer_unavailable(printer_id: UUID) -> HTTPException:
@@ -795,6 +993,18 @@ def _printer_unavailable(printer_id: UUID) -> HTTPException:
         title="Printer is not available to the print queue",
         status=status.HTTP_409_CONFLICT,
         detail=f"Printer {printer_id} is not known to the print queue",
+    )
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT, detail=problem.model_dump(exclude_none=True)
+    )
+
+
+def _printer_offline(printer_id: UUID) -> HTTPException:
+    problem = ProblemDetail(
+        type="printer-offline",
+        title="The printer is offline",
+        status=status.HTTP_409_CONFLICT,
+        detail=f"The last status of printer {printer_id} says it is offline",
     )
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT, detail=problem.model_dump(exclude_none=True)
