@@ -75,7 +75,8 @@ function Body({ typeKey, typeName, state, fixed, pagePrinters, onClose }: TypeLo
   useEffect(() => {
     const keep = () => {
       const field = noteBox.current?.querySelector("textarea");
-      if (field && document.activeElement === field) field.scrollIntoView({ block: "nearest" });
+      // jsdom has no scrollIntoView; every browser does.
+      if (field && document.activeElement === field && typeof field.scrollIntoView === "function") field.scrollIntoView({ block: "nearest" });
     };
     const later = () => requestAnimationFrame(keep);
     const node = noteBox.current;
