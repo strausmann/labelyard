@@ -9,6 +9,7 @@ msgstr ""
 
 #: src/features/calibration/guide/ReadingGuide.tsx
 #: src/features/calibration/guide/StillOff.tsx
+#: src/features/calibration/SuggestionCard.tsx
 msgid "(opens in a new tab)"
 msgstr "(opens in a new tab)"
 
@@ -273,6 +274,10 @@ msgstr "{code} is not a sheet of this type. This print uses {typeLabel} sheets."
 msgid "{code} marked as verified"
 msgstr "{code} marked as verified"
 
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "{complete} readings"
+msgstr "{complete} readings"
+
 #: src/features/jobs/JobDetail.tsx
 msgid "{copyNo} of {copyTotal}"
 msgstr "{copyNo} of {copyTotal}"
@@ -466,6 +471,10 @@ msgstr "{names} empty"
 msgid "{names} low"
 msgstr "{names} low"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "{no} · calibration page · {time}"
+msgstr "{no} · calibration page · {time}"
+
 #: src/features/sheets/print/SheetPreview.tsx
 msgid "{now} printed now"
 msgstr "{now} printed now"
@@ -649,6 +658,10 @@ msgstr "{what} must not be negative."
 msgid "{width} mm"
 msgstr "{width} mm"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "#{runNo} (retry)"
+msgstr "#{runNo} (retry)"
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "+ = printed too far right"
 msgstr "+ = printed too far right"
@@ -668,6 +681,14 @@ msgstr "+ across = the ink lies right of the middle of the gap, − across = lef
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "+ down = the ink lies below the cut, − down = above it."
 msgstr "+ down = the ink lies below the cut, − down = above it."
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "0.1 mm"
+msgstr "0.1 mm"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "0.5 mm (the scale)"
+msgstr "0.5 mm (the scale)"
 
 #: src/features/archive/IdPlacementSection.tsx
 msgid "1 (top left)"
@@ -750,6 +771,10 @@ msgstr "A printer list is stored on this key. Ignored for admin keys: an admin k
 msgid "A product code is at most {0} characters."
 msgstr "A product code is at most {0} characters."
 
+#: src/features/calibration/LiveFit.tsx
+msgid "A residual over 0.3 mm is marked: read that crossing again before you save."
+msgstr "A residual over 0.3 mm is marked: read that crossing again before you save."
+
 #: src/features/sheets/errors.ts
 msgid "A running job still uses this sheet. Try again when it has finished."
 msgstr "A running job still uses this sheet. Try again when it has finished."
@@ -821,11 +846,16 @@ msgstr "About the key"
 msgid "above 1 = printed too large"
 msgstr "above 1 = printed too large"
 
+#: src/features/calibration/DirectionPicker.tsx
+msgid "Above the cut"
+msgstr "Above the cut"
+
 #: src/shell/labels.ts
 msgid "Access and keys"
 msgstr "Access and keys"
 
 #: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/ReadingsHelper.tsx
 #: src/features/calibration/RestoreDialog.tsx
 #: src/features/layout/LayoutPicker.tsx
@@ -835,6 +865,10 @@ msgstr "Across"
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Across at {name} (mm)"
 msgstr "Across at {name} (mm)"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Across at {name}: where the ink lies"
+msgstr "Across at {name}: where the ink lies"
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Across: + = the ink lies to the right of the middle of the gap, − = to the left."
@@ -953,6 +987,10 @@ msgstr "Address"
 msgid "Address the hub uses"
 msgstr "Address the hub uses"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Adds version {next} of {typeName} with a change note naming print #{runNo}, and a log entry. Admins only. Sheets already made keep version {current}."
+msgstr "Adds version {next} of {typeName} with a change note naming print #{runNo}, and a log entry. Admins only. Sheets already made keep version {current}."
+
 #: src/features/printers/wiring.tsx
 msgid "After a restart"
 msgstr "After a restart"
@@ -1060,6 +1098,10 @@ msgstr "API keys"
 #: src/features/sheets/SheetDetail.tsx
 msgid "Applies to every chosen cell."
 msgstr "Applies to every chosen cell."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Apply as new version"
+msgstr "Apply as new version"
 
 #: src/features/archive/TypeDetail.tsx
 msgid "Archive"
@@ -1249,6 +1291,10 @@ msgstr "before 1.8.0"
 msgid "Before you print"
 msgstr "Before you print"
 
+#: src/features/calibration/DirectionPicker.tsx
+msgid "Below the cut"
+msgstr "Below the cut"
+
 #: src/features/printers/model.ts
 msgid "Black"
 msgstr "Black"
@@ -1345,6 +1391,10 @@ msgstr "Calibration page of {typeName}: {0} columns and {1} rows on {2}, {3} × 
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Calibration page status"
 msgstr "Calibration page status"
+
+#: src/features/calibration/RunPicker.tsx
+msgid "Calibration pages"
+msgstr "Calibration pages"
 
 #: src/features/scan/CameraScanner.tsx
 msgid "Camera view"
@@ -1519,6 +1569,10 @@ msgstr "Check page"
 msgid "Check page status"
 msgstr "Check page status"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "Check sheet of run #{first} — pass {pass}, run #{runNo}"
+msgstr "Check sheet of run #{first} — pass {pass}, run #{runNo}"
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Check that the toner is dry and the QR code is not smeared. If it is, print again on the same sheet."
 msgstr "Check that the toner is dry and the QR code is not smeared. If it is, print again on the same sheet."
@@ -1530,10 +1584,6 @@ msgstr "Check the address, then save the printer again."
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Check the tray:"
 msgstr "Check the tray:"
-
-#: src/features/calibration/ReadingsHelper.tsx
-msgid "check this reading"
-msgstr "check this reading"
 
 #: src/features/sheets/PurgeDialog.tsx
 msgid "Check what would go"
@@ -1595,6 +1645,10 @@ msgstr "Choose cells"
 #: src/features/settings/IppPrinterFields.tsx
 msgid "Choose one tray as the default."
 msgstr "Choose one tray as the default."
+
+#: src/features/calibration/guide/ReadingGuide.tsx
+msgid "Choose the print the readings come from: its run number is printed in the page margin (\"#12\"). The newest calibration page of this tray and type is chosen for you."
+msgstr "Choose the print the readings come from: its run number is printed in the page margin (\"#12\"). The newest calibration page of this tray and type is chosen for you."
 
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Chore"
@@ -1916,7 +1970,7 @@ msgid "Created the type {0}."
 msgstr "Created the type {0}."
 
 #: src/features/calibration/HistoryPanel.tsx
-#: src/features/calibration/ReadingsHelper.tsx
+#: src/features/calibration/LiveFit.tsx
 msgid "Crossing"
 msgstr "Crossing"
 
@@ -2143,6 +2197,7 @@ msgid "door open"
 msgstr "door open"
 
 #: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/ReadingsHelper.tsx
 #: src/features/calibration/RestoreDialog.tsx
 msgid "Down"
@@ -2151,6 +2206,10 @@ msgstr "Down"
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "Down at {name} (mm)"
 msgstr "Down at {name} (mm)"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Down at {name}: where the ink lies"
+msgstr "Down at {name}: where the ink lies"
 
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Down: + = the ink lies below the middle of the gap, − = above it."
@@ -2192,6 +2251,10 @@ msgstr "Drying temperature field"
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Drying time field"
 msgstr "Drying time field"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Each press moves one tick of the printed scale."
+msgstr "Each press moves one tick of the printed scale."
 
 #: src/features/archive/PreprintZonesEditor.tsx
 msgid "Each value has at most two decimals, for example 12.25."
@@ -2283,6 +2346,10 @@ msgstr "Enter at least three readings to fit."
 msgid "Enter each value as a number in mm, for example 12.5."
 msgstr "Enter each value as a number in mm, for example 12.5."
 
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Enter how far the ink landed from each printed crossing. Use the direction buttons so the sign is never a guess."
+msgstr "Enter how far the ink landed from each printed crossing. Use the direction buttons so the sign is never a guess."
+
 #: src/features/settings/SettingField.tsx
 msgid "Enter it again"
 msgstr "Enter it again"
@@ -2292,8 +2359,8 @@ msgid "Enter the printer's address."
 msgstr "Enter the printer's address."
 
 #: src/features/calibration/guide/ReadingGuide.tsx
-msgid "Enter the readings below, choose the crossing for each, and press Fit. Check the filled-in values, then save them."
-msgstr "Enter the readings below, choose the crossing for each, and press Fit. Check the filled-in values, then save them."
+msgid "Enter the readings below: choose the crossing for each, press the direction buttons for where the ink lies, and type the size. From three readings the live fit shows the result; press Fit to fill in the values, check them, then save them."
+msgstr "Enter the readings below: choose the crossing for each, press the direction buttons for where the ink lies, and type the size. From three readings the live fit shows the result; press Fit to fill in the values, check them, then save them."
 
 #: src/features/settings/PrinterForm.tsx
 msgid "Enter the SNMP community, or turn status discovery off."
@@ -2307,9 +2374,17 @@ msgstr "Enter the SNMP community. A stored community is not reused for another h
 msgid "Enter what the printer did wrong; the hub applies the opposite itself."
 msgstr "Enter what the printer did wrong; the hub applies the opposite itself."
 
+#: src/features/calibration/guide/ReadingGuide.tsx
+msgid "Equal everywhere: printer offset."
+msgstr "Equal everywhere: printer offset."
+
 #: src/features/notifications/NotificationCentre.tsx
 msgid "Error"
 msgstr "Error"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Estimate between two ticks to 0.1 mm."
+msgstr "Estimate between two ticks to 0.1 mm."
 
 #: src/features/calibration/HistoryPanel.tsx
 msgid "Every calibration, check and probe page has a run number. A retry keeps its number."
@@ -2378,6 +2453,10 @@ msgstr "Feed mark: no free place on this sheet"
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Filament name"
 msgstr "Filament name"
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Fill the feedback issue"
+msgstr "Fill the feedback issue"
 
 #: src/features/archive/RemoveUnusedDialog.tsx
 msgid "Filter"
@@ -2463,6 +2542,10 @@ msgstr "Fit from {count} readings"
 msgid "Fit from {count} readings of print #{0}"
 msgstr "Fit from {count} readings of print #{0}"
 
+#: src/features/calibration/LiveFit.tsx
+msgid "fits"
+msgstr "fits"
+
 #: src/features/archive/MarginPlacement.tsx
 msgid "Fits"
 msgstr "Fits"
@@ -2496,6 +2579,10 @@ msgstr "free"
 msgid "Free labels"
 msgstr "Free labels"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "From {readings} check readings"
+msgstr "From {readings} check readings"
+
 #: src/features/archive/TypeVersions.tsx
 msgid "from the catalog"
 msgstr "from the catalog"
@@ -2503,6 +2590,10 @@ msgstr "from the catalog"
 #: src/features/archive/TypeForm.tsx
 msgid "From the left edge of one label to the left edge of the next."
 msgstr "From the left edge of one label to the left edge of the next."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "From the readings of print #{fitRun}."
+msgstr "From the readings of print #{fitRun}."
 
 #: src/features/archive/PreprintZonesEditor.tsx
 msgid "From the sheet's top-left corner, in mm."
@@ -2525,12 +2616,12 @@ msgid "Gap crossing {name}"
 msgstr "Gap crossing {name}"
 
 #: src/features/calibration/ReadingsHelper.tsx
-msgid "Gap S"
-msgstr "Gap S"
+msgid "Gap S of reading {n}"
+msgstr "Gap S of reading {n}"
 
 #: src/features/calibration/ReadingsHelper.tsx
-msgid "Gap Z"
-msgstr "Gap Z"
+msgid "Gap Z of reading {n}"
+msgstr "Gap Z of reading {n}"
 
 #: src/features/settings/sections.tsx
 #: src/shell/labels.ts
@@ -2540,6 +2631,10 @@ msgstr "General"
 #: src/features/settings/AccessKeys.tsx
 msgid "Generate a key"
 msgstr "Generate a key"
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Geometry suggestion"
+msgstr "Geometry suggestion"
 
 #: src/features/printers/model.ts
 msgid "Green"
@@ -2580,6 +2675,14 @@ msgstr "Grocy is not set up yet, so this cannot be shown."
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "Grocy labels"
 msgstr "Grocy labels"
+
+#: src/features/calibration/guide/ReadingGuide.tsx
+msgid "Growing evenly across the gaps of one type only: its pitch."
+msgstr "Growing evenly across the gaps of one type only: its pitch."
+
+#: src/features/calibration/guide/ReadingGuide.tsx
+msgid "Growing evenly in both directions: printer scale."
+msgstr "Growing evenly in both directions: printer scale."
 
 #: src/features/settings/PrinterForm.tsx
 msgid "Half cut by default"
@@ -2832,6 +2935,10 @@ msgstr "Is “TOP” next to the cross?"
 msgid "Is the print on the side with the cross?"
 msgstr "Is the print on the side with the cross?"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "It is not known which sheet type the saved correction was measured on (it was typed in, or its history is gone), so the sheet cannot be told apart from the printer."
+msgstr "It is not known which sheet type the saved correction was measured on (it was typed in, or its history is gone), so the sheet cannot be told apart from the printer."
+
 #: src/features/calibration/guide/StillOff.tsx
 msgid "It is the paper feed: push the sheet against the guide and print a second one. Change the correction only if it repeats."
 msgstr "It is the paper feed: push the sheet against the guide and print a second one. Change the correction only if it repeats."
@@ -3077,6 +3184,7 @@ msgid "left margin"
 msgstr "left margin"
 
 #: src/features/archive/geometryRows.ts
+#: src/features/calibration/SuggestionCard.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Left margin"
 msgstr "Left margin"
@@ -3085,18 +3193,22 @@ msgstr "Left margin"
 msgid "Left margin (mm)"
 msgstr "Left margin (mm)"
 
+#: src/features/calibration/DirectionPicker.tsx
+msgid "Left of the gap"
+msgstr "Left of the gap"
+
 #: src/features/archive/IdPositionControls.tsx
 msgid "Left or top"
 msgstr "Left or top"
-
-#: src/features/calibration/ReadingsHelper.tsx
-msgid "Left over after the fit"
-msgstr "Left over after the fit"
 
 #: src/features/calibration/CalibrationSchematic.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Legend"
 msgstr "Legend"
+
+#: src/features/calibration/ReadingStepper.tsx
+msgid "Less: {label}"
+msgstr "Less: {label}"
 
 #: src/features/settings/System.tsx
 msgid "Level"
@@ -3169,6 +3281,10 @@ msgstr "Links open on <0>{savedHost}</0>"
 msgid "Links shown"
 msgstr "Links shown"
 
+#: src/features/calibration/LiveFit.tsx
+msgid "Live fit"
+msgstr "Live fit"
+
 #: src/shell/LiveStatus.tsx
 msgid "Live updates paused"
 msgstr "Live updates paused"
@@ -3219,6 +3335,7 @@ msgstr "Loading vendors…"
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/RunPicker.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/JobsPage.tsx
 #: src/features/lookup/ItemView.tsx
@@ -3329,10 +3446,6 @@ msgstr "Measure again anyway"
 msgid "Measure and save values first, then check."
 msgstr "Measure and save values first, then check."
 
-#: src/features/calibration/CalibrationPage.tsx
-msgid "Measure with the readings helper"
-msgstr "Measure with the readings helper"
-
 #: src/features/archive/FeedbackLinks.tsx
 msgid "Measured a sheet? Tell us what you found. The link opens a prepared issue on GitHub that holds this sheet type's data only: no address of your hub, no printer, no keys."
 msgstr "Measured a sheet? Tell us what you found. The link opens a prepared issue on GitHub that holds this sheet type's data only: no address of your hub, no printer, no keys."
@@ -3404,6 +3517,10 @@ msgstr "More in the guide"
 msgid "More on labelyard.app"
 msgstr "More on labelyard.app"
 
+#: src/features/calibration/ReadingStepper.tsx
+msgid "More: {label}"
+msgstr "More: {label}"
+
 #: src/features/settings/PrinterForm.tsx
 msgid "Name"
 msgstr "Name"
@@ -3415,6 +3532,10 @@ msgstr "Name and host are required."
 #: src/features/overview/OverviewPage.tsx
 msgid "Needs attention"
 msgstr "Needs attention"
+
+#: src/features/calibration/LiveFit.tsx
+msgid "Needs three readings. Recalculated 0.4 s after your last change."
+msgstr "Needs three readings. Recalculated 0.4 s after your last change."
 
 #: src/features/scan/GrocycodePage.tsx
 msgid "Never"
@@ -3516,6 +3637,10 @@ msgstr "No"
 msgid "No answer yet"
 msgstr "No answer yet"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "No calibration page of this type was printed on this tray yet. The readings are saved without a print."
+msgstr "No calibration page of this type was printed on this tray yet. The readings are saved without a print."
+
 #: src/features/calibration/HistoryPanel.tsx
 msgid "No calibration, check or probe page printed from this tray yet."
 msgstr "No calibration, check or probe page printed from this tray yet."
@@ -3539,6 +3664,10 @@ msgstr "No cell is in use."
 #: src/features/sheets/errors.ts
 msgid "No cell is waiting for confirmation any more."
 msgstr "No cell is waiting for confirmation any more."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "No change to pitch or margins."
+msgstr "No change to pitch or margins."
 
 #: src/features/archive/TypeForm.tsx
 msgid "No change: the measurements are the same as in the current version."
@@ -3695,6 +3824,10 @@ msgstr "No sheets yet."
 #: src/features/printers/model.ts
 msgid "No status yet"
 msgstr "No status yet"
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "No suggestion for this one"
+msgstr "No suggestion for this one"
 
 #: src/features/printers/PageStatus.tsx
 msgid "No supplies reported"
@@ -4050,6 +4183,10 @@ msgstr "On"
 msgid "on {printerName}"
 msgstr "on {printerName}"
 
+#: src/features/calibration/guide/ReadingGuide.tsx
+msgid "On a calibration page the fit takes all three in. A pitch error only shows on a check print made with the correction of another sheet type; then the readings helper suggests the new pitch or margin."
+msgstr "On a calibration page the fit takes all three in. A pitch error only shows on a check print made with the correction of another sheet type; then the readings helper suggests the new pitch or margin."
+
 #: src/features/archive/IdPlacementSection.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "On the back of the liner"
@@ -4149,6 +4286,10 @@ msgstr "Open {sheetCode}"
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Open cart"
 msgstr "Open cart"
+
+#: src/features/calibration/RunPicker.tsx
+msgid "Open check sheet"
+msgstr "Open check sheet"
 
 #: src/features/lookup/ItemView.tsx
 msgid "Open in {appName}"
@@ -4365,6 +4506,14 @@ msgstr "Per label type"
 msgid "Pitch"
 msgstr "Pitch"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Pitch across"
+msgstr "Pitch across"
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Pitch down"
+msgstr "Pitch down"
+
 #: src/features/archive/MarginPlacement.tsx
 msgid "Place"
 msgstr "Place"
@@ -4562,6 +4711,14 @@ msgstr "Printed"
 msgid "Printed from"
 msgstr "Printed from"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "Printed from {actual}, requested {requested}."
+msgstr "Printed from {actual}, requested {requested}."
+
+#: src/features/calibration/RunPicker.tsx
+msgid "Printed from {requested}, as requested."
+msgstr "Printed from {requested}, as requested."
+
 #: src/features/calibration/CalibrationSchematic.tsx
 msgid "Printed in black only: lines are told apart by number and line style, never by colour."
 msgstr "Printed in black only: lines are told apart by number and line style, never by colour."
@@ -4614,6 +4771,10 @@ msgstr "Printer is stopped"
 #: src/features/printers/TestPrintButton.tsx
 msgid "Printer is stopped: {reasons}"
 msgstr "Printer is stopped: {reasons}"
+
+#: src/features/calibration/guide/ReadingGuide.tsx
+msgid "Printer or sheet type?"
+msgstr "Printer or sheet type?"
 
 #: src/features/printers/printConfirmation.ts
 msgid "Printer reports the job state (IPP)"
@@ -4686,6 +4847,10 @@ msgstr "prints on the side facing up"
 #: src/features/archive/IdPlacementSection.tsx
 msgid "Prints the code in the free band around the labels. No extra pass through the printer."
 msgstr "Prints the code in the free band around the labels. No extra pass through the printer."
+
+#: src/features/calibration/LiveFit.tsx
+msgid "probable misread"
+msgstr "probable misread"
 
 #: src/features/calibration/RunsTable.tsx
 msgid "Probe page"
@@ -4823,10 +4988,6 @@ msgstr "Read printer"
 msgid "Read the crossings marked in the drawing."
 msgstr "Read the crossings marked in the drawing."
 
-#: src/features/calibration/ReadingsHelper.tsx
-msgid "Read the deviation at three or more crossings that are far apart, in both directions. + across = the ink lies to the right, + down = the ink lies below."
-msgstr "Read the deviation at three or more crossings that are far apart, in both directions. + across = the ink lies to the right, + down = the ink lies below."
-
 #: src/features/about/AboutPage.tsx
 msgctxt "action"
 msgid "Read the licence"
@@ -4855,8 +5016,13 @@ msgstr "Reading the printer…"
 
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/ReadingsHelper.tsx
 msgid "Readings"
 msgstr "Readings"
+
+#: src/features/calibration/RunPicker.tsx
+msgid "Readings from print"
+msgstr "Readings from print"
 
 #: src/features/settings/PrinterForm.tsx
 msgid "Reads the printer's state and tape over SNMP. Printing works without it."
@@ -4874,6 +5040,14 @@ msgstr "Ready to load"
 #: src/features/printers/wiring.tsx
 msgid "Reason"
 msgstr "Reason"
+
+#: src/features/calibration/LiveFit.tsx
+msgid "Recalculated 0.4 s after your last change."
+msgstr "Recalculated 0.4 s after your last change."
+
+#: src/features/calibration/LiveFit.tsx
+msgid "Recalculating…"
+msgstr "Recalculating…"
 
 #: src/features/overview/OverviewPage.tsx
 msgid "Recent jobs"
@@ -4996,6 +5170,10 @@ msgstr "Reprint from label {choice}"
 msgid "Reprint margin code"
 msgstr "Reprint margin code"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "Requested from {requested}; the printer did not say which tray it took."
+msgstr "Requested from {requested}; the printer did not say which tray it took."
+
 #: src/features/calibration/RunsTable.tsx
 msgid "Requested tray"
 msgstr "Requested tray"
@@ -5026,6 +5204,7 @@ msgid "Reset. This tray prints without correction."
 msgstr "Reset. This tray prints without correction."
 
 #: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/LiveFit.tsx
 msgid "Residual"
 msgstr "Residual"
 
@@ -5088,7 +5267,7 @@ msgstr "Restoring…"
 msgid "Result"
 msgstr "Result"
 
-#: src/features/calibration/ReadingsHelper.tsx
+#: src/features/calibration/LiveFit.tsx
 msgid "Result of the fit"
 msgstr "Result of the fit"
 
@@ -5162,6 +5341,10 @@ msgstr "right margin"
 msgid "Right margin"
 msgstr "Right margin"
 
+#: src/features/calibration/DirectionPicker.tsx
+msgid "Right of the gap"
+msgstr "Right of the gap"
+
 #: src/features/archive/IdPositionControls.tsx
 msgid "Right or bottom"
 msgstr "Right or bottom"
@@ -5172,6 +5355,7 @@ msgstr "Roll not supported"
 
 #: src/features/calibration/errors.ts
 #: src/features/calibration/HistoryPanel.tsx
+#: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/RestoreDialog.tsx
 msgid "Rotation"
 msgstr "Rotation"
@@ -5304,6 +5488,7 @@ msgstr "Saving needs an admin key, because it changes every print on this tray."
 msgid "Saving tries the connection again, you do not need to restart the hub."
 msgstr "Saving tries the connection again, you do not need to restart the hub."
 
+#: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/RestoreDialog.tsx
 msgid "Scale"
 msgstr "Scale"
@@ -5872,13 +6057,13 @@ msgstr "Status discovery is off for this printer. An admin can turn it on throug
 msgid "Status unknown"
 msgstr "Status unknown"
 
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Step"
+msgstr "Step"
+
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Step 1: Print the calibration page"
 msgstr "Step 1: Print the calibration page"
-
-#: src/features/calibration/CalibrationPage.tsx
-msgid "Step 2: Enter the deviation"
-msgstr "Step 2: Enter the deviation"
 
 #: src/features/calibration/guide/ReadingGuide.tsx
 #: src/features/sheets/backSide/ActivateBackSide.tsx
@@ -6369,6 +6554,7 @@ msgstr "The entry could not be loaded."
 msgid "The file is larger than 64 KB."
 msgstr "The file is larger than 64 KB."
 
+#: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/ReadingsHelper.tsx
 msgid "The fit failed."
 msgstr "The fit failed."
@@ -6698,6 +6884,14 @@ msgstr "The name is required."
 msgid "The new sheet"
 msgstr "The new sheet"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "The new version could not be added."
+msgstr "The new version could not be added."
+
+#: src/features/calibration/RunPicker.tsx
+msgid "The newest page of this printer, tray and type."
+msgstr "The newest page of this printer, tray and type."
+
 #: src/features/archive/errors.ts
 msgid "The note about the change"
 msgstr "The note about the change"
@@ -6787,6 +6981,10 @@ msgstr "The preview took too long. Try again later."
 #: src/features/jobs/jobErrorText.ts
 msgid "The print failed (error code {code})."
 msgstr "The print failed (error code {code})."
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "The print is off by more than the scale shows (±{halfText} mm). Check the tray, the sheet type or the printer."
+msgstr "The print is off by more than the scale shows (±{halfText} mm). Check the tray, the sheet type or the printer."
 
 #: src/features/jobs/RetryError.tsx
 #: src/features/sheets/errors.ts
@@ -7016,6 +7214,10 @@ msgstr "The roll could not be read."
 msgid "The roll was changed"
 msgstr "The roll was changed"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "The saved correction was measured on this same type, so a pitch error would be absorbed into it. Print a check page on another sheet type first."
+msgstr "The saved correction was measured on this same type, so a pitch error would be absorbed into it. Print a check page on another sheet type first."
+
 #: src/features/printers/wiring.tsx
 msgid "the saved settings are not valid"
 msgstr "the saved settings are not valid"
@@ -7178,6 +7380,10 @@ msgstr "The source name"
 msgid "The split of this print no longer fits. Check the preview and try again."
 msgstr "The split of this print no longer fits. Check the preview and try again."
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "The suggested values do not make a valid sheet: the labels would overlap or leave the page. Nothing was changed."
+msgstr "The suggested values do not make a valid sheet: the labels would overlap or leave the page. Nothing was changed."
+
 #: src/features/jobs/jobErrorText.ts
 msgid "The tape is empty. Put in a new tape and retry."
 msgstr "The tape is empty. Put in a new tape and retry."
@@ -7293,6 +7499,10 @@ msgid "There is nothing to print yet."
 msgstr "There is nothing to print yet."
 
 #: src/features/calibration/ReadingsHelper.tsx
+msgid "These are check readings: they show what is left with the stored correction, so they are not filled in as a new one."
+msgstr "These are check readings: they show what is left with the stored correction, so they are not filled in as a new one."
+
+#: src/features/calibration/LiveFit.tsx
 msgid "These fitted values are outside the allowed range: {outOfRangeList}. They are not filled in. More than that is a fault of the printer, not something to correct."
 msgstr "These fitted values are outside the allowed range: {outOfRangeList}. They are not filled in. More than that is a fault of the printer, not something to correct."
 
@@ -7316,9 +7526,25 @@ msgstr "These labels need {pages} pages, and at most {max} pages can be previewe
 msgid "These labels were sent to the printer, but nobody confirmed the result. Say what became of each one."
 msgstr "These labels were sent to the printer, but nobody confirmed the result. Say what became of each one."
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "These readings are not from a check print, so they cannot change the sheet type."
+msgstr "These readings are not from a check print, so they cannot change the sheet type."
+
 #: src/features/calibration/errors.ts
 msgid "These readings cannot be fitted. Check them and add crossings that are further apart."
 msgstr "These readings cannot be fitted. Check them and add crossings that are further apart."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "These readings give no geometry suggestion."
+msgstr "These readings give no geometry suggestion."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "These readings were printed with the correction measured on <0>{measuredOn}</0>, a different type. What is left looks like the sheet, not the printer."
+msgstr "These readings were printed with the correction measured on <0>{measuredOn}</0>, a different type. What is left looks like the sheet, not the printer."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "These readings were printed with the correction of a different type. What is left looks like the sheet, not the printer."
+msgstr "These readings were printed with the correction of a different type. What is left looks like the sheet, not the printer."
 
 #: src/features/archive/errors.ts
 msgid "These types have sheets now: {keys}. Nothing was removed."
@@ -7332,6 +7558,14 @@ msgstr "Third-party software"
 #: src/features/scan/CameraScanner.tsx
 msgid "This browser blocked the camera for this site. Allow it in the site settings (the icon next to the address, then Camera), then try again."
 msgstr "This browser blocked the camera for this site. Allow it in the site settings (the icon next to the address, then Camera), then try again."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "This check print was made for another sheet type."
+msgstr "This check print was made for another sheet type."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "This check print was made without a correction, so what it shows is the printer, not the sheet. Print the check page with the correction."
+msgstr "This check print was made without a correction, so what it shows is the printer, not the sheet. Print the check page with the correction."
 
 #: src/features/scan/ScanScreen.tsx
 msgid "This code is not one the hub knows. Its text:"
@@ -7520,6 +7754,10 @@ msgstr "This sheet takes {total} check passes. This is pass 1, on a fresh sheet:
 msgid "This sheet takes one check pass: the check page uses up the sheet."
 msgstr "This sheet takes one check pass: the check page uses up the sheet."
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "This sheet type has a newer version than the one the check print was made for. Print a new check page and read it again."
+msgstr "This sheet type has a newer version than the one the check print was made for. Print a new check page and read it again."
+
 #: src/features/calibration/errors.ts
 msgid "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
 msgstr "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
@@ -7650,6 +7888,7 @@ msgid "top margin"
 msgstr "top margin"
 
 #: src/features/archive/geometryRows.ts
+#: src/features/calibration/SuggestionCard.tsx
 #: src/features/sheets/GeometryDiagram.tsx
 msgid "Top margin"
 msgstr "Top margin"
@@ -7761,6 +8000,10 @@ msgstr "unconfirmed"
 msgid "Unconfirmed cells"
 msgstr "Unconfirmed cells"
 
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Uneven: the readings follow no straight line. Check the sheet, not the printer."
+msgstr "Uneven: the readings follow no straight line. Check the sheet, not the printer."
+
 #: src/features/about/BuildRows.tsx
 #: src/features/printers/MarkerSwatch.tsx
 #: src/features/sheets/GeometryDiagram.tsx
@@ -7826,6 +8069,10 @@ msgstr "Update: catalog version {0}"
 #: src/features/archive/TypeDetail.tsx
 msgid "Updated to the catalog version."
 msgstr "Updated to the catalog version."
+
+#: src/features/calibration/LiveFit.tsx
+msgid "Updates as you type"
+msgstr "Updates as you type"
 
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Updating the preview…"
@@ -7918,6 +8165,10 @@ msgstr "Vendor, key, description or product code"
 msgid "Vendor, product code or size."
 msgstr "Vendor, product code or size."
 
+#: src/features/calibration/LiveFit.tsx
+msgid "Verdict"
+msgstr "Verdict"
+
 #: src/features/archive/CatalogTab.tsx
 msgid "Verified"
 msgstr "Verified"
@@ -7947,6 +8198,14 @@ msgstr "Version"
 msgctxt "column"
 msgid "Version"
 msgstr "Version"
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Version {added} of {key} is added. Open the feedback issue with the link above."
+msgstr "Version {added} of {key} is added. Open the feedback issue with the link above."
+
+#: src/features/calibration/SuggestionCard.tsx
+msgid "Version {added} of {key} is added. The feedback issue opened in a new tab."
+msgstr "Version {added} of {key} is added. The feedback issue opened in a new tab."
 
 #: src/shell/UpdateNotice.tsx
 msgid "Version {version}"
@@ -8215,6 +8474,10 @@ msgstr "You put in a new roll. The printer does not report the tape colour. Whic
 #: src/shell/BootstrapKeyCreated.tsx
 msgid "You signed in with the one-time bootstrap key. It can do one thing: create the first admin key."
 msgstr "You signed in with the one-time bootstrap key. It can do one thing: create the first admin key."
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "You typed {typed}. Readings snap to 0.1 mm, so it is saved as {savedAs} mm."
+msgstr "You typed {typed}. Readings snap to 0.1 mm, so it is saved as {savedAs} mm."
 
 #: src/shell/BootstrapKeyCreated.tsx
 msgid "Your new admin key"

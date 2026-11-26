@@ -43,6 +43,7 @@ export function ReadingGuide({
   const step = scale ? num(scale.step_mm) : "";
   const half = scale ? num(scale.half_mm) : "";
   const stepsId = useId();
+  const ruleId = useId();
   const geometry = type?.geometry;
   const typeName = type?.label ?? "";
   const outer = geometry ? suggestedCrossings(geometry.cols, geometry.rows) : [];
@@ -96,6 +97,7 @@ export function ReadingGuide({
           <h4 id={stepsId} className="m-0 text-body font-bold">{t`Steps`}</h4>
           <ol aria-labelledby={stepsId} className="m-0 -mt-2 flex list-decimal flex-col gap-3 pl-5">
             <li>{t`Print the page on a real sheet of this type. Writing a number on each cell, row by row, is optional; it helps when you take photos.`}</li>
+            <li>{t`Choose the print the readings come from: its run number is printed in the page margin ("#12"). The newest calibration page of this tray and type is chosen for you.`}</li>
             <li className="flex flex-col gap-3">
               <span>{fits ? t`Read at least the four outer crossings and the one in the centre.` : t`Read the crossings marked in the drawing.`}</span>
               {geometry && (
@@ -124,12 +126,22 @@ export function ReadingGuide({
             <li>{t`If the sheet has no gap between the rows, the Z line sits on the cut. Peel off every other label (checkerboard) only if the cut is hard to see.`}</li>
             <li>
               {fits
-                ? t`Enter the readings below, choose the crossing for each, and press Fit. Check the filled-in values, then save them.`
+                ? t`Enter the readings below: choose the crossing for each, press the direction buttons for where the ink lies, and type the size. From three readings the live fit shows the result; press Fit to fill in the values, check them, then save them.`
                 : t`On this sheet all crossings lie on one line, so the readings cannot be fitted. Enter the values directly in the form below, then save them.`}
             </li>
             <li>{t`Print the check page under Current values. If every crossing is within ±0.5 mm, you are done; if not, measure again.`}</li>
             <li>{t`Still off after the check print? The card under Current values says whether to calibrate again or to correct the sheet type.`}</li>
           </ol>
+
+          <h4 id={ruleId} className="m-0 text-body font-bold">{t`Printer or sheet type?`}</h4>
+          <ul aria-labelledby={ruleId} className="m-0 -mt-2 flex list-disc flex-col gap-1.5 pl-5">
+            <li>{t`Equal everywhere: printer offset.`}</li>
+            <li>{t`Growing evenly in both directions: printer scale.`}</li>
+            <li>{t`Growing evenly across the gaps of one type only: its pitch.`}</li>
+          </ul>
+          <p className="m-0 -mt-2">
+            {t`On a calibration page the fit takes all three in. A pitch error only shows on a check print made with the correction of another sheet type; then the readings helper suggests the new pitch or margin.`}
+          </p>
 
           <a
             href={docsUrl("using/calibration", locale)}

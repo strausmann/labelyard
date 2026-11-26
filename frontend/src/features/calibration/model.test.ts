@@ -10,7 +10,7 @@ import {
   completeReadings,
   crossingName,
   crossingsToRead,
-  emptyReading,
+  readingFromText,
   parseNumber,
   preselectTray,
   readingsRequest,
@@ -67,7 +67,7 @@ describe("parseNumber", () => {
   });
 });
 
-const row = (col_gap: number, row_gap: number, across: string, down: string): ReadingRow => ({ ...emptyReading(1), col_gap, row_gap, across, down });
+const row = (col_gap: number, row_gap: number, across: string, down: string): ReadingRow => readingFromText(1, { col_gap, row_gap }, across, down);
 
 describe("readings", () => {
   const rows = [row(1, 1, "0,2", "-0,1"), row(3, 1, "0.4", "0"), row(1, 11, "", ""), row(3, 11, "0,6", "x")];
@@ -79,6 +79,16 @@ describe("readings", () => {
   it("Fit needs three complete readings", () => {
     expect(canFit(rows)).toBe(false);
     expect(canFit([...rows, row(3, 11, "0,6", "0,3")])).toBe(true);
+  });
+
+  it("snaps each reading to 0.1 mm and signs it by its direction", () => {
+    const left = { ...row(1, 1, "0,43", "0,2"), across: { text: "0,43", direction: "left" as const } };
+    expect(completeReadings([left])).toEqual([{ col_gap: 1, row_gap: 1, across_mm: -0.4, down_mm: 0.2 }]);
+  });
+
+  it("names the print the readings belong to when there is one", () => {
+    expect(readingsRequest("L4736REV", 1, [row(1, 1, "0", "0")], "run-7").run_id).toBe("run-7");
+    expect(readingsRequest("L4736REV", 1, [row(1, 1, "0", "0")], null)).not.toHaveProperty("run_id");
   });
 
   it("builds the request with the type, its version and the readings in mm", () => {

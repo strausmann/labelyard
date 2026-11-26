@@ -34,7 +34,7 @@ import { parseNumber, preselectTray, trayWarnings, usableTypes } from "./model";
 import { PrintResult } from "./PrintResult";
 import { ReadingGuide } from "./guide/ReadingGuide";
 import { StillOff } from "./guide/StillOff";
-import { ReadingsHelper } from "./ReadingsHelper";
+import { ReadingsHelper, type FittedFrom } from "./ReadingsHelper";
 import { HistoryPanel } from "./HistoryPanel";
 import { CALIBRATION_TABS, type CalibrationTab } from "./tabs";
 
@@ -47,6 +47,8 @@ const TAB =
 const PANEL_TAB = "flex min-w-0 flex-col gap-6 rounded-r2 data-[inert]:hidden data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link";
 
 type MeasuredOn = { type_key: string; version: number };
+/** Values that came from a fit: the type version, the print and the readings they were fitted from (design 7.4). */
+type Fit = FittedFrom;
 
 const FIELDS = ["offset_x_mm", "offset_y_mm", "scale_x", "scale_y", "rotation_deg"] as const;
 type Field = (typeof FIELDS)[number];
@@ -209,12 +211,21 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
   // The values of step 2 live here: the form edits them and the readings helper fills them.
   const text = useNumberText();
   const key = stored?.updated_at ?? "none";
-  // `fit` is the type and version of the readings the values came from; null for values typed by hand.
-  const [draft, setDraft] = useState<{ key: string; fields: Draft; fit: MeasuredOn | null }>(() => ({ key, fields: draftOf(stored, text), fit: null }));
+  // `fit` is what the values were fitted from (type version, print, readings); null for values typed by hand.
+  // Task 16 reads `fit.run` to name the print ("print #n") next to the values.
+  const [draft, setDraft] = useState<{ key: string; fields: Draft; fit: Fit | null }>(() => ({ key, fields: draftOf(stored, text), fit: null }));
   // The stored values changed (a save, a reset, another tab): the form follows them.
   if (draft.key !== key) setDraft({ key, fields: draftOf(stored, text), fit: null });
   // A fit result is saved as measured on the type it was fitted on; typed values on the type chosen now.
-  const measuredOn: MeasuredOn | null = draft.fit ?? (type ? { type_key: type.key, version: type.current_version } : null);
+  const measuredOn: MeasuredOn | null = draft.fit
+    ? { type_key: draft.fit.type_key, version: draft.fit.version }
+    : type
+      ? { type_key: type.key, version: type.current_version }
+      : null;
+  // The type the stored correction was measured on, for the geometry suggestion's sentence.
+  const storedOn = stored?.measured_on ?? null;
+  const storedOnType = storedOn ? (types.data ?? []).find((x) => x.key === storedOn.type_key) : undefined;
+  const measuredOnLabel = storedOnType ? typeLabelWithKey(storedOnType) : (storedOn?.type_key ?? null);
 
   // Whether a correction is stored decides which print is the obvious next step: measuring, or checking what was measured.
   const hasStored = hasValues(stored);
@@ -334,26 +345,30 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
       </TabPanel>
 
       <TabPanel id="readings" shouldForceMount className={PANEL_TAB}>
-      <section aria-labelledby="cal-step2-h" className={`${PANEL} flex flex-col gap-5`}>
-        <h2 id="cal-step2-h" className={SECTION_HEADING}>{t`Step 2: Enter the deviation`}</h2>
-        <TrayLine kind="saves" label={trayLabel} />
+      <section aria-labelledby="cal-step2-h" className="flex min-w-0 flex-col gap-5">
+        <div className="flex flex-col gap-1">
+          <h2 id="cal-step2-h" className={`${SECTION_HEADING} m-0`}>{t`Readings`}</h2>
+          <p className="m-0 max-w-prose text-ink-2">
+            {t`Enter how far the ink landed from each printed crossing. Use the direction buttons so the sign is never a guess.`}
+          </p>
+          <TrayLine kind="saves" label={trayLabel} />
+        </div>
         <ReadingGuide type={type ? { geometry: type.geometry, label: typeLabelWithKey(type) } : undefined} scale={scale} />
         {type && (
-          <div className="flex flex-col gap-3">
-            <h3 className="m-0 text-body font-bold">{t`Measure with the readings helper`}</h3>
-            <ReadingsHelper
-              key={type.key}
-              printerId={printer.id}
-              tray={tray}
-              typeKey={type.key}
-              version={type.current_version}
-              cols={type.geometry.cols}
-              rows={type.geometry.rows}
-              onFitted={(values, fit) => setDraft({ key, fields: draftOfValues(values, text), fit })}
-            />
-          </div>
+          <ReadingsHelper
+            key={type.key}
+            printerId={printer.id}
+            tray={tray}
+            type={type}
+            labelOf={labelOf}
+            measuredOn={measuredOnLabel}
+            admin={admin}
+            onFitted={(values, fit) => setDraft({ key, fields: draftOfValues(values, text), fit })}
+          />
         )}
-        <h3 className="m-0 text-body font-bold">{t`Or enter the values directly`}</h3>
+      </section>
+      <section aria-labelledby="cal-values-h" className={`${PANEL} flex flex-col gap-4`}>
+        <h3 id="cal-values-h" className={`${SECTION_HEADING} m-0`}>{t`Or enter the values directly`}</h3>
         <ValuesForm
           printer={printer}
           tray={tray}
@@ -363,6 +378,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           fields={draft.fields}
           onChange={(fields) => setDraft({ key, fields, fit: null })}
           measuredOn={measuredOn}
+          fit={draft.fit}
           admin={admin}
         />
       </section>
@@ -556,10 +572,12 @@ interface ValuesFormProps {
   fields: Draft;
   onChange: (fields: Draft) => void;
   measuredOn: MeasuredOn | null;
+  /** The fit the values came from, if they did: its print and readings are saved with them. */
+  fit: Fit | null;
   admin: boolean;
 }
 
-function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onChange, measuredOn, admin }: ValuesFormProps) {
+function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onChange, measuredOn, fit, admin }: ValuesFormProps) {
   const { t } = useLingui();
   const names = useValueNames();
   const errorText = useCalibrationErrorText();
@@ -588,7 +606,15 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
     setInvalid(null);
     setMessage(null);
     save.mutate(
-      { tray, values: { ...parsed, ...(measuredOn ? { measured_on: measuredOn } : {}) } },
+      {
+        tray,
+        values: {
+          ...parsed,
+          ...(measuredOn ? { measured_on: measuredOn } : {}),
+          // Fitted values carry their readings and print: the hub fits them again and keeps both in the history.
+          ...(fit ? { readings: fit.readings, ...(fit.run ? { run_id: fit.run.id } : {}) } : {}),
+        },
+      },
       { onSuccess: () => setMessage("saved") },
     );
   };
@@ -602,6 +628,7 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
     <TextInput label={label} value={fields[f]} onChange={(v) => setField(f, v)} inputMode="decimal" mono description={description} />
   );
   const printerName = printer.name;
+  const fitRun = fit?.run?.run_no;
   const { requested: requestedLabel, sheets: sheetsLabel } = warnings;
 
   return (
@@ -609,6 +636,7 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
       <p className={`${HINT} max-w-prose`}>
         {t`Enter what the printer did wrong; the hub applies the opposite itself.`}
       </p>
+      {fitRun && <p className="m-0 text-small font-bold">{t`From the readings of print #${fitRun}.`}</p>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {number("offset_x_mm", t`Offset X (mm)`, t`+ = printed too far right`)}
         {number("offset_y_mm", t`Offset Y (mm)`, t`+ = printed too low`)}

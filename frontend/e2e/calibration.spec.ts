@@ -419,7 +419,7 @@ test.describe.serial("calibration", () => {
       }
       await page.getByRole("button", { name: "Fit", exact: true }).click();
       await expect(page.getByRole("table", { name: "Result of the fit" })).toBeVisible();
-      await expect(page.getByText("check this reading")).toHaveCount(0);
+      await expect(page.getByText("probable misread")).toHaveCount(0);
       await expect(page.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.5");
       await expect(page.getByRole("textbox", { name: "Offset Y (mm)" })).toHaveValue("0.3");
 
@@ -600,6 +600,87 @@ test.describe.serial("calibration", () => {
     }
   });
 
+  test("screenshots: guided readings, live fit and geometry suggestion, light and dark, desktop, phone and short (#240, M8)", async () => {
+    test.skip(!process.env.E2E_SHOTS_DIR, "screenshots are an artifact, taken only with E2E_SHOTS_DIR");
+    test.setTimeout(240_000);
+    const dir = process.env.E2E_SHOTS_DIR!;
+    mkdirSync(dir, { recursive: true });
+    await setLanguage(page, "en");
+    // The answers of the mockup (M8), so the screenshots can be held against it; the page itself is the real one.
+    const run = { job_id: "j", retry: false, submitted: true, requested_tray: TRAY, actual_media_source: null, media_source_reported: true, type_key: TYPE, version: 1 };
+    const runs = [
+      { ...run, id: "r14", run_no: 14, kind: "check_page", created_at: "2026-11-21T15:10:00Z", check_sheet_id: "s1", pass_no: 2 },
+      { ...run, id: "r13", run_no: 13, kind: "check_page", created_at: "2026-11-21T14:50:00Z", check_sheet_id: "s1", pass_no: 1 },
+      { ...run, id: "r12", run_no: 12, kind: "calibration_page", created_at: "2026-11-21T14:20:00Z", check_sheet_id: null, pass_no: null },
+    ];
+    const sheet = { check_sheet_id: "s1", next_pass: 3, passes: [{ pass_no: 1, run_id: "r13", run_no: 13 }, { pass_no: 2, run_id: "r14", run_no: 14 }], passes_total: 3, passes_used: 2, run_line_slots: 2, passes_without_run_line: [] };
+    const fit = {
+      values: { offset_x_mm: 0.41, offset_y_mm: -0.66, scale_x: 1.00012, scale_y: 0.99992, rotation_deg: 0.021 },
+      residuals_mm: [0.08, 0.12, 0.41],
+      flagged: [2],
+      out_of_range: [],
+      suggestion: { pitch_x_hmm: 4755, pitch_y_hmm: null, margin_left_hmm: 890, margin_top_hmm: null, uneven: false },
+      suggestion_unavailable: null,
+    };
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/runs`, (route) => route.fulfill({ json: runs }));
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/check-sheets/open*`, (route) => route.fulfill({ json: sheet }));
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/fit`, (route) => route.fulfill({ json: fit }));
+    // The stored correction was measured on another type: the check readings give a suggestion.
+    await page.route(`**/api/v1/printers/${id}/calibration`, async (route) => {
+      const rows = (await (await route.fetch()).json()) as Array<{ tray: string }>;
+      const other = { offset_x_mm: 0.41, offset_y_mm: -0.66, scale_x: 1.00012, scale_y: 0.99992, rotation_deg: 0.021, method: "fit", updated_at: "2026-11-21T14:30:00Z", measured_on: { type_key: "avery-zweckform-6121", version: 1 } };
+      await route.fulfill({ json: rows.map((r) => (r.tray === TRAY ? { ...r, ...other } : r)) });
+    });
+    const fill = async () => {
+      await page.goto(`/calibration?printer=${id}&tray=${TRAY}&view=readings&type=${TYPE}`);
+      await page.getByRole("button", { name: /Readings from print/ }).click();
+      await page.getByRole("option", { name: /pass 2, run #14/ }).click();
+      const card = (n: number) => page.getByRole("group", { name: `Reading ${n}` });
+      await card(1).getByText("Left of the gap").click();
+      await page.getByRole("textbox", { name: "Across at S1 · Z1 (mm)" }).fill("0,4");
+      await page.getByRole("textbox", { name: "Down at S1 · Z1 (mm)" }).fill("0,7");
+      await page.getByRole("textbox", { name: "Across at S3 · Z1 (mm)" }).fill("0,43");
+      await page.getByRole("textbox", { name: "Down at S3 · Z1 (mm)" }).fill("-0,5");
+      await page.getByRole("textbox", { name: "Across at S1 · Z11 (mm)" }).fill("-2,6");
+      await page.getByRole("textbox", { name: "Down at S1 · Z11 (mm)" }).fill("0,3");
+      await page.getByRole("button", { name: "Remove reading 4" }).click();
+      await expect(page.getByRole("region", { name: "Geometry suggestion" })).toBeVisible();
+    };
+    try {
+      for (const scheme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const [width, height] of [
+          [1280, 900],
+          [390, 844],
+        ] as const) {
+          await page.setViewportSize({ width, height });
+          await fill();
+          await page.getByRole("button", { name: "Fit", exact: true }).click();
+          await expect(page.getByText("probable misread")).toBeVisible();
+          expect(await noSideScroll(page)).toBe(true);
+          // The window as tall as the page: a full-page shot would stitch the sticky bars into the middle.
+          const tall = await page.evaluate(() => document.documentElement.scrollHeight);
+          await page.setViewportSize({ width, height: tall });
+          await page.screenshot({ path: resolve(dir, `t15b-readings-${width}-${scheme}.png`) });
+        }
+      }
+      // The entry view: a phone with the keyboard up (the layout viewport shrinks, as Chromium does).
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await fill();
+      await page.setViewportSize({ width: 390, height: 500 });
+      await page.getByRole("textbox", { name: "Across at S3 · Z1 (mm)" }).click();
+      await expect(page.getByRole("button", { name: "Fit", exact: true })).toBeInViewport();
+      await page.screenshot({ path: resolve(dir, "t15b-readings-390x500-light.png") });
+    } finally {
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/runs`);
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/check-sheets/open*`);
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/fit`);
+      await page.unroute(`**/api/v1/printers/${id}/calibration`);
+      await page.emulateMedia({ colorScheme: "light" });
+    }
+  });
+
   for (const [lang, size] of [
     ["de", { width: 360, height: 780 }],
     ["en", { width: 1280, height: 800 }],
@@ -660,7 +741,7 @@ test.describe.serial("calibration", () => {
         await fitRegion.focus();
         await expect(fitRegion).toBeFocused();
         // The flag on the far reading is on screen without scrolling the table sideways.
-        const flag = await page.getByText(de ? "diesen Messwert prüfen" : "check this reading").boundingBox();
+        const flag = await page.getByText(de ? "wohl falsch abgelesen" : "probable misread").boundingBox();
         expect(flag, "the flag is rendered").not.toBeNull();
         expect(flag!.x).toBeGreaterThanOrEqual(0);
         expect(flag!.x + flag!.width).toBeLessThanOrEqual(size.width);

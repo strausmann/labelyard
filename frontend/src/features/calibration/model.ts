@@ -4,6 +4,7 @@
 import type { components } from "../../api/schema.gen";
 import type { SheetTypeRead } from "../archive/api";
 import type { FitRequest } from "./api";
+import { axisValue, takeSign, type AxisInput } from "./readings";
 
 type Reading = components["schemas"]["ReadingIn"];
 
@@ -51,21 +52,40 @@ export function parseNumber(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** One reading as the form holds it: the crossing and, per axis, the typed size and the chosen direction. */
 export interface ReadingRow extends Crossing {
   /** Local identity of the row (a list key), never sent. */
   id: number;
-  across: string;
-  down: string;
+  across: AxisInput;
+  down: AxisInput;
 }
 
-export const emptyReading = (id: number, at: Crossing = { col_gap: 1, row_gap: 1 }): ReadingRow => ({ id, ...at, across: "", down: "" });
+export const emptyReading = (id: number, at: Crossing = { col_gap: 1, row_gap: 1 }): ReadingRow => ({
+  id,
+  ...at,
+  across: { text: "", direction: "right" },
+  down: { text: "", direction: "below" },
+});
 
+/** A row from typed text, as a person would type it: a sign in the text picks the direction. */
+export function readingFromText(id: number, at: Crossing, across: string, down: string): ReadingRow {
+  const a = takeSign(across, "across");
+  const d = takeSign(down, "down");
+  return {
+    id,
+    ...at,
+    across: { text: a.text, direction: a.direction ?? "right" },
+    down: { text: d.text, direction: d.direction ?? "below" },
+  };
+}
+
+/** The readings with both axes filled in, signed and snapped to 0.1 mm, in the order of the rows. */
 export function completeReadings(rows: readonly ReadingRow[]): Reading[] {
   const out: Reading[] = [];
   for (const r of rows) {
-    const across = parseNumber(r.across);
-    const down = parseNumber(r.down);
-    if (across !== null && down !== null) out.push({ col_gap: r.col_gap, row_gap: r.row_gap, across_mm: across, down_mm: down });
+    const across = axisValue(r.across);
+    const down = axisValue(r.down);
+    if (across !== null && down !== null) out.push({ col_gap: r.col_gap, row_gap: r.row_gap, across_mm: across.value, down_mm: down.value });
   }
   return out;
 }
@@ -74,10 +94,12 @@ export function completeReadings(rows: readonly ReadingRow[]): Reading[] {
 export const MIN_READINGS = 3;
 export const canFit = (rows: readonly ReadingRow[]): boolean => completeReadings(rows).length >= MIN_READINGS;
 
-export const readingsRequest = (type: string, version: number, rows: readonly ReadingRow[]): FitRequest => ({
+/** The fit request; with `runId` the readings belong to that print, and `version` must be the one it was printed for. */
+export const readingsRequest = (type: string, version: number, rows: readonly ReadingRow[], runId?: string | null): FitRequest => ({
   type,
   version,
   readings: completeReadings(rows),
+  ...(runId ? { run_id: runId } : {}),
 });
 
 /**

@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { parseDecimal } from "../shared/decimal";
+
+/** Moved to `features/shared/decimal.ts` (the calibration readings parse with it too); kept here for its callers. */
+export { parseDecimal };
+
 /** The address of the archive page: filters of the list, and the type that is open. */
 export interface ArchiveSearch {
   q?: string | undefined;
@@ -78,13 +83,6 @@ export function catalogQuery(value: string | undefined): { q?: string; w?: numbe
   return { q: text.slice(0, MAX_QUERY) };
 }
 
-/** A decimal typed by a person ("45,7" or "45.7"); null when it is not a number. */
-export function parseDecimal(value: string): number | null {
-  const trimmed = value.trim().replace(",", ".");
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? n : null;
-}
 
 /** A source address worth a link: only http and https, and never one that carries user info (#204). */
 export function httpUrl(value: string | null | undefined): string | null {

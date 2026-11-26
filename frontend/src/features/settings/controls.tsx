@@ -191,6 +191,7 @@ export function SelectField({
   isInvalid,
   errorMessage,
   placeholder,
+  hideLabel,
 }: {
   label: string;
   value: string;
@@ -202,6 +203,8 @@ export function SelectField({
   errorMessage?: string;
   /** Shown while no option is selected. */
   placeholder?: string;
+  /** The label is for assistive technology only (the field sits next to a heading that says what it is). */
+  hideLabel?: boolean;
 }) {
   // The list is placed against the visible area (see useListRoom): React Aria alone measures against the page and would
   // run the list under the on-screen keyboard or the tab bar.
@@ -221,7 +224,7 @@ export function SelectField({
       isInvalid={isInvalid}
       className="flex min-w-0 flex-col gap-1.5"
     >
-      <Label className={LABEL}>{label}</Label>
+      <Label className={hideLabel ? "sr-only" : LABEL}>{label}</Label>
       <Button
         ref={trigger}
         className={`press flex h-11 w-full items-center justify-between gap-2 rounded-r2 border border-line-strong bg-sunken px-3 text-left text-ink data-[disabled]:opacity-60 data-[invalid]:border-bad ${FOCUS}`}

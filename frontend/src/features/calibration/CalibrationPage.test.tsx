@@ -215,11 +215,11 @@ describe("the German page", () => {
 describe("the reading guide in step 2", () => {
   it("step 2 starts with the reading guide for the chosen type", async () => {
     await open();
-    const step2 = await screen.findByRole("region", { name: "Step 2: Enter the deviation" });
+    const step2 = await screen.findByRole("region", { name: "Readings" });
     const trigger = within(step2).getByRole("button", { name: "How to read the calibration page" });
-    // The first thing in the step, before the readings helper.
-    const heading = await within(step2).findByRole("heading", { name: "Measure with the readings helper" });
-    expect(trigger.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The first thing in the step, before the readings.
+    const readings = await within(step2).findByRole("list", { name: "Readings" });
+    expect(trigger.compareDocumentPosition(readings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(trigger);
     expect(within(step2).getByRole("img", { name: /^The crossings to read on Example Labels L4736REV-25\b.*\(L4736REV\)$/ })).toBeVisible();

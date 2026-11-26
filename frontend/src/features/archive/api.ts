@@ -112,6 +112,19 @@ export const useAddVersion = () =>
     (v) => v.key,
   );
 
+export type VersionFromSuggestion = Schemas["VersionFromSuggestion"];
+
+/**
+ * Applies a geometry suggestion from a check print as a new version (admin; design 7.4). The server names the run in
+ * the change note and writes the sheet-type log entry.
+ */
+export const useApplySuggestion = () =>
+  useTypeWrite(
+    ({ key, body }: { key: string; body: VersionFromSuggestion }) =>
+      apiFetch<VersionRead>(`${typePath(key)}/versions/from-suggestion`, { method: "POST", json: body }),
+    (v) => v.key,
+  );
+
 export type VersionHistoryRead = Schemas["VersionHistoryRead"];
 
 /** The versions with what changed against the one before, newest first. Under the type's key: a type write refreshes it. */
