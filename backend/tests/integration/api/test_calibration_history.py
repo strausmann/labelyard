@@ -848,6 +848,47 @@ async def test_put_with_a_check_print_run_is_422_and_stores_nothing(
     assert entry["run_id"] == str(runs_by_kind["calibration_page"].id) and entry["source"] == "fit"
 
 
+async def test_put_with_a_probe_print_run_is_422_and_stores_nothing(
+    api_client_with_seed: Any,
+) -> None:
+    """Only a calibration page's readings are a correction: a probe print on plain paper is checked
+    by eye against a sheet, it has no readings of its own."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await _type()
+    url = f"/api/v1/printers/{pid}/calibration/auto"
+    async with _factory()() as s:
+        version = await ts.get_version(s, "calh-test", 1)
+        made = {
+            kind: await runs.allocate_run(
+                s,
+                printer_id=pid,
+                tray="auto",
+                kind=kind,
+                job_id=uuid4(),
+                type_version_id=version.id,
+                correction=None,
+                actor="user:admin",
+            )
+            for kind in ("probe_page", "calibration_page")
+        }
+    values = await _fitted(c, pid, admin)
+    body = {
+        **values,
+        "measured_on": {"type_key": "calh-test", "version": 1},
+        "readings": _readings(DEV),
+    }
+    refused = await c.put(url, json={**body, "run_id": str(made["probe_page"].id)}, headers=admin)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"]["error_code"] == "run_is_a_probe_print"
+    async with _factory()() as s:
+        assert await s.get(PrinterCalibration, (pid, "auto")) is None
+    # Counter-test: the calibration page's run of the same tray and version still saves.
+    ok = await c.put(url, json={**body, "run_id": str(made["calibration_page"].id)}, headers=admin)
+    assert ok.status_code == 200, ok.text
+
+
 async def test_fewer_than_three_readings_are_refused_by_the_schema(
     api_client_with_seed: Any,
 ) -> None:

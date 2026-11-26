@@ -265,6 +265,15 @@ class RunIsACheckPrintError(SheetApiError):
     message = "A check print's readings are a verification, not a correction."
 
 
+class RunIsAProbePrintError(SheetApiError):
+    """A probe print on plain paper is held against a sheet by eye; it has no readings that could
+    be a correction (design 7.3)."""
+
+    status = 422
+    error_code = "run_is_a_probe_print"
+    message = "A probe print has no readings that could be a correction."
+
+
 async def check_run(
     session: AsyncSession,
     run_id: UUID,
@@ -308,8 +317,11 @@ async def put(
     version = await ts.get_version(session, measured_on[0], measured_on[1]) if measured_on else None
     if run_id is not None:
         run = await check_run(session, run_id, printer_id, tray, version)
+        # Only a calibration page's readings are a correction.
         if run.kind == "check_page":
             raise RunIsACheckPrintError()
+        if run.kind != "calibration_page":
+            raise RunIsAProbePrintError()
     dev = to_deviation(values)  # raises calibration_out_of_range before any write
     clean_note = None if note is None else ts.clean_text("note", note, NOTE_MAX) or None
     source: Literal["manual", "fit"] = "manual"

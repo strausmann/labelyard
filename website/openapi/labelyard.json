@@ -983,7 +983,7 @@
                 "type": "null"
               }
             ],
-            "description": "The run (calibration page print) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must have been printed for that version, else `422 run_version_mismatch`. A check print's run is refused with `422 run_is_a_check_print`: its readings are a verification.",
+            "description": "The run (calibration page print) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must have been printed for that version, else `422 run_version_mismatch`. A check print's run is refused with `422 run_is_a_check_print` (its readings are a verification), a probe print's run with `422 run_is_a_probe_print`.",
             "title": "Run Id"
           },
           "scale_x": {
@@ -13968,7 +13968,7 @@
             "description": "Successful Response"
           },
           "422": {
-            "description": "A value is out of range (`calibration_out_of_range`), the tray is unknown (`tray_unknown`), `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version than `measured_on` (`run_version_mismatch`), `run_id` names a check print, whose readings verify the correction and are never one (`run_is_a_check_print`), `readings` came without `measured_on` (`invalid_geometry`, `error_detail.field` is `measured_on`), has fewer than 3 or more than 200 entries (request validation), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`, `error_detail.field` names the reading, such as `readings[0].col_gap`)."
+            "description": "A value is out of range (`calibration_out_of_range`), the tray is unknown (`tray_unknown`), `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version than `measured_on` (`run_version_mismatch`), `run_id` names a check print, whose readings verify the correction and are never one (`run_is_a_check_print`), or a probe print (`run_is_a_probe_print`), `readings` came without `measured_on` (`invalid_geometry`, `error_detail.field` is `measured_on`), has fewer than 3 or more than 200 entries (request validation), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`, `error_detail.field` names the reading, such as `readings[0].col_gap`)."
           }
         },
         "security": [
