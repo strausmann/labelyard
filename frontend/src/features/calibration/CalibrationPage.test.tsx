@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { renderApp, SIGNED_IN } from "../../test-utils";
 import { apiErrorBody, mockApi, PRINTER_A, respond, SHEET_TYPE, status } from "../test-api";
-import { BASE, body, button, JOB, only, open, P, printCalibrationAnyway, READ_SESSION, resetBetweenTests, routes, secondPrinter, throws } from "./CalibrationPage.kit";
+import { BASE, body, button, JOB, only, open, P, printCalibrationAnyway, printCheck, READ_SESSION, resetBetweenTests, routes, secondPrinter, throws } from "./CalibrationPage.kit";
 
 vi.setConfig({ testTimeout: 15_000 });
 resetBetweenTests();
@@ -179,21 +179,21 @@ describe("print without a print key", () => {
 describe("step 3: check print with correction", () => {
   it("prints the page with the stored correction", async () => {
     const { calls } = await open({ [`POST ${BASE}/main/page`]: respond(202, { job_id: JOB }) });
-    await userEvent.click(await button("Print the check page (with correction)"));
+    await printCheck();
     expect(await within(await screen.findByRole("status", { name: "Check page status" })).findByText("Queued")).toBeVisible();
-    expect(body(only(calls, "POST", "/page")[0])).toEqual({ type: "L4736REV", version: 1, corrected: true });
+    expect(body(only(calls, "POST", "/page")[0])).toEqual({ type: "L4736REV", version: 1, corrected: true, check_sheet: "new" });
     expect(screen.getByText(/within 0\.5 mm/)).toBeVisible();
   });
 
   it("says in words when the print queue does not know the printer", async () => {
     await open({ [`POST ${BASE}/main/page`]: () => respond(409, { detail: { type: "printer-unavailable", title: "x", status: 409, detail: "y" } }) });
-    await userEvent.click(await button("Print the check page (with correction)"));
+    await printCheck();
     expect(await screen.findByText("The print queue does not know this printer yet. Try again in a moment.")).toBeVisible();
   });
 
   it("says in words when the server cannot be reached", async () => {
     await open({ [`POST ${BASE}/main/page`]: throws });
-    await userEvent.click(await button("Print the check page (with correction)"));
+    await printCheck();
     expect(await screen.findByText("The server cannot be reached.")).toBeVisible();
   });
 

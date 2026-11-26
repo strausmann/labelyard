@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { recordJobEvent, resetPrintWatch } from "../jobs/printWatch";
 import { SIGNED_IN } from "../../test-utils";
 import { apiErrorBody, job, respond } from "../test-api";
-import { BASE, button, JOB, open, P, printCalibrationAnyway, resetBetweenTests, RETRY } from "./CalibrationPage.kit";
+import { BASE, JOB, open, P, printCalibrationAnyway, printCheck, resetBetweenTests, RETRY } from "./CalibrationPage.kit";
 
 vi.setConfig({ testTimeout: 15_000 });
 resetBetweenTests();
@@ -229,7 +229,7 @@ describe("the live print status line (#239)", () => {
 
   it("the check page has its own line under its own button", async () => {
     await open({ [`POST ${BASE}/main/page`]: respond(202, { job_id: JOB }) });
-    await userEvent.click(await button("Print the check page (with correction)"));
+    await printCheck();
     const line = await screen.findByRole("status", { name: "Check page status" });
     await within(line).findByText("Queued");
     event("completed");

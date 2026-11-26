@@ -22,11 +22,13 @@ import {
   useCalibrationScale,
   useCapabilities,
   usePrintCalibrationPage,
+  type CheckSheetMode,
   useResetCalibration,
   useSaveCalibration,
   type CalibrationRead,
 } from "./api";
 import { CalibrationSchematic, GapCrossing } from "./CalibrationSchematic";
+import { CalibrationPageNotes, CheckPrintDialog } from "./CheckPrintDialog";
 import { useCalibrationErrorText, useValueNames } from "./errors";
 import { parseNumber, preselectTray, trayWarnings, usableTypes } from "./model";
 import { PrintResult } from "./PrintResult";
@@ -231,10 +233,13 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
     sheets: lastSheetTray,
     now: openedAt,
   });
-  const send = (print: PrintMutation, corrected: boolean) => {
+  // The check print asks first: the same sheet again (the next pass) or a new one (design 7.2).
+  const [checking, setChecking] = useState(false);
+  const send = (print: PrintMutation, corrected: boolean, sheet?: CheckSheetMode) => {
     // A press while the same print is still being queued is ignored (the button may stay enabled, see `lockWhilePending`).
     if (type && !print.isPending) setPressedWhileBusy(false);
-    if (type && !print.isPending) print.mutate({ tray, request: { type: type.key, version: type.current_version, corrected } });
+    if (type && !print.isPending)
+      print.mutate({ tray, request: { type: type.key, version: type.current_version, corrected, ...(sheet ? { check_sheet: sheet } : {}) } });
   };
 
   const active: CalibrationTab = tab ?? (hasStored ? "result" : "print");
@@ -256,7 +261,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
             printerId={printer.id}
             type={type}
             print={checkPrint}
-            onPress={() => send(checkPrint, true)}
+            onPress={() => setChecking(true)}
             disabled={!canPrint || !hasStored}
             noKey={!canPrint}
             label={t`Print the check page (with correction)`}
@@ -292,6 +297,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           <>
             <CalibrationSchematic geometry={type.geometry} typeName={typeLabelWithKey(type)} />
             <GapCrossing colGap={Math.min(2, type.geometry.cols - 1)} rowGap={Math.min(6, type.geometry.rows - 1)} />
+            <CalibrationPageNotes printerId={printer.id} tray={tray} type={{ key: type.key, version: type.current_version }} />
             <PrintAction
               printerId={printer.id}
               type={type}
@@ -385,7 +391,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
             className={SECONDARY_BUTTON}
             onPress={() => {
               setAsking(false);
-              send(checkPrint, true);
+              setChecking(true);
             }}
           >
             {t`Print the check page`}
@@ -401,6 +407,19 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           </Button>
         </div>
       </ModalDialog>
+      {type && (
+        <CheckPrintDialog
+          printerId={printer.id}
+          tray={tray}
+          type={{ key: type.key, version: type.current_version }}
+          isOpen={checking}
+          onClose={() => setChecking(false)}
+          onPrint={(sheet) => {
+            setChecking(false);
+            send(checkPrint, true, sheet);
+          }}
+        />
+      )}
     </>
   );
 }

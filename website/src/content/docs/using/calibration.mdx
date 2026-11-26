@@ -79,6 +79,15 @@ On a sheet with only two columns or two rows all crossings lie on one line, so t
 
 Print the check page. It is the same page, now with the correction. If every crossing is within ±0.5 mm, you are done. If not, measure again and adjust.
 
+One sheet of labels serves up to three check prints. Before a check print, Labelyard asks which sheet you print on:
+
+- **Print on the same sheet (pass 2 of 3)**: put the sheet of the last check back into the tray. This pass prints only its own crosses, each marked `K2` or `K3`, at crossings that never touch the earlier ones, plus one short line with its run number where the margin has room.
+- **New sheet**: pass 1 on a fresh sheet. It is the full check page with its cell numbers and codes, and its crosses are marked `K1`.
+
+The dialog says how many passes the sheet takes ("This sheet takes 2 check passes"). It also says before printing what the page will lack on this printer: fewer than four page codes, margin text that does not fit, or later passes without their run line. A sheet type with fewer than five crossings takes one pass, the full check page.
+
+When you enter the readings of a later pass, enter the crossings marked with that pass's `K` label.
+
 ## Printer or sheet type?
 
 When the page is still off, the deviation tells you where to look. Compare what you see with this table:

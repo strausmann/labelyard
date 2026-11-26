@@ -828,6 +828,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/check-sheets/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The open check sheet of a printer, tray and sheet type version, if any
+         * @description The newest check sheet with a free pass, for the print dialog's "Print on the same sheet?
+         *     (pass 2 of 3)"; `null` when there is none (every pass printed, or no sheet started).
+         *     `run_line_slots` are the slots pass 1 reserved in the layout it was printed with (0 once its
+         *     job was cleaned up). Nothing is stored.
+         */
+        get: operations["get_open_check_sheet_api_v1_printers__printer_id__calibration__tray__check_sheets_open_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/printers/{printer_id}/calibration/{tray}/fit": {
         parameters: {
             query?: never;
@@ -918,7 +941,8 @@ export interface paths {
          * How a calibration or check page fits the printable area of a printer and tray
          * @description The layout the page would get now: the printer's hardware margins (5 mm per side when it
          *     reports none) and the tray's stored offset decide the printable area, as when it is printed.
-         *     Nothing is stored and no run is taken.
+         *     The summary describes exactly the page the same print request would draw. Nothing is stored
+         *     and no run is taken.
          */
         get: operations["get_calibration_page_layout_api_v1_printers__printer_id__calibration__tray__page_layout_get"];
         put?: never;
@@ -2949,6 +2973,60 @@ export interface components {
             /** Updated At */
             updated_at: string | null;
         };
+        /**
+         * CheckSheetOpen
+         * @description A check sheet that still has a free pass (design 7.2).
+         */
+        CheckSheetOpen: {
+            /**
+             * Check Sheet Id
+             * Format: uuid
+             */
+            check_sheet_id: string;
+            /**
+             * Next Pass
+             * @description The pass a print on it takes.
+             */
+            next_pass: number;
+            /**
+             * Passes
+             * @description The printed passes, by pass number.
+             */
+            passes: components["schemas"]["CheckSheetPassRead"][];
+            /**
+             * Passes Total
+             * @description Passes the sheet takes.
+             */
+            passes_total: number;
+            /** Passes Used */
+            passes_used: number;
+            /**
+             * Passes Without Run Line
+             * @description The passes still to print (2 or 3) that would print without their run line now: pass 1 left no slot for them, or the current correction moves the slot out of the printable area.
+             */
+            passes_without_run_line?: number[];
+            /**
+             * Run Line Slots
+             * @description The slots pass 1 reserved for passes 2 and 3 that the tray's current correction can still print; `passes_without_run_line` names the passes to come that lack one.
+             */
+            run_line_slots: number;
+        };
+        /** CheckSheetPassRead */
+        CheckSheetPassRead: {
+            /** Pass No */
+            pass_no: number;
+            /**
+             * Run Id
+             * Format: uuid
+             * @description The run id; readings of this pass are saved against it.
+             */
+            run_id: string;
+            /**
+             * Run No
+             * @description The run of the pass (per printer and tray).
+             */
+            run_no: number;
+        };
         /** CheckStatus */
         CheckStatus: {
             /** Detail */
@@ -3847,6 +3925,11 @@ export interface components {
         };
         /** PageRequest */
         PageRequest: {
+            /**
+             * Check Sheet
+             * @description Only with `corrected`: print a pass of a check sheet (design 7.2). `new` starts a sheet with pass 1, the full check page; `next` prints the lowest free pass of the newest open sheet of this printer, tray and sheet type version (passes 2 and 3: their crosses and a run line only), else `409 check_sheet_full`. Without it the check page is the single full page, as before 1.8.0.
+             */
+            check_sheet?: ("new" | "next") | null;
             /**
              * Corrected
              * @description Print with the tray's stored correction, to check it (not to measure).
@@ -8620,6 +8703,50 @@ export interface operations {
             };
         };
     };
+    get_open_check_sheet_api_v1_printers__printer_id__calibration__tray__check_sheets_open_get: {
+        parameters: {
+            query: {
+                /** @description Sheet type key. */
+                type: string;
+                /** @description Defaults to the current version. */
+                version?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckSheetOpen"] | null;
+                };
+            };
+            /** @description The key may not use this printer (`printer_not_allowed`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The sheet type has no crossings to measure (`calibration_type_unsuitable`), or its grid has more than 2500 cells (`calibration_grid_too_large`, with `cells` and `max_cells`). Other errors of the type, printer and tray lookups carry their own codes. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     fit_calibration_api_v1_printers__printer_id__calibration__tray__fit_post: {
         parameters: {
             query?: never;
@@ -8786,7 +8913,7 @@ export interface operations {
                     "application/json": components["schemas"]["PageJobAccepted"];
                 };
             };
-            /** @description The printer is a tape printer (`media_kind_mismatch`), is not known to the print queue (`printer-unavailable`), or the device behind it changed (`printer-identity-mismatch`). */
+            /** @description The printer is a tape printer (`media_kind_mismatch`), is not known to the print queue (`printer-unavailable`), the device behind it changed (`printer-identity-mismatch`), or `check_sheet` `next` found no open check sheet with a free pass (`check_sheet_full`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8811,6 +8938,8 @@ export interface operations {
                 version?: number | null;
                 /** @description `check_page` is printed with the tray's stored correction. */
                 kind?: "calibration_page" | "check_page";
+                /** @description With `check_page`: the page is pass 1 of a check sheet (as `check_sheet` on the print request); `passes_total` counts the sheet's passes and `run_line_slots` the slots pass 1 reserves for them. Without it the check page is the single full page, one pass. Ignored for `calibration_page`. */
+                check_sheet?: ("new" | "next") | null;
             };
             header?: never;
             path: {

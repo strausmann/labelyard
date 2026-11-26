@@ -32,9 +32,12 @@ from PIL import Image
 
 from app.calibration import codes
 from app.calibration.layout import (
+    _PT_MM,
     BLOCK_PT,
     CELL_NUMBER_PT,
     CHECKERBOARD_SENTENCE,
+    RUN_LINE_PT,
+    Box,
     PageLayout,
     PrintableArea,
     bottom_line_count,
@@ -42,6 +45,7 @@ from app.calibration.layout import (
     correction_line,
     geometry_line,
     needs_checkerboard,
+    pass_run_line,
     printable_area,
     run_line,
     scale_segments,
@@ -49,7 +53,7 @@ from app.calibration.layout import (
 )
 from app.calibration.scale import LINE_MM
 from app.page_render.pdf import PageImage, VectorPen, text_width_mm, write_pdf
-from app.page_render.transform import IDENTITY
+from app.page_render.transform import IDENTITY, correction_mm
 from app.services.page_jobs import PagePayload, snapshot_to_deviation
 from app.sheets.errors import CalibrationGridTooLargeError, CalibrationTypeUnsuitableError
 from app.sheets.geometry import Geometry
@@ -149,7 +153,11 @@ def block_lines(payload: PagePayload, layout: PageLayout) -> dict[str, list[str]
     top = layout.block("top")
     if top is not None:
         room, pt = top.box.w / 100, top.size_pt
-        run = run_line(d.get("run_no"), d["date"], d.get("time"), corrected=corrected)
+        passes = _passes_total(d)
+        pass_of = (1, passes) if passes > 1 and d.get("pass_no") == 1 else None
+        run = run_line(
+            d.get("run_no"), d["date"], d.get("time"), corrected=corrected, pass_of=pass_of
+        )
         out["top"] = [
             _fixed(run, room, pt),
             fit_type_line(
@@ -183,18 +191,82 @@ def payload_area(payload: PagePayload) -> PrintableArea:
     return printable_area(Geometry(**d["geometry"]), None, IDENTITY)
 
 
-def payload_layout(payload: PagePayload, *, passes: int = 1) -> PageLayout:
+def _passes_total(d: Mapping[str, Any]) -> int:
+    raw = d.get("passes_total")
+    return raw if isinstance(raw, int) and raw >= 1 else 1
+
+
+def _crossing_list(raw: object) -> list[tuple[int, int]]:
+    return [(int(c), int(r)) for c, r in raw] if isinstance(raw, list) else []
+
+
+def payload_pass(payload: PagePayload) -> tuple[int, list[tuple[int, int]]] | None:
+    """The pass of a check sheet a stamped payload prints, with its crossings; ``None`` for a
+    full page (a calibration page, a check page of a grid without passes, a download)."""
+    d = payload.detail
+    pass_no, crossings = d.get("pass_no"), d.get("pass_crossings")
+    if not isinstance(pass_no, int) or not isinstance(crossings, list):
+        return None
+    return pass_no, _crossing_list(crossings)
+
+
+def later_run_line_box(payload: PagePayload, first: PagePayload) -> dict[str, float] | None:
+    """Where the run line of pass 2 or 3 goes, in this pass's layout (hundredths of a mm).
+
+    ``first`` is pass 1's stamped payload: its layout is the one on the paper, with pass 1's
+    printable area (the printer's margins then) and correction. The box is pass 1's reserved
+    slot moved onto the paper through pass 1's correction and back through this pass's, so the
+    line lands where pass 1 left room and never over the blocks it printed, also when the
+    correction or the printer's reported margins changed since (review on #449). ``None`` when
+    pass 1 left no slot for this pass or the moved slot leaves this pass's printable area: the
+    pass prints its crosses only.
+    """
+    pass_no = payload.detail.get("pass_no")
+    if not isinstance(pass_no, int) or pass_no < 2:
+        return None
+    slots = payload_layout(first).run_line_slots
+    if len(slots) < pass_no - 1:
+        return None
+    x0, y0, x1, y1 = slots[pass_no - 2].rect_mm()
+    to_paper = correction_mm(snapshot_to_deviation(first.calibration), first.media)
+    back = correction_mm(snapshot_to_deviation(payload.calibration), payload.media).inverse()
+    pts = [back.apply(to_paper.apply(p)) for p in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
+    bx0, by0 = min(p[0] for p in pts), min(p[1] for p in pts)
+    bx1, by1 = max(p[0] for p in pts), max(p[1] for p in pts)
+    a = payload_area(payload).rect_mm()
+    if bx0 < a[0] or by0 < a[1] or bx1 > a[2] or by1 > a[3]:
+        return None
+    return {"x": bx0 * 100, "y": by0 * 100, "w": (bx1 - bx0) * 100, "h": (by1 - by0) * 100}
+
+
+def payload_layout(payload: PagePayload, *, passes: int | None = None) -> PageLayout:
+    """The layout of a payload; ``passes`` overrides the payload's ``passes_total`` (the layout
+    summary of a page not printed yet)."""
     d = payload.detail
     g = Geometry(**d["geometry"])
     if g.cols < 2 or g.rows < 2:
         raise CalibrationTypeUnsuitableError(g.cols, g.rows)
+    chosen = payload_pass(payload)
     return check_page_layout(
         g,
         payload_area(payload),
         allow_qr=bool(d.get("allow_qr", True)),
-        passes=passes,
+        passes=_passes_total(d) if passes is None else passes,
         bottom_lines=bottom_lines_of(payload),
+        pass_no=chosen[0] if chosen else None,
+        crossings=chosen[1] if chosen else None,
+        reserved=_crossing_list(d.get("reserved_crossings")) if chosen else (),
+        run_line=_box(d.get("run_line_box")),
     )
+
+
+def _box(raw: object) -> Box | None:
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        return Box(float(raw["x"]), float(raw["y"]), float(raw["w"]), float(raw["h"]))
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 # ---------------------------------------------------------------------------- run codes
@@ -239,8 +311,8 @@ def check_run_codes(payload: PagePayload) -> None:
 
 def _code_images(payload: PagePayload, layout: PageLayout) -> list[PageImage]:
     run_no = payload.detail.get("run_no")
-    if not isinstance(run_no, int):
-        return []
+    if not isinstance(run_no, int) or (layout.pass_no or 1) > 1:
+        return []  # passes 2 and 3 print no codes (design 7.2)
     images: list[PageImage] = []
     page_code = _page_code(payload)
     if page_code is not None:
@@ -269,7 +341,11 @@ def _code_images(payload: PagePayload, layout: PageLayout) -> list[PageImage]:
 
 
 def draw_calibration_page(
-    pen: VectorPen, layout: PageLayout, *, lines: Mapping[str, Sequence[str]]
+    pen: VectorPen,
+    layout: PageLayout,
+    *,
+    lines: Mapping[str, Sequence[str]],
+    pass_line: str | None = None,
 ) -> None:
     """Draw ``layout`` (everything in black, 0.1 mm lines) with the lines of its blocks, each on
     the block's lowest baselines."""
@@ -285,6 +361,14 @@ def draw_calibration_page(
         cx = (block.box.x + block.box.w / 2) / 100
         for y, line in zip(block.baselines_for(len(shown)), shown, strict=True):
             pen.text(cx, y, line, size_pt=block.size_pt, anchor="middle")
+    slot = layout.run_line
+    if slot is not None and pass_line is not None:
+        x0, y0, x1, y1 = slot.rect_mm()
+        baseline = y0 + RUN_LINE_PT * _PT_MM  # an em below the slot's top
+        if layout.pass_no == 2:  # pass 2 at the left, pass 3 at the right (design 7.2)
+            pen.text(x0, baseline, pass_line, size_pt=RUN_LINE_PT, anchor="start")
+        else:
+            pen.text(x1, baseline, pass_line, size_pt=RUN_LINE_PT, anchor="end")
 
 
 def render_calibration_page(payload: PagePayload, *, compress: bool = True) -> bytes:
@@ -293,10 +377,16 @@ def render_calibration_page(payload: PagePayload, *, compress: bool = True) -> b
     layout = payload_layout(payload)
     images = _code_images(payload, layout)  # first: a code too large is refused as such
     lines = block_lines(payload, layout)
+    pass_line = None
+    if layout.pass_no is not None and layout.pass_no > 1:
+        d = payload.detail
+        pass_line = pass_run_line(
+            d.get("run_no"), d["date"], d.get("time"), pass_no=layout.pass_no, corrected=corrected
+        )
     return write_pdf(
         payload.media,
         images=images,
-        vector=lambda pen: draw_calibration_page(pen, layout, lines=lines),
+        vector=lambda pen: draw_calibration_page(pen, layout, lines=lines, pass_line=pass_line),
         correction=snapshot_to_deviation(payload.calibration if corrected else None),
         compress=compress,
         title="Calibration page",

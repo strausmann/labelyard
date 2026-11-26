@@ -540,6 +540,15 @@ class CalibrationQrTooLargeError(SheetApiError):
         )
 
 
+class CheckSheetFullError(SheetApiError):
+    """``check_sheet: next`` found no open check sheet of the printer, tray and sheet type
+    version with a free pass (design 7.2): every pass is printed, or no sheet was started."""
+
+    status = 409
+    error_code = "check_sheet_full"
+    message = "There is no check sheet with a free pass. Start a new sheet."
+
+
 # ---------------------------------------------------------------------------- sheet printing
 
 

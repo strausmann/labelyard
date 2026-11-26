@@ -66,8 +66,12 @@ describe("the buttons depend on whether a correction is stored (#349)", () => {
     await userEvent.click(await button(CALIBRATION));
     const dialog = await screen.findByRole("alertdialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Print the check page" }));
+    // The check print asks which sheet first, as from its own button.
+    const sheet = await screen.findByRole("dialog", { name: "Print the check page" });
+    expect(only(calls, "POST", "/page")).toHaveLength(0);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Print the check page" }));
     expect(only(calls, "POST", "/page")).toHaveLength(1);
-    expect(body(only(calls, "POST", "/page")[0])).toEqual({ type: "L4736REV", version: 1, corrected: true });
+    expect(body(only(calls, "POST", "/page")[0])).toEqual({ type: "L4736REV", version: 1, corrected: true, check_sheet: "new" });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     // The answer shows under the check button, where a person looks for it.
     expect(await within(await screen.findByRole("status", { name: "Check page status" })).findByText("Queued")).toBeVisible();
