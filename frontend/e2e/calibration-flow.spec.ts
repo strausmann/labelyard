@@ -80,7 +80,7 @@ test.describe.serial("calibration with a check sheet", () => {
     await resetPagePrinter(page);
   });
 
-  test("calibration page → readings → fit → check print → run number +1; pass 2 offered and printed without codes, its readings stored against the pass-2 run", async () => {
+  test("calibration page → readings → fit → check print → run number +1; pass 2 offered and printed without codes, its readings refused as a correction", async () => {
     await page.evaluate(() => localStorage.setItem("lph.lang", "en"));
     await page.setViewportSize({ width: 1280, height: 800 });
     await setPagePrinter(page, { job_script: [3, 5, 9] });
@@ -134,7 +134,8 @@ test.describe.serial("calibration with a check sheet", () => {
     const open = await page.request.get(`/api/v1/printers/${id}/calibration/${TRAY}/check-sheets/open?type=${TYPE}`);
     expect(await open.json()).toBeNull();
 
-    // 5. The readings of pass 2 are stored against its run.
+    // 5. The readings of pass 2 verify the correction; saved as one, their residual would replace it. The hub refuses
+    //    them (`run_is_a_check_print`) and keeps the correction and its history as they were.
     const crossings = job.payload.detail.pass_crossings as Array<[number, number]>;
     const readings = crossings.map(([col, row], i) => ({ col_gap: col, row_gap: row, across_mm: 0.1 * i, down_mm: -0.1 }));
     const type = (await (await page.request.get(`/api/v1/sheet-types/${TYPE}`)).json()) as { current_version: number };
@@ -145,9 +146,9 @@ test.describe.serial("calibration with a check sheet", () => {
       run_id: pass2.id,
       readings,
     });
-    expect(status).toBe(200);
+    expect(status).toBe(422);
     const history = (await (await page.request.get(`/api/v1/printers/${id}/calibration/${TRAY}/history?limit=1`)).json()) as Array<{ run_id: string | null }>;
-    expect(history[0]!.run_id).toBe(pass2.id);
+    expect(history[0]!.run_id).toBe(calibration.id);
   });
 
   /** The dialog with an open sheet whose later passes have no run line, and a page with two page codes (M3 answers). */

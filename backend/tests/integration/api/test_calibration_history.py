@@ -801,6 +801,53 @@ async def test_put_with_a_run_of_another_version_is_422(api_client_with_seed: An
     assert ok.status_code == 200, ok.text
 
 
+async def test_put_with_a_check_print_run_is_422_and_stores_nothing(
+    api_client_with_seed: Any,
+) -> None:
+    """A check print's readings verify a correction and feed the geometry suggestion; they are never
+    a correction themselves (design 7.2, 7.4, 7.6). Saved as one, the residual would replace the
+    stored correction and undo the calibration."""
+    c = api_client_with_seed
+    admin = await _key(["admin"])
+    pid = await _printer()
+    await _type()
+    url = f"/api/v1/printers/{pid}/calibration/auto"
+    measured_on = {"type_key": "calh-test", "version": 1}
+    async with _factory()() as s:
+        version = await ts.get_version(s, "calh-test", 1)
+        runs_by_kind = {
+            kind: await runs.allocate_run(
+                s,
+                printer_id=pid,
+                tray="auto",
+                kind=kind,
+                job_id=uuid4(),
+                type_version_id=version.id,
+                correction=None,
+                actor="user:admin",
+            )
+            for kind in ("check_page", "calibration_page")
+        }
+    values = await _fitted(c, pid, admin)
+    body = {**values, "measured_on": measured_on, "readings": _readings(DEV)}
+    for extra in ({"readings": _readings(DEV)}, {"readings": None}):
+        refused = await c.put(
+            url, json={**body, **extra, "run_id": str(runs_by_kind["check_page"].id)}, headers=admin
+        )
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["detail"]["error_code"] == "run_is_a_check_print"
+    async with _factory()() as s:
+        assert await s.get(PrinterCalibration, (pid, "auto")) is None  # nothing stored
+    assert await _history(c, pid, "auto", admin) == []
+    # Counter-test: the calibration page's run of the same tray and version still saves.
+    ok = await c.put(
+        url, json={**body, "run_id": str(runs_by_kind["calibration_page"].id)}, headers=admin
+    )
+    assert ok.status_code == 200, ok.text
+    (entry,) = await _history(c, pid, "auto", admin)
+    assert entry["run_id"] == str(runs_by_kind["calibration_page"].id) and entry["source"] == "fit"
+
+
 async def test_fewer_than_three_readings_are_refused_by_the_schema(
     api_client_with_seed: Any,
 ) -> None:

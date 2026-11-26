@@ -256,6 +256,15 @@ class RunVersionMismatchError(SheetApiError):
     message = "The run was printed for another sheet type version than the one named."
 
 
+class RunIsACheckPrintError(SheetApiError):
+    """A check print's readings verify the stored correction and feed the geometry suggestion
+    (design 7.2, 7.4, 7.6); saved as a correction, their residual would replace it."""
+
+    status = 422
+    error_code = "run_is_a_check_print"
+    message = "A check print's readings are a verification, not a correction."
+
+
 async def check_run(
     session: AsyncSession,
     run_id: UUID,
@@ -298,7 +307,9 @@ async def put(
     await _check_tray(session, printer_id, tray)
     version = await ts.get_version(session, measured_on[0], measured_on[1]) if measured_on else None
     if run_id is not None:
-        await check_run(session, run_id, printer_id, tray, version)
+        run = await check_run(session, run_id, printer_id, tray, version)
+        if run.kind == "check_page":
+            raise RunIsACheckPrintError()
     dev = to_deviation(values)  # raises calibration_out_of_range before any write
     clean_note = None if note is None else ts.clean_text("note", note, NOTE_MAX) or None
     source: Literal["manual", "fit"] = "manual"

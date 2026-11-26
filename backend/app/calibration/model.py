@@ -127,7 +127,8 @@ class CalibrationPut(CalibrationIn):
         description=(
             "The run (calibration page print) the readings were taken on; it must belong to this "
             "printer and tray, else `422 run_not_for_this_tray`, and with `measured_on` it must "
-            "have been printed for that version, else `422 run_version_mismatch`."
+            "have been printed for that version, else `422 run_version_mismatch`. A check print's "
+            "run is refused with `422 run_is_a_check_print`: its readings are a verification."
         ),
     )
     readings: list[ReadingIn] | None = Field(
