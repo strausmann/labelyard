@@ -195,6 +195,44 @@ class VectorPen:
         c.rect(x * PT_PER_MM, self._y(y + h), w * PT_PER_MM, h * PT_PER_MM, stroke=1, fill=0)
         c.restoreState()
 
+    def round_rect(
+        self,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        r: float,
+        *,
+        width_mm: float,
+        dash: tuple[float, ...] | None = None,
+    ) -> None:
+        """The outline of a rectangle with corners of radius ``r`` (mm, y down)."""
+        c = self._c
+        c.saveState()
+        c.setStrokeGray(0)
+        c.setLineWidth(width_mm * PT_PER_MM)
+        if dash:
+            c.setDash([d * PT_PER_MM for d in dash])
+        c.roundRect(
+            x * PT_PER_MM,
+            self._y(y + h),
+            w * PT_PER_MM,
+            h * PT_PER_MM,
+            r * PT_PER_MM,
+            stroke=1,
+            fill=0,
+        )
+        c.restoreState()
+
+    def circle(self, cx: float, cy: float, r: float, *, width_mm: float) -> None:
+        """The outline of a circle around ``(cx, cy)`` (mm, y down)."""
+        c = self._c
+        c.saveState()
+        c.setStrokeGray(0)
+        c.setLineWidth(width_mm * PT_PER_MM)
+        c.circle(cx * PT_PER_MM, self._y(cy), r * PT_PER_MM, stroke=1, fill=0)
+        c.restoreState()
+
     def text(
         self, x: float, y: float, s: str, *, size_pt: float, anchor: _Anchor = "start"
     ) -> None:

@@ -697,10 +697,10 @@ async def _retry_page_job(
 ) -> JobRead:
     """Re-submit a page job through the queue (it renders at send time).
 
-    A calibration page and a test page are re-sent from their payload. Retry means "the same
-    page again": the stored payload carries the calibration snapshot and the date of the first
-    submit, and both are kept on purpose. After the admin has corrected the values, a new check
-    print is a new calibration-page request.
+    A calibration page, a probe page and a test page are re-sent from their payload. Retry means
+    "the same page again": the stored payload carries the calibration snapshot and the date of the
+    first submit, and both are kept on purpose. After the admin has corrected the values, a new
+    check print is a new calibration-page request.
 
     A sheet page goes to ``print_service.retry_sheet_page``: the same cells, a new job, a fresh
     snapshot. A ``done`` sheet page is not retried (its labels came out).
@@ -715,7 +715,13 @@ async def _retry_page_job(
         ensure_not_held(queue, job.printer_id)  # #231 (a test page is never held)
     if kind == "sheet_page":
         return await _retry_sheet_page(request, session, queue, job, auth)
-    if kind not in ("calibration_page", "test_page", "sheet_back_page", "tray_loading_page"):
+    if kind not in (
+        "calibration_page",
+        "test_page",
+        "sheet_back_page",
+        "tray_loading_page",
+        "probe_page",
+    ):
         raise PageJobNotRetryableError().to_http()
     if kind == "sheet_back_page":
         await _ensure_back_side_sheet(session, job.payload)  # R-350-6

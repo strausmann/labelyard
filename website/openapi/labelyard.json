@@ -6122,6 +6122,61 @@
         "title": "PrinterUpdatePayload",
         "type": "object"
       },
+      "ProbeJobAccepted": {
+        "properties": {
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "run_no": {
+            "description": "The run number the page carries (per printer and tray).",
+            "title": "Run No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_id",
+          "run_no"
+        ],
+        "title": "ProbeJobAccepted",
+        "type": "object"
+      },
+      "ProbeRequest": {
+        "properties": {
+          "grid": {
+            "default": false,
+            "description": "Print the measurement sheet: the probe page plus a millimetre grid over the whole page (lines every 1 mm, heavier every 5 mm, labelled every 10 mm, origin at the page's top-left corner), drawn without any correction.",
+            "title": "Grid",
+            "type": "boolean"
+          },
+          "type": {
+            "description": "Sheet type key.",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Type",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to the current version.",
+            "title": "Version"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ProbeRequest",
+        "type": "object"
+      },
       "ProbeSummary": {
         "description": "What \"Read printer\" shows (spec 11.1) and what Print-Job attributes are chosen from.",
         "properties": {
@@ -14579,6 +14634,191 @@
           }
         ],
         "summary": "Download the calibration page as a PDF",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/probe": {
+      "post": {
+        "description": "Queue a probe page: every label outline of the sheet type with its number and row and\ncolumn, the preprint zones hatched and the planned sheet-ID rectangle dashed, drawn with the\ntray's current correction (the measurement sheet, `grid`, without any). No sheet, reservation\nor cell changes; the page takes the tray's next run number and can be retried from Jobs.",
+        "operationId": "print_probe_page_api_v1_printers__printer_id__calibration__tray__probe_post",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeJobAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The key lacks the print scope (`insufficient_scope`) or may not use this printer (`printer_not_allowed`)."
+          },
+          "404": {
+            "description": "No such printer (`printer_not_found`) or sheet type."
+          },
+          "409": {
+            "description": "The printer is disabled (`printer_disabled`), is a tape printer (`media_kind_mismatch`), its fresh status says it is offline (`printer-offline`; a stale status never refuses), it is not known to the print queue (`printer-unavailable`), or the device behind it changed (`printer-identity-mismatch`)."
+          },
+          "422": {
+            "description": "The tray is not an enabled tray of the printer (`tray_unknown`), or the grid has more than 2500 cells (`calibration_grid_too_large`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Print the probe page or the measurement sheet on plain paper (no sheet is created)",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/probe/pdf": {
+      "get": {
+        "description": "The page the job would print, without a run (no run number and time).",
+        "operationId": "download_probe_page_api_v1_printers__printer_id__calibration__tray__probe_pdf_get",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sheet type key.",
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Sheet type key.",
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Defaults to the current version.",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to the current version.",
+              "title": "Version"
+            }
+          },
+          {
+            "description": "The measurement sheet: with the millimetre grid, uncorrected.",
+            "in": "query",
+            "name": "grid",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "The measurement sheet: with the millimetre grid, uncorrected.",
+              "title": "Grid",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The probe page."
+          },
+          "403": {
+            "description": "The key may not use this printer (`printer_not_allowed`)."
+          },
+          "422": {
+            "description": "The tray is not an enabled tray of the printer (`tray_unknown`), or the grid has more than 2500 cells (`calibration_grid_too_large`)."
+          },
+          "429": {
+            "description": "A render of the key is stuck past the time limit (`too-many-previews`). The body has the rate limit's shape (`retry_after_seconds`)."
+          },
+          "503": {
+            "description": "No render slot became free in time (`render-unavailable`)."
+          },
+          "504": {
+            "description": "The page took longer than `LABELYARD_RENDER_TIMEOUT_S` to draw (`render-timeout`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Download the probe page or the measurement sheet as a PDF",
         "tags": [
           "calibration"
         ]
