@@ -889,6 +889,59 @@ async def test_put_with_a_probe_print_run_is_422_and_stores_nothing(
     assert ok.status_code == 200, ok.text
 
 
+async def test_the_save_service_takes_only_a_calibration_page_run(
+    api_client_with_seed: Any,
+) -> None:
+    """The service itself, in the test's own event loop: the API tests above reach it through the
+    app, where coverage does not follow the awaits."""
+    pid = await _printer()
+    await _type()
+    async with _factory()() as s:
+        version = await ts.get_version(s, "calh-test", 1)
+        made = {}
+        for kind in ("check_page", "probe_page", "calibration_page"):
+            made[kind] = await runs.allocate_run(
+                s,
+                printer_id=pid,
+                tray="auto",
+                kind=kind,
+                job_id=uuid4(),
+                type_version_id=version.id,
+                correction=None,
+                actor="user:admin",
+            )
+    values = CalibrationIn(offset_x_mm=0.2)
+    errors = {
+        "check_page": service.RunIsACheckPrintError,
+        "probe_page": service.RunIsAProbePrintError,
+    }
+    for kind, error in errors.items():
+        async with _factory()() as s:
+            with pytest.raises(error):
+                await service.put(
+                    s,
+                    pid,
+                    "auto",
+                    values,
+                    measured_on=("calh-test", 1),
+                    actor="user:admin",
+                    run_id=made[kind].id,
+                )
+    async with _factory()() as s:
+        assert await s.get(PrinterCalibration, (pid, "auto")) is None
+        # Counter-test: a calibration page's run is stored.
+        read = await service.put(
+            s,
+            pid,
+            "auto",
+            values,
+            measured_on=("calh-test", 1),
+            actor="user:admin",
+            run_id=made["calibration_page"].id,
+        )
+        assert read.offset_x_mm == 0.2
+
+
 async def test_fewer_than_three_readings_are_refused_by_the_schema(
     api_client_with_seed: Any,
 ) -> None:
