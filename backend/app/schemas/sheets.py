@@ -12,7 +12,7 @@ from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from app.schemas._datetime import serialize_datetime_utc
 from app.sheets.exchange import (
@@ -516,6 +516,29 @@ class SheetTypePatch(_Body):
 class VersionCreate(_Body):
     geometry: GeometryMm
     change_note: str = Field(min_length=1, max_length=500)
+
+
+_PITCH_MM = Field(default=None, gt=0, le=1000, description="Millimetres, two decimals.")
+_MARGIN_MM = Field(default=None, ge=0, le=1000, description="Millimetres, two decimals.")
+
+
+class VersionFromSuggestion(_Body):
+    """The values of a geometry suggestion an admin applies (design 7.4); at least one."""
+
+    run_id: UUID = Field(description="The check print the suggestion came from.")
+    pitch_x_mm: float | None = _PITCH_MM
+    pitch_y_mm: float | None = _PITCH_MM
+    margin_left_mm: float | None = _MARGIN_MM
+    margin_top_mm: float | None = _MARGIN_MM
+
+    @model_validator(mode="after")
+    def _one_value(self) -> VersionFromSuggestion:
+        if all(
+            v is None
+            for v in (self.pitch_x_mm, self.pitch_y_mm, self.margin_left_mm, self.margin_top_mm)
+        ):
+            raise ValueError("needs pitch_x_mm, pitch_y_mm, margin_left_mm or margin_top_mm")
+        return self
 
 
 class ImportResponse(BaseModel):

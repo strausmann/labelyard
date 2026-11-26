@@ -24,6 +24,7 @@ from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext
 from app.auth.scope_deps import require_admin, require_read
+from app.calibration import suggest
 from app.catalog import service as catalog_service
 from app.catalog.upgrade import catalog_update_state
 from app.db.session import get_session
@@ -50,6 +51,7 @@ from app.schemas.sheets import (
     SheetTypeRead,
     UsageState,
     VersionCreate,
+    VersionFromSuggestion,
     VersionHistoryRead,
     VersionRead,
 )
@@ -603,6 +605,47 @@ async def add_sheet_type_version(
         v = await ts.add_version(
             session, key, geometry, actor=actor(auth), change_note=body.change_note
         )
+        return _version_read(v, 0)
+
+
+@router.post(
+    "/{key}/versions/from-suggestion",
+    response_model=VersionRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Apply a geometry suggestion from a check print as a new version",
+    description=(
+        "Adds a version with the geometry of the version `run_id` was printed for and the given "
+        "values in place (pitch and margins, mm), with a change note naming the run. The run "
+        "must be a check print (`422 run_not_a_check_print`) of this type "
+        "(`422 run_not_for_this_type`) and of its newest version "
+        "(`409 run_version_not_current`) that gives a suggestion "
+        "(`422 suggestion_unavailable`, `error_detail.reason` as in the fit's "
+        "`suggestion_unavailable`). Geometry rules apply as for any new version "
+        "(`422 invalid_geometry`, also for values equal to the stored ones)."
+    ),
+    responses={
+        **_NOT_FOUND,
+        409: {"description": "The type has a newer version (`run_version_not_current`)."},
+        422: {
+            "description": (
+                "The run is not a check print of this type (`run_not_for_this_type`, "
+                "`run_not_a_check_print`), gives no suggestion (`suggestion_unavailable`), no "
+                "value was sent (request validation), or the "
+                "geometry is invalid or unchanged (`invalid_geometry`)."
+            )
+        },
+    },
+)
+async def add_sheet_type_version_from_suggestion(
+    key: KeyPath, body: VersionFromSuggestion, session: SessionDep, auth: AdminDep
+) -> VersionRead:
+    with mapped():
+        values = {
+            name: mm_to_hmm(value, field=f"{name}_mm")
+            for name in suggest.SUGGESTION_FIELDS
+            if (value := getattr(body, f"{name}_mm")) is not None
+        }
+        v = await suggest.apply_suggestion(session, key, body.run_id, values, actor=actor(auth))
         return _version_read(v, 0)
 
 

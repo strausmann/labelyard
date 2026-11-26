@@ -22,7 +22,7 @@ from app.api.pagination import next_link
 from app.api.routes.sheet_common import actor, mapped
 from app.auth.dependencies import AuthContext, check_printer_access
 from app.auth.scope_deps import require_admin, require_print, require_read
-from app.calibration import history, page, runs, scale, service
+from app.calibration import history, page, runs, scale, service, suggest
 from app.calibration.fit import Reading, fit
 from app.calibration.history import CalibrationHistoryRead
 from app.calibration.layout import MarginText
@@ -37,6 +37,7 @@ from app.calibration.model import (
     deviation_to_values,
 )
 from app.calibration.runs import CalibrationRunRead
+from app.calibration.suggest import GeometrySuggestion, SuggestionUnavailable
 from app.db.session import get_session
 from app.repositories import printers as printers_repo
 from app.schemas.problem import ProblemDetail
@@ -61,6 +62,14 @@ class FitRequest(BaseModel):
     type: str = Field(min_length=1, max_length=200, description="Sheet type key.")
     version: int | None = Field(default=None, ge=1, description="Defaults to the current version.")
     readings: list[ReadingIn] = Field(min_length=3, max_length=READINGS_MAX)
+    run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The run (printed page) the readings were taken on; it must belong to this printer "
+            "and tray, else `422 run_not_for_this_tray`, and be printed for the fitted version, "
+            "else `422 run_version_mismatch`. A check print's run adds the geometry suggestion."
+        ),
+    )
 
 
 class FitResponse(BaseModel):
@@ -70,6 +79,23 @@ class FitResponse(BaseModel):
         description="0-based indices into `readings` of those further than 0.3 mm from the fit."
     )
     out_of_range: list[str] = Field(description="Names of values outside the allowed ranges.")
+    suggestion: GeometrySuggestion | None = Field(
+        default=None,
+        description=(
+            "With the `run_id` of a check print whose correction was measured on another sheet "
+            "type: the geometry the remaining readings point at (null fields are unchanged)."
+        ),
+    )
+    suggestion_unavailable: SuggestionUnavailable | None = Field(
+        default=None,
+        description=(
+            "Why a run gives no suggestion: `no_check_run` (not a check print, or printed without "
+            "a correction), `same_type` (the correction was measured on this sheet type, so its "
+            "geometry error is already in the correction), `unknown_correction` (the sheet type "
+            "the correction was measured on is not known: typed in by hand, or its history entry "
+            "or version is gone). Null without `run_id`."
+        ),
+    )
 
 
 @router.get(
@@ -174,6 +200,16 @@ async def delete_calibration(
 @router.post(
     "/{printer_id}/calibration/{tray}/fit",
     response_model=FitResponse,
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": (
+                "`run_id` names a run of another printer or tray (`run_not_for_this_tray`) or "
+                "was printed for another version (`run_version_mismatch`), the readings lie on "
+                "one line (`readings_insufficient`), or a reading names a gap outside the sheet "
+                "(`invalid_geometry`)."
+            )
+        }
+    },
     summary="Fit calibration values from measured readings (nothing is saved)",
 )
 async def fit_calibration(
@@ -190,17 +226,26 @@ async def fit_calibration(
             version = await ts.current_version(session, (await ts.get_type(session, body.type)).id)
         else:
             version = await ts.get_version(session, body.type, body.version)
+        run = (
+            None
+            if body.run_id is None
+            else await service.check_run(session, body.run_id, printer_id, tray, version)
+        )
         geometry = ts.version_geometry(version)
-        result = fit(
-            geometry,
-            geometry.page_size,
-            [Reading(r.col_gap, r.row_gap, r.across_mm, r.down_mm) for r in body.readings],
+        readings = [Reading(r.col_gap, r.row_gap, r.across_mm, r.down_mm) for r in body.readings]
+        result = fit(geometry, geometry.page_size, readings)
+        suggestion, unavailable = (
+            (None, None)
+            if run is None
+            else await suggest.suggestion_for_run(session, run, geometry, readings)
         )
     return FitResponse(
         values=deviation_to_values(result.dev),
         residuals_mm=result.residuals_mm,
         flagged=result.flagged,
         out_of_range=result.out_of_range,
+        suggestion=suggestion,
+        suggestion_unavailable=unavailable,
     )
 
 

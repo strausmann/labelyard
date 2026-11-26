@@ -253,21 +253,25 @@ class RunVersionMismatchError(SheetApiError):
 
     status = 422
     error_code = "run_version_mismatch"
-    message = "The run was printed for another sheet type version than measured_on."
+    message = "The run was printed for another sheet type version than the one named."
 
 
-async def _check_run(
+async def check_run(
     session: AsyncSession,
     run_id: UUID,
     printer_id: UUID,
     tray: str,
     version: SheetTypeVersion | None,
-) -> None:
-    run = await session.get(CalibrationRun, run_id)
+) -> CalibrationRun:
+    """The run ``run_id`` of this printer and tray, printed for ``version`` when one is named; the
+    save and the fit both check a run this way (``run_not_for_this_tray``,
+    ``run_version_mismatch``). Read fresh: a run from ``submit_with_run`` is detached."""
+    run = await session.get(CalibrationRun, run_id, populate_existing=True)
     if run is None or run.printer_id != printer_id or run.tray != tray:
         raise RunNotForThisTrayError()
     if version is not None and run.type_version_id != version.id:
         raise RunVersionMismatchError()
+    return run
 
 
 async def put(
@@ -294,7 +298,7 @@ async def put(
     await _check_tray(session, printer_id, tray)
     version = await ts.get_version(session, measured_on[0], measured_on[1]) if measured_on else None
     if run_id is not None:
-        await _check_run(session, run_id, printer_id, tray, version)
+        await check_run(session, run_id, printer_id, tray, version)
     dev = to_deviation(values)  # raises calibration_out_of_range before any write
     clean_note = None if note is None else ts.clean_text("note", note, NOTE_MAX) or None
     source: Literal["manual", "fit"] = "manual"

@@ -2583,6 +2583,19 @@
             "title": "Readings",
             "type": "array"
           },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run (printed page) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and be printed for the fitted version, else `422 run_version_mismatch`. A check print's run adds the geometry suggestion.",
+            "title": "Run Id"
+          },
           "type": {
             "description": "Sheet type key.",
             "maxLength": 200,
@@ -2635,6 +2648,34 @@
             },
             "title": "Residuals Mm",
             "type": "array"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeometrySuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With the `run_id` of a check print whose correction was measured on another sheet type: the geometry the remaining readings point at (null fields are unchanged)."
+          },
+          "suggestion_unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "same_type",
+                  "no_check_run",
+                  "unknown_correction"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a run gives no suggestion: `no_check_run` (not a check print, or printed without a correction), `same_type` (the correction was measured on this sheet type, so its geometry error is already in the correction), `unknown_correction` (the sheet type the correction was measured on is not known: typed in by hand, or its history entry or version is gone). Null without `run_id`.",
+            "title": "Suggestion Unavailable"
           },
           "values": {
             "$ref": "#/components/schemas/CalibrationIn"
@@ -2769,6 +2810,73 @@
           "shape"
         ],
         "title": "GeometryMm",
+        "type": "object"
+      },
+      "GeometrySuggestion": {
+        "description": "Proposed geometry values in hundredths of a millimetre; ``null`` means \"keep it\": a change\nunder 0.05 mm (unless the other value of its axis needs it to keep the grid on the page),\ntoo few gaps on that axis, or an axis the geometry rules would refuse, such as a pitch below\nthe label size (then pitch and margin of that axis are both ``null``). The proposal as a\nwhole is always a geometry a new version may have.",
+        "properties": {
+          "margin_left_hmm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the constant part across the S gaps.",
+            "title": "Margin Left Hmm"
+          },
+          "margin_top_hmm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the constant part across the Z gaps.",
+            "title": "Margin Top Hmm"
+          },
+          "pitch_x_hmm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the trend across the S gaps.",
+            "title": "Pitch X Hmm"
+          },
+          "pitch_y_hmm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the trend across the Z gaps.",
+            "title": "Pitch Y Hmm"
+          },
+          "uneven": {
+            "description": "A reading lies more than 0.3 mm off the trend: the pattern is not a pitch or margin error, check the sheet rather than the printer.",
+            "title": "Uneven",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pitch_x_hmm",
+          "pitch_y_hmm",
+          "margin_left_hmm",
+          "margin_top_hmm",
+          "uneven"
+        ],
+        "title": "GeometrySuggestion",
         "type": "object"
       },
       "GrocyBatteryResult": {
@@ -10298,6 +10406,79 @@
         "title": "VersionDoc",
         "type": "object"
       },
+      "VersionFromSuggestion": {
+        "additionalProperties": false,
+        "description": "The values of a geometry suggestion an admin applies (design 7.4); at least one.",
+        "properties": {
+          "margin_left_mm": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Millimetres, two decimals.",
+            "title": "Margin Left Mm"
+          },
+          "margin_top_mm": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Millimetres, two decimals.",
+            "title": "Margin Top Mm"
+          },
+          "pitch_x_mm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Millimetres, two decimals.",
+            "title": "Pitch X Mm"
+          },
+          "pitch_y_mm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Millimetres, two decimals.",
+            "title": "Pitch Y Mm"
+          },
+          "run_id": {
+            "description": "The check print the suggestion came from.",
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "VersionFromSuggestion",
+        "type": "object"
+      },
       "VersionHistoryRead": {
         "description": "A version in the type's version list, with what changed against the version before it.",
         "properties": {
@@ -13691,14 +13872,7 @@
             "description": "Successful Response"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "`run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version (`run_version_mismatch`), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`)."
           }
         },
         "security": [
@@ -16855,6 +17029,86 @@
           }
         ],
         "summary": "Add a version with new geometry",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/{key}/versions/from-suggestion": {
+      "post": {
+        "description": "Adds a version with the geometry of the version `run_id` was printed for and the given values in place (pitch and margins, mm), with a change note naming the run. The run must be a check print (`422 run_not_a_check_print`) of this type (`422 run_not_for_this_type`) and of its newest version (`409 run_version_not_current`) that gives a suggestion (`422 suggestion_unavailable`, `error_detail.reason` as in the fit's `suggestion_unavailable`). Geometry rules apply as for any new version (`422 invalid_geometry`, also for values equal to the stored ones).",
+        "operationId": "add_sheet_type_version_from_suggestion_api_v1_sheet_types__key__versions_from_suggestion_post",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionFromSuggestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "The type has a newer version (`run_version_not_current`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "The run is not a check print of this type (`run_not_for_this_type`, `run_not_a_check_print`), gives no suggestion (`suggestion_unavailable`), no value was sent (request validation), or the geometry is invalid or unchanged (`invalid_geometry`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Apply a geometry suggestion from a check print as a new version",
         "tags": [
           "sheet-types"
         ]

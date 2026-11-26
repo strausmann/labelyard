@@ -1571,6 +1571,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sheet-types/{key}/versions/from-suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a geometry suggestion from a check print as a new version
+         * @description Adds a version with the geometry of the version `run_id` was printed for and the given values in place (pitch and margins, mm), with a change note naming the run. The run must be a check print (`422 run_not_a_check_print`) of this type (`422 run_not_for_this_type`) and of its newest version (`409 run_version_not_current`) that gives a suggestion (`422 suggestion_unavailable`, `error_detail.reason` as in the fit's `suggestion_unavailable`). Geometry rules apply as for any new version (`422 invalid_geometry`, also for values equal to the stored ones).
+         */
+        post: operations["add_sheet_type_version_from_suggestion_api_v1_sheet_types__key__versions_from_suggestion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sheet-types/{key}/versions/{n}": {
         parameters: {
             query?: never;
@@ -3029,6 +3049,11 @@ export interface components {
             /** Readings */
             readings: components["schemas"]["ReadingIn"][];
             /**
+             * Run Id
+             * @description The run (printed page) the readings were taken on; it must belong to this printer and tray, else `422 run_not_for_this_tray`, and be printed for the fitted version, else `422 run_version_mismatch`. A check print's run adds the geometry suggestion.
+             */
+            run_id?: string | null;
+            /**
              * Type
              * @description Sheet type key.
              */
@@ -3053,6 +3078,13 @@ export interface components {
             out_of_range: string[];
             /** Residuals Mm */
             residuals_mm: number[];
+            /** @description With the `run_id` of a check print whose correction was measured on another sheet type: the geometry the remaining readings point at (null fields are unchanged). */
+            suggestion?: components["schemas"]["GeometrySuggestion"] | null;
+            /**
+             * Suggestion Unavailable
+             * @description Why a run gives no suggestion: `no_check_run` (not a check print, or printed without a correction), `same_type` (the correction was measured on this sheet type, so its geometry error is already in the correction), `unknown_correction` (the sheet type the correction was measured on is not known: typed in by hand, or its history entry or version is gone). Null without `run_id`.
+             */
+            suggestion_unavailable?: ("same_type" | "no_check_run" | "unknown_correction") | null;
             values: components["schemas"]["CalibrationIn"];
         };
         /** GeometryMm */
@@ -3089,6 +3121,41 @@ export interface components {
              * @enum {string}
              */
             shape: "rectangle" | "round";
+        };
+        /**
+         * GeometrySuggestion
+         * @description Proposed geometry values in hundredths of a millimetre; ``null`` means "keep it": a change
+         *     under 0.05 mm (unless the other value of its axis needs it to keep the grid on the page),
+         *     too few gaps on that axis, or an axis the geometry rules would refuse, such as a pitch below
+         *     the label size (then pitch and margin of that axis are both ``null``). The proposal as a
+         *     whole is always a geometry a new version may have.
+         */
+        GeometrySuggestion: {
+            /**
+             * Margin Left Hmm
+             * @description From the constant part across the S gaps.
+             */
+            margin_left_hmm: number | null;
+            /**
+             * Margin Top Hmm
+             * @description From the constant part across the Z gaps.
+             */
+            margin_top_hmm: number | null;
+            /**
+             * Pitch X Hmm
+             * @description From the trend across the S gaps.
+             */
+            pitch_x_hmm: number | null;
+            /**
+             * Pitch Y Hmm
+             * @description From the trend across the Z gaps.
+             */
+            pitch_y_hmm: number | null;
+            /**
+             * Uneven
+             * @description A reading lies more than 0.3 mm off the trend: the pattern is not a pitch or margin error, check the sheet rather than the printer.
+             */
+            uneven: boolean;
         };
         /**
          * GrocyBatteryResult
@@ -6317,6 +6384,38 @@ export interface components {
             version: number;
         };
         /**
+         * VersionFromSuggestion
+         * @description The values of a geometry suggestion an admin applies (design 7.4); at least one.
+         */
+        VersionFromSuggestion: {
+            /**
+             * Margin Left Mm
+             * @description Millimetres, two decimals.
+             */
+            margin_left_mm?: number | null;
+            /**
+             * Margin Top Mm
+             * @description Millimetres, two decimals.
+             */
+            margin_top_mm?: number | null;
+            /**
+             * Pitch X Mm
+             * @description Millimetres, two decimals.
+             */
+            pitch_x_mm?: number | null;
+            /**
+             * Pitch Y Mm
+             * @description Millimetres, two decimals.
+             */
+            pitch_y_mm?: number | null;
+            /**
+             * Run Id
+             * Format: uuid
+             * @description The check print the suggestion came from.
+             */
+            run_id: string;
+        };
+        /**
          * VersionHistoryRead
          * @description A version in the type's version list, with what changed against the version before it.
          */
@@ -8548,14 +8647,12 @@ export interface operations {
                     "application/json": components["schemas"]["FitResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or was printed for another version (`run_version_mismatch`), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`). */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+                content?: never;
             };
         };
     };
@@ -10377,6 +10474,60 @@ export interface operations {
                 };
             };
             /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    add_sheet_type_version_from_suggestion_api_v1_sheet_types__key__versions_from_suggestion_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VersionFromSuggestion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionRead"];
+                };
+            };
+            /** @description Sheet type not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description The type has a newer version (`run_version_not_current`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description The run is not a check print of this type (`run_not_for_this_type`, `run_not_a_check_print`), gives no suggestion (`suggestion_unavailable`), no value was sent (request validation), or the geometry is invalid or unchanged (`invalid_geometry`). */
             422: {
                 headers: {
                     [name: string]: unknown;
