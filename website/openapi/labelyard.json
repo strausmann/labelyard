@@ -2813,7 +2813,7 @@
         "type": "object"
       },
       "GeometrySuggestion": {
-        "description": "Proposed geometry values in hundredths of a millimetre; ``null`` means \"keep it\": a change\nunder 0.05 mm, too few gaps on that axis, or a pitch that would fall below the label size\n(then pitch and margin of that axis are both ``null``).",
+        "description": "Proposed geometry values in hundredths of a millimetre; ``null`` means \"keep it\": a change\nunder 0.05 mm (unless the other value of its axis needs it to keep the grid on the page),\ntoo few gaps on that axis, or an axis the geometry rules would refuse, such as a pitch below\nthe label size (then pitch and margin of that axis are both ``null``). The proposal as a\nwhole is always a geometry a new version may have.",
         "properties": {
           "margin_left_hmm": {
             "anyOf": [

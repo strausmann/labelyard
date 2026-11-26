@@ -17,10 +17,10 @@ import pytest
 from app.calibration.fit import Reading, crossing_point
 from app.calibration.suggest import suggest_geometry
 from app.page_render.transform import Deviation, apply_deviation, correction_mm
-from app.sheets.geometry import Geometry
+from app.sheets.geometry import Geometry, normalise_shape, validate_geometry
 
-# L4737REV-like: 5 x 13 labels on A4, the stored geometry.
-G = Geometry("A4", 21000, 29700, 3810, 2120, 5, 13, 4820, 2120, 1080, 990, None, "rectangle")
+# 5 x 13 labels on A4, the stored geometry (a valid one: every suggestion is checked whole).
+G = Geometry("A4", 21000, 29700, 3700, 2120, 5, 13, 3820, 2120, 1080, 990, None, "rectangle")
 PRINTER = Deviation(120, -40, 1_001_000, 999_000, 300_000)
 # Pass 1 of a check sheet (outer corners and centre) plus a few more crossings.
 CROSSINGS = [(1, 1), (4, 1), (1, 12), (4, 12), (2, 6), (3, 9), (2, 3)]
@@ -52,10 +52,10 @@ def _suggest(readings: list[Reading]):  # type: ignore[no-untyped-def]
 
 
 def test_synthetic_pitch_error_recovered_within_0_05_mm() -> None:
-    true = replace(G, pitch_x=4755, pitch_y=2131, margin_left=1030, margin_top=1050)
+    true = replace(G, pitch_x=3755, pitch_y=2131, margin_left=1030, margin_top=1050)
     s = _suggest(_readings(true))
     assert s is not None
-    assert s.pitch_x_hmm == pytest.approx(4755, abs=5)  # 48.20 -> 47.55 mm, within 0.05 mm
+    assert s.pitch_x_hmm == pytest.approx(3755, abs=5)  # 38.20 -> 37.55 mm, within 0.05 mm
     assert s.pitch_y_hmm == pytest.approx(2131, abs=5)
     assert s.margin_left_hmm == pytest.approx(1030, abs=5)
     assert s.margin_top_hmm == pytest.approx(1050, abs=5)
@@ -83,7 +83,7 @@ def test_changes_below_5_hmm_are_reported_as_none() -> None:
 
 def test_same_type_correction_gives_no_suggestion() -> None:
     same = uuid4()
-    true = replace(G, pitch_x=4755)
+    true = replace(G, pitch_x=3755)
     assert (
         suggest_geometry(
             G, _readings(true), correction_type_version_id=same, run_type_version_id=same
@@ -102,7 +102,7 @@ def test_uneven_pattern_reported() -> None:
 
 
 def test_one_column_gap_gives_no_pitch_x() -> None:
-    readings = [r for r in _readings(replace(G, pitch_x=4755)) if r.col_gap == 1]
+    readings = [r for r in _readings(replace(G, pitch_x=3755)) if r.col_gap == 1]
     s = _suggest(readings)
     assert s is not None
     assert s.pitch_x_hmm is None and s.margin_left_hmm is None
@@ -112,8 +112,40 @@ def test_a_pitch_below_the_label_size_is_not_offered() -> None:
     """A gapless type (pitch_y == label_h) cannot take a smaller pitch: the axis is left out so
     an apply never fails with invalid_geometry (review M1)."""
     assert G.pitch_y == G.label_h
-    true = replace(G, pitch_y=G.pitch_y - 7, margin_top=G.margin_top + 20, pitch_x=4755)
+    true = replace(G, pitch_y=G.pitch_y - 7, margin_top=G.margin_top + 20, pitch_x=3755)
     s = _suggest(_readings(true))
     assert s is not None
     assert s.pitch_y_hmm is None and s.margin_top_hmm is None
-    assert s.pitch_x_hmm == pytest.approx(4755, abs=5)  # the other axis stays
+    assert s.pitch_x_hmm == pytest.approx(3755, abs=5)  # the other axis stays
+
+
+# A4, 4 columns of 49 mm at 50 mm pitch from an 11 mm margin: the grid ends exactly at 210 mm.
+EDGE = Geometry("A4", 21000, 29700, 4900, 2120, 4, 13, 5000, 2120, 1080, 1100, None, "rectangle")
+
+
+def _suggest_on(g: Geometry, true: Geometry):  # type: ignore[no-untyped-def]
+    readings = []
+    for col_gap, row_gap in [(1, 1), (3, 1), (1, 12), (3, 12), (2, 6)]:
+        drawn = crossing_point(g, col_gap, row_gap)
+        paper = crossing_point(true, col_gap, row_gap)
+        readings.append(Reading(col_gap, row_gap, drawn[0] - paper[0], drawn[1] - paper[1]))
+    return suggest_geometry(
+        g, readings, correction_type_version_id=CORRECTION_VERSION, run_type_version_id=RUN_VERSION
+    )
+
+
+def test_a_small_pitch_change_is_kept_when_the_margin_change_needs_it() -> None:
+    """Dropping the 0.04 mm pitch change alone would push the grid 0.1 mm off the page: the
+    coupled change is kept, so the suggestion is a valid geometry (Codex review on #448)."""
+    s = _suggest_on(EDGE, replace(EDGE, pitch_x=4996, margin_left=1110))
+    assert s is not None
+    assert (s.pitch_x_hmm, s.margin_left_hmm) == (4996, 1110)
+    applied = replace(EDGE, pitch_x=s.pitch_x_hmm, margin_left=s.margin_left_hmm)
+    validate_geometry(normalise_shape(applied), on_write=True)  # no InvalidGeometryError
+
+
+def test_an_axis_that_fits_no_page_is_left_out() -> None:
+    """Readings that point at a grid wider than the page: that axis is not offered."""
+    s = _suggest_on(EDGE, replace(EDGE, pitch_x=5040, margin_left=1100))
+    assert s is not None
+    assert (s.pitch_x_hmm, s.margin_left_hmm) == (None, None)

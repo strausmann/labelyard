@@ -33,7 +33,7 @@ from app.models.sheet import SheetTypeVersion
 from app.repositories.write_lock import write_transaction
 from app.sheets import type_service as ts
 from app.sheets.errors import SheetApiError
-from app.sheets.geometry import Geometry
+from app.sheets.geometry import Geometry, normalise_shape, validate_geometry
 
 #: A proposed value closer than this to the stored one is no change (hundredths of a mm).
 MIN_CHANGE_HMM = 5
@@ -43,8 +43,10 @@ SuggestionUnavailable = Literal["same_type", "no_check_run", "unknown_correction
 
 class GeometrySuggestion(BaseModel):
     """Proposed geometry values in hundredths of a millimetre; ``null`` means "keep it": a change
-    under 0.05 mm, too few gaps on that axis, or a pitch that would fall below the label size
-    (then pitch and margin of that axis are both ``null``)."""
+    under 0.05 mm (unless the other value of its axis needs it to keep the grid on the page),
+    too few gaps on that axis, or an axis the geometry rules would refuse, such as a pitch below
+    the label size (then pitch and margin of that axis are both ``null``). The proposal as a
+    whole is always a geometry a new version may have."""
 
     pitch_x_hmm: int | None = Field(description="From the trend across the S gaps.")
     pitch_y_hmm: int | None = Field(description="From the trend across the Z gaps.")
@@ -69,24 +71,57 @@ def _line(t: list[float], p: list[float]) -> tuple[float, float] | None:
     return mp - c1 * mt, c1
 
 
-def _changed(stored: int, proposed: float) -> int | None:
-    value = round(proposed)
-    return None if abs(value - stored) < MIN_CHANGE_HMM else value
+Axis = tuple[int | None, int | None]
+"""(pitch, margin) of one axis in hundredths of a millimetre; ``None`` keeps the stored value."""
 
 
-def _axis(
-    line: tuple[float, float] | None, pitch: int, margin: int, label: int
-) -> tuple[int | None, int | None]:
-    """(pitch, margin) of one axis. A pitch below the label size (a gapless sheet read as
-    smaller) is no geometry a version may have: the whole axis is left out, so applying a
-    suggestion never fails with ``invalid_geometry``."""
+def _raw_axis(line: tuple[float, float] | None, pitch: int, margin: int, label: int) -> Axis | None:
+    """The rounded (pitch, margin) the trend of one axis points at, each ``None`` where it equals
+    the stored value; ``None`` without a trend or when the pitch would fall below the label size
+    (a gapless sheet read as smaller), which no version may have."""
     if line is None:
-        return None, None
+        return None
     c0, c1 = line
-    new_pitch = pitch - c1 * 100
-    if round(new_pitch) < label:
-        return None, None
-    return _changed(pitch, new_pitch), _changed(margin, margin - (c0 + 0.5 * c1) * 100)
+    new_pitch = round(pitch - c1 * 100)
+    if new_pitch < label:
+        return None
+    new_margin = round(margin - (c0 + 0.5 * c1) * 100)
+    return (
+        None if new_pitch == pitch else new_pitch,
+        None if new_margin == margin else new_margin,
+    )
+
+
+def _options(raw: Axis | None, pitch: int, margin: int) -> list[Axis]:
+    """What one axis may propose, best first: the changes of at least ``MIN_CHANGE_HMM``, then
+    both changes together (a small change the other one needs to stay on the page), then none."""
+    if raw is None:
+        return [(None, None)]
+    thresholded: Axis = (
+        raw[0] if raw[0] is not None and abs(raw[0] - pitch) >= MIN_CHANGE_HMM else None,
+        raw[1] if raw[1] is not None and abs(raw[1] - margin) >= MIN_CHANGE_HMM else None,
+    )
+    out = [thresholded]
+    if thresholded != (None, None) and raw != thresholded:
+        out.append(raw)
+    if (None, None) not in out:
+        out.append((None, None))
+    return out
+
+
+def _fits(g: Geometry, x: Axis, y: Axis) -> bool:
+    candidate = replace(
+        g,
+        pitch_x=x[0] if x[0] is not None else g.pitch_x,
+        margin_left=x[1] if x[1] is not None else g.margin_left,
+        pitch_y=y[0] if y[0] is not None else g.pitch_y,
+        margin_top=y[1] if y[1] is not None else g.margin_top,
+    )
+    try:
+        validate_geometry(normalise_shape(candidate), on_write=True)
+    except SheetApiError:
+        return False
+    return True
 
 
 def suggest_geometry(
@@ -113,8 +148,16 @@ def suggest_geometry(
         math.hypot(detrended(x_line, c, a), detrended(y_line, r, d)) > RESIDUAL_FLAG_MM
         for c, r, a, d in zip(cols, rows, across, down, strict=True)
     )
-    pitch_x, margin_left = _axis(x_line, g.pitch_x, g.margin_left, g.label_w)
-    pitch_y, margin_top = _axis(y_line, g.pitch_y, g.margin_top, g.label_h)
+    # Every proposal is a geometry a version may have, checked as a whole: an axis is filtered
+    # for small changes, kept with both changes when one needs the other, or left out.
+    x_options = _options(_raw_axis(x_line, g.pitch_x, g.margin_left, g.label_w),
+                         g.pitch_x, g.margin_left)  # fmt: skip
+    y_options = _options(_raw_axis(y_line, g.pitch_y, g.margin_top, g.label_h),
+                         g.pitch_y, g.margin_top)  # fmt: skip
+    (pitch_x, margin_left), (pitch_y, margin_top) = next(
+        ((x, y) for x in x_options for y in y_options if _fits(g, x, y)),
+        ((None, None), (None, None)),
+    )
     return GeometrySuggestion(
         pitch_x_hmm=pitch_x,
         pitch_y_hmm=pitch_y,

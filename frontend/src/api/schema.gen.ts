@@ -3125,8 +3125,10 @@ export interface components {
         /**
          * GeometrySuggestion
          * @description Proposed geometry values in hundredths of a millimetre; ``null`` means "keep it": a change
-         *     under 0.05 mm, too few gaps on that axis, or a pitch that would fall below the label size
-         *     (then pitch and margin of that axis are both ``null``).
+         *     under 0.05 mm (unless the other value of its axis needs it to keep the grid on the page),
+         *     too few gaps on that axis, or an axis the geometry rules would refuse, such as a pitch below
+         *     the label size (then pitch and margin of that axis are both ``null``). The proposal as a
+         *     whole is always a geometry a new version may have.
          */
         GeometrySuggestion: {
             /**
