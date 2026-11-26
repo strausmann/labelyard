@@ -688,6 +688,64 @@ test.describe.serial("calibration", () => {
     }
   });
 
+  test("screenshots: the line naming the type of the kept fit, three states (#220, M8)", async () => {
+    test.skip(!process.env.E2E_SHOTS_DIR, "screenshots are an artifact, taken only with E2E_SHOTS_DIR");
+    test.setTimeout(120_000);
+    const dir = process.env.E2E_SHOTS_DIR!;
+    mkdirSync(dir, { recursive: true });
+    await setLanguage(page, "en");
+    const run = { job_id: "j", retry: false, submitted: true, requested_tray: TRAY, actual_media_source: null, media_source_reported: true, type_key: TYPE, version: 1 };
+    const runs = [{ ...run, id: "r12", run_no: 12, kind: "calibration_page", created_at: "2026-11-21T14:20:00Z", check_sheet_id: null, pass_no: null }];
+    const fit = {
+      values: { offset_x_mm: 0.41, offset_y_mm: -0.66, scale_x: 1.00012, scale_y: 0.99992, rotation_deg: 0.021 },
+      residuals_mm: [0.08, 0.12, 0.1],
+      flagged: [],
+      out_of_range: [],
+      suggestion: null,
+      suggestion_unavailable: null,
+    };
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/runs`, (route) => route.fulfill({ json: runs }));
+    await page.route(`**/api/v1/printers/${id}/calibration/${TRAY}/fit`, (route) => route.fulfill({ json: fit }));
+    const values = page.getByRole("heading", { name: "Or enter the values directly" }).locator("xpath=..");
+    const shoot = async (name: string, width: number) => {
+      await values.scrollIntoViewIfNeeded();
+      await values.screenshot({ path: resolve(dir, `t16-kept-fit-${name}-${width}.png`) });
+    };
+    try {
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: width < 500 ? 2200 : 900 });
+        await page.goto(`/calibration?printer=${id}&tray=${TRAY}&view=readings&type=${TYPE}`);
+        // Typed by hand: no fit yet.
+        await expect(page.getByText(/^Typed by hand, saved for /)).toBeVisible();
+        await shoot("typed", width);
+        await page.getByRole("button", { name: /Readings from print/ }).click();
+        await page.getByRole("option", { name: /^#12 / }).click();
+        const fields: [string, string][] = [
+          ["Across at S1 · Z1 (mm)", "0,4"],
+          ["Down at S1 · Z1 (mm)", "0,7"],
+          ["Across at S3 · Z1 (mm)", "0,4"],
+          ["Down at S3 · Z1 (mm)", "-0,5"],
+          ["Across at S1 · Z11 (mm)", "0,6"],
+          ["Down at S1 · Z11 (mm)", "0,3"],
+        ];
+        for (const [label, value] of fields) await page.getByRole("textbox", { name: label }).fill(value);
+        await page.getByRole("button", { name: "Fit", exact: true }).click();
+        await expect(page.getByText(/^Values from the readings of .*, print #12\.$/)).toBeVisible();
+        await shoot("fitted", width);
+        // Another type chosen above: the line turns into a warning.
+        const box = page.getByRole("combobox", { name: /Sheet type/ });
+        await box.click();
+        await expect(page.getByRole("listbox")).toBeVisible();
+        await page.getByRole("option").filter({ hasNotText: `(${TYPE})` }).first().click();
+        await expect(page.getByText(/not the sheet type chosen above\.$/)).toBeVisible();
+        await shoot("other-type", width);
+      }
+    } finally {
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/runs`);
+      await page.unroute(`**/api/v1/printers/${id}/calibration/${TRAY}/fit`);
+    }
+  });
+
   for (const [lang, size] of [
     ["de", { width: 360, height: 780 }],
     ["en", { width: 1280, height: 800 }],

@@ -213,7 +213,6 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
   const text = useNumberText();
   const key = stored?.updated_at ?? "none";
   // `fit` is what the values were fitted from (type version, print, readings); null for values typed by hand.
-  // Task 16 reads `fit.run` to name the print ("print #n") next to the values.
   const [draft, setDraft] = useState<{ key: string; fields: Draft; fit: Fit | null }>(() => ({ key, fields: draftOf(stored, text), fit: null }));
   // The stored values changed (a save, a reset, another tab): the form follows them.
   if (draft.key !== key) setDraft({ key, fields: draftOf(stored, text), fit: null });
@@ -226,6 +225,16 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
   // The type the stored correction was measured on, for the geometry suggestion's sentence.
   const storedOn = stored?.measured_on ?? null;
   const storedOnType = storedOn ? (types.data ?? []).find((x) => x.key === storedOn.type_key) : undefined;
+  // The line next to Save names the type the values belong to (#220, design 7.7).
+  const nameOfType = (key: string) => {
+    const known = (types.data ?? []).find((x) => x.key === key);
+    return known ? typeLabelWithKey(known) : key;
+  };
+  const origin: Origin | null = draft.fit
+    ? { fitted: true, typeName: nameOfType(draft.fit.type_key), version: draft.fit.version, run: draft.fit.run?.run_no ?? null, otherType: draft.fit.type_key !== type?.key }
+    : measuredOn
+      ? { fitted: false, typeName: nameOfType(measuredOn.type_key), version: measuredOn.version }
+      : null;
   const measuredOnLabel = storedOnType ? typeLabelWithKey(storedOnType) : (storedOn?.type_key ?? null);
 
   // Whether a correction is stored decides which print is the obvious next step: measuring, or checking what was measured.
@@ -384,6 +393,7 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           fields={draft.fields}
           onChange={(fields) => setDraft({ key, fields, fit: null })}
           measuredOn={measuredOn}
+          origin={origin}
           fit={draft.fit}
           admin={admin}
         />
@@ -577,6 +587,11 @@ function PrintAction({ printerId, type, print, onPress, disabled, label, subject
   );
 }
 
+/** Where the values in the form came from: a fit of readings (on some type, maybe not the chosen one) or the hand. */
+type Origin =
+  | { fitted: true; typeName: string; version: number; run: number | null; otherType: boolean }
+  | { fitted: false; typeName: string; version: number };
+
 interface ValuesFormProps {
   printer: Printer;
   tray: string;
@@ -587,12 +602,13 @@ interface ValuesFormProps {
   fields: Draft;
   onChange: (fields: Draft) => void;
   measuredOn: MeasuredOn | null;
+  origin: Origin | null;
   /** The fit the values came from, if they did: its print and readings are saved with them. */
   fit: Fit | null;
   admin: boolean;
 }
 
-function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onChange, measuredOn, fit, admin }: ValuesFormProps) {
+function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onChange, measuredOn, origin, fit, admin }: ValuesFormProps) {
   const { t } = useLingui();
   const names = useValueNames();
   const errorText = useCalibrationErrorText();
@@ -643,7 +659,7 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
     <TextInput label={label} value={fields[f]} onChange={(v) => setField(f, v)} inputMode="decimal" mono description={description} />
   );
   const printerName = printer.name;
-  const fitRun = fit?.run?.run_no;
+  const originLine = useOriginLine(origin);
   const { requested: requestedLabel, sheets: sheetsLabel } = warnings;
 
   return (
@@ -651,7 +667,6 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
       <p className={`${HINT} max-w-prose`}>
         {t`Enter what the printer did wrong; the hub applies the opposite itself.`}
       </p>
-      {fitRun && <p className="m-0 text-small font-bold">{t`From the readings of print #${fitRun}.`}</p>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {number("offset_x_mm", t`Offset X (mm)`, t`+ = printed too far right`)}
         {number("offset_y_mm", t`Offset Y (mm)`, t`+ = printed too low`)}
@@ -684,6 +699,9 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
           </Button>
         )}
       </div>
+      {origin && originLine && (
+        <p className={origin.fitted && origin.otherType ? "m-0 text-small font-bold text-warn" : `${HINT} m-0`}>{originLine}</p>
+      )}
       {!admin && <p className={HINT}>{t`Saving needs an admin key, because it changes every print on this tray.`}</p>}
       {confirming && (
         <div role="group" aria-label={t`Confirm the reset`} className="flex flex-col gap-3 rounded-r2 border border-warn bg-sunken p-3">
@@ -696,6 +714,23 @@ function ValuesForm({ printer, tray, trayLabel, warnings, hasStored, fields, onC
       )}
     </div>
   );
+}
+
+/** The sentence under the values that says what they were measured on (#220, design 7.7). */
+function useOriginLine(origin: Origin | null): string | null {
+  const { t } = useLingui();
+  if (!origin) return null;
+  const { typeName, version } = origin;
+  if (!origin.fitted) return t`Typed by hand, saved for ${typeName} v${version}.`;
+  const run = origin.run;
+  if (run === null) {
+    return origin.otherType
+      ? t`Values from the readings of ${typeName} v${version}, not the sheet type chosen above.`
+      : t`Values from the readings of ${typeName} v${version}.`;
+  }
+  return origin.otherType
+    ? t`Values from the readings of ${typeName} v${version}, print #${run}, not the sheet type chosen above.`
+    : t`Values from the readings of ${typeName} v${version}, print #${run}.`;
 }
 
 function draftOfValues(values: Record<Field, number>, text: (n: number) => string): Draft {

@@ -2618,8 +2618,8 @@ msgid "From the left edge of one label to the left edge of the next."
 msgstr "From the left edge of one label to the left edge of the next."
 
 #: src/features/calibration/CalibrationPage.tsx
-msgid "From the readings of print #{fitRun}."
-msgstr "From the readings of print #{fitRun}."
+#~ msgid "From the readings of print #{fitRun}."
+#~ msgstr "From the readings of print #{fitRun}."
 
 #: src/features/archive/PreprintZonesEditor.tsx
 msgid "From the sheet's top-left corner, in mm."
@@ -8162,6 +8162,10 @@ msgstr "Type"
 msgid "Typed by hand, no readings."
 msgstr "Typed by hand, no readings."
 
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Typed by hand, saved for {typeName} v{version}."
+msgstr "Typed by hand, saved for {typeName} v{version}."
+
 #: src/features/sheets/SheetDetail.tsx
 msgid "Un-mark cells"
 msgstr "Un-mark cells"
@@ -8325,6 +8329,22 @@ msgstr "Used up"
 #: src/features/settings/PrinterForm.tsx
 msgid "Usually public."
 msgstr "Usually public."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}, not the sheet type chosen above."
+msgstr "Values from the readings of {typeName} v{version}, not the sheet type chosen above."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}, print #{run}, not the sheet type chosen above."
+msgstr "Values from the readings of {typeName} v{version}, print #{run}, not the sheet type chosen above."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}, print #{run}."
+msgstr "Values from the readings of {typeName} v{version}, print #{run}."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}."
+msgstr "Values from the readings of {typeName} v{version}."
 
 #: src/features/archive/ArchivePage.tsx
 #: src/features/archive/CatalogTab.tsx
