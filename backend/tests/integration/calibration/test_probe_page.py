@@ -467,5 +467,10 @@ def test_the_run_survives_in_a_small_fallback_cell(g: Geometry, run_no: int) -> 
             "time": "14:05",
         },
     )  # fmt: skip
-    texts = pi.texts(probe.render_probe_page(payload, compress=False))
-    assert any(f"#{run_no}" in t and "14:05" in t for t in texts), texts[:4]
+    placed = _placed_texts(probe.render_probe_page(payload, compress=False))
+    runs = [box for t, box in placed if f"#{run_no}" in t and "14:05" in t]
+    assert runs, [t for t, _ in placed][:4]
+    # Codex on #450: and where the printer can print it (5 mm unknown margin, plus 1 mm).
+    left, top, right, bottom = printable_area(g, None, IDENTITY).rect_mm()
+    for x0, y0, x1, y1 in runs:
+        assert left <= x0 and x1 <= right and top <= y0 and y1 <= bottom, (x0, y0, x1, y1)

@@ -344,28 +344,52 @@ def _run_candidates(payload: PagePayload) -> list[str]:
 
 
 def _draw_run_cell(
-    pen: VectorPen, cx: float, cy: float, room: float, lh: float, number: str, run: Sequence[str]
-) -> None:
-    """Cell 1 when it carries the run: the number above the run when both fit, else the run
-    alone. The first form and size that fit the cell's width win; never cut."""
+    pen: VectorPen,
+    cx: float,
+    cy: float,
+    room: float,
+    lh: float,
+    number: str,
+    run: Sequence[str],
+    area: tuple[float, float, float, float],
+) -> bool:
+    """A cell that carries the run: the number above the run when both fit, else the run alone.
+    The first form and size that fit the cell's width and lie inside the printable ``area`` win;
+    never cut. ``False`` when nothing fits this cell."""
     number_line = CELL_PT * _PT_MM * _LEADING
+
+    def inside(x: float, y: float, text: str, size: float) -> bool:
+        x0, y0, x1, y1 = text_box_mm(x, y, text, size, "middle")
+        return area[0] <= x0 and x1 <= area[2] and area[1] <= y0 and y1 <= area[3]
+
     for size in RUN_CELL_PT_STEPS:
         run_line = size * _PT_MM * _LEADING
         for text in run:
             if text_width_mm(text, size) > room:
                 continue
-            if lh >= number_line + run_line + 1 and text_width_mm(number, CELL_PT) <= room:
+            below = cy - 0.1 + run_line
+            if (
+                lh >= number_line + run_line + 1
+                and text_width_mm(number, CELL_PT) <= room
+                and inside(cx, below, text, size)
+            ):
                 pen.text(cx, cy - 0.1, number, size_pt=CELL_PT, anchor="middle")
-                pen.text(cx, cy - 0.1 + run_line, text, size_pt=size, anchor="middle")
-                return
-            if lh >= run_line + 0.5:
-                pen.text(cx, cy + run_line / 3, text, size_pt=size, anchor="middle")
-                return
+                pen.text(cx, below, text, size_pt=size, anchor="middle")
+                return True
+            alone = cy + run_line / 3
+            if lh >= run_line + 0.5 and inside(cx, alone, text, size):
+                pen.text(cx, alone, text, size_pt=size, anchor="middle")
+                return True
+    return False
 
 
-def _draw_cells(pen: VectorPen, g: Geometry, run: Sequence[str] | None = None) -> None:
+def _draw_cells(
+    pen: VectorPen, g: Geometry, area: PrintableArea, run: Sequence[str] | None = None
+) -> None:
     """Outlines, numbers and ``R<row> C<col>``; ``run`` (when no margin holds the header) goes
-    into cell 1 in place of its row and column (``_draw_run_cell``)."""
+    into the first cell, in reading order, where it fits inside the printable area, in place of
+    its row and column (``_draw_run_cell``)."""
+    pending = run
     lw, lh = g.label_w / 100, g.label_h / 100
     radius = (g.corner_radius or 0) / 100
     line = CELL_PT * _PT_MM * _LEADING
@@ -382,8 +406,10 @@ def _draw_cells(pen: VectorPen, g: Geometry, run: Sequence[str] | None = None) -
             number, where = str(r * g.cols + c + 1), f"R{r + 1} C{c + 1}"
             cx, cy = x + lw / 2, y + lh / 2
             room = lw * (0.7 if g.shape == "round" else 0.9)
-            if run is not None and r == 0 and c == 0:
-                _draw_run_cell(pen, cx, cy, room, lh, number, run)
+            if pending is not None and _draw_run_cell(
+                pen, cx, cy, room, lh, number, pending, area.rect_mm()
+            ):
+                pending = None
                 continue
             if lh >= 2 * line + 1 and text_width_mm(where, CELL_PT) <= room:
                 pen.text(cx, cy - 0.1, number, size_pt=CELL_PT, anchor="middle")
@@ -472,7 +498,7 @@ def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
     header = _header(payload, g, area)
     if d.get("grid"):
         _draw_grid(pen, payload.media, area, [h.box() for h in header])
-    _draw_cells(pen, g, run=None if header else _run_candidates(payload))
+    _draw_cells(pen, g, area, run=None if header else _run_candidates(payload))
     _draw_zones(pen, _rects(d.get("zones")))
     id_rect = d.get("id_rect")
     if isinstance(id_rect, Mapping):
