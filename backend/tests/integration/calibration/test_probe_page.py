@@ -325,3 +325,24 @@ async def test_probe_changes_no_sheet_or_cell_row(async_session_factory: Factory
     await _payload(async_session_factory, pid, "probe-state", grid=True)
     assert await counts() == before
     assert asdict(G48) == payload.detail["geometry"]
+
+
+# Avery 5160 (Letter, 3 x 10): 12.7 mm above and below the grid hold two lines each, not three.
+AVERY_5160 = Geometry(
+    "Letter", 21590, 27940, 6668, 2540, 3, 10, 6985, 2540, 1270, 476, None, "rectangle"
+)
+
+
+@pytest.mark.parametrize("grid", [False, True])
+async def test_header_lines_use_both_margins_before_dropping_one(
+    async_session_factory: Factory, grid: bool
+) -> None:
+    """Review on #450: no band holds all three lines, so they are split over both; the
+    correction line (on the measurement sheet its footer) is never the one left out."""
+    pid = await _printer(async_session_factory)
+    await _type(async_session_factory, "probe-5160", AVERY_5160)
+    payload = await _payload(async_session_factory, pid, "probe-5160", grid=grid)
+    texts = pi.texts(probe.render_probe_page(payload, compress=False))
+    for line in probe.header_lines(payload):
+        assert line in texts, line
+    assert (probe.GRID_FOOTER if grid else "No correction applied") in texts

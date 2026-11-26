@@ -318,19 +318,28 @@ def _draw_id_rect(pen: VectorPen, r: Rect) -> None:
         pen.line(*seg, width_mm=ID_OUTLINE_MM, dash=ID_DASH)
 
 
-def _text_band(g: Geometry, area: PrintableArea, count: int) -> list[float]:
-    """Baselines for ``count`` header lines: the top band when it holds them all, else the
-    bottom band, else as many as the deeper band holds. Never across the labels."""
+def _text_band(g: Geometry, area: PrintableArea, count: int) -> list[float | None]:
+    """Baselines for ``count`` header lines, never across the labels: all in the top band when it
+    holds them, else all in the bottom band, else split over both (the last lines go below, so
+    the correction line is the last one left out). ``None`` for a line that fits nowhere."""
     _left, top, _right, bottom = area.rect_mm()
     grid_top = g.margin_top / 100
     grid_bottom = (g.margin_top + (g.rows - 1) * g.pitch_y + g.label_h) / 100
     step = HEADER_PT * _PT_MM * _LEADING
     bands = [(top, grid_top - _GAP_MM), (grid_bottom + _GAP_MM, bottom)]
     fits = [max(0, int((b - a) // step)) for a, b in bands]
-    pick = 0 if fits[0] >= count else 1 if fits[1] >= count else (0 if fits[0] >= fits[1] else 1)
-    a, _ = bands[pick]
-    shown = min(count, fits[pick])
-    return [a + step * (i + 1) - 0.4 for i in range(shown)]
+
+    def baselines(band: int, n: int) -> list[float]:
+        return [bands[band][0] + step * (i + 1) - 0.4 for i in range(n)]
+
+    if fits[0] >= count:
+        return list(baselines(0, count))
+    if fits[1] >= count:
+        return list(baselines(1, count))
+    below = min(fits[1], count)
+    above = min(fits[0], count - below)
+    missing: list[float | None] = [None] * (count - above - below)
+    return [*baselines(0, above), *missing, *baselines(1, below)]
 
 
 def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
@@ -348,8 +357,8 @@ def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
     lines = header_lines(payload)
     cx = (area.left + area.right) / 200
     room = (area.right - area.left) / 100
-    for y, text in zip(_text_band(g, area, len(lines)), lines, strict=False):
-        if text_width_mm(text, HEADER_PT) <= room:
+    for y, text in zip(_text_band(g, area, len(lines)), lines, strict=True):
+        if y is not None and text_width_mm(text, HEADER_PT) <= room:
             pen.text(cx, y, text, size_pt=HEADER_PT, anchor="middle")
 
 
