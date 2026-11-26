@@ -123,6 +123,17 @@ describe("page job at the printer", () => {
     expect(within(info).queryByText("Sheet")).toBeNull();
   });
 
+  it("labels a probe page by the sheet type's name, with its tray", async () => {
+    const payload = { kind: "probe_page", tray: "main", media: "A4", detail: { type_key: TYPE_KEY, version: 1, grid: false } };
+    mockApi(routes("done", { payload }, { [`GET /api/v1/sheet-types/${TYPE_KEY}`]: TYPE, [`GET /api/v1/printers/${PAGE_PRINTER.id}/status`]: pageStatus(PAGE_PRINTER.id) }));
+    await renderApp({ path: `/jobs/${ID}` });
+    expect(await screen.findByRole("heading", { level: 1, name: "Probe print · Avery Zweckform L4736REV-25 v1" })).toBeVisible();
+    const info = screen.getByRole("region", { name: "Probe print" });
+    expect(within(info).getByText("Avery Zweckform L4736REV-25 v1")).toBeVisible();
+    expect(await within(info).findByText("Main tray")).toBeVisible();
+    expect(within(info).queryByText("Sheet")).toBeNull();
+  });
+
   it("falls back to the key when the sheet type cannot be read", async () => {
     const payload = { kind: "calibration_page", detail: { type_key: TYPE_KEY, version: 1 } };
     mockApi(routes("done", { payload }, { [`GET /api/v1/sheet-types/${TYPE_KEY}`]: respond(404, apiErrorBody("sheet_type_not_found", "gone")) }));
@@ -210,6 +221,19 @@ describe("retry and cancel of page jobs", () => {
     await renderApp({ path: `/jobs/${ID}` });
     await screen.findByRole("heading", { level: 1 });
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("a probe page is cancelled while printing and retried once cancelled (#241)", async () => {
+    const payload = { kind: "probe_page", tray: "main", media: "A4", detail: { type_key: TYPE_KEY, version: 1, grid: true } };
+    const extra = { [`GET /api/v1/sheet-types/${TYPE_KEY}`]: TYPE, [`GET /api/v1/printers/${PAGE_PRINTER.id}/status`]: pageStatus(PAGE_PRINTER.id) };
+    mockApi(routes("printing", { payload }, extra));
+    const { unmount } = await renderApp({ path: `/jobs/${ID}` });
+    expect(await screen.findByRole("heading", { level: 1, name: "Measurement sheet · Avery Zweckform L4736REV-25 v1" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: /^Cancel/ })).toBeVisible();
+    unmount();
+    mockApi(routes("cancelled", { payload }, extra));
+    await renderApp({ path: `/jobs/${ID}` });
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeVisible();
   });
 
   it("retry opens the new job", async () => {
@@ -353,6 +377,20 @@ describe("test page job", () => {
     await renderApp({ path: `/jobs/${ID}` });
     await screen.findByRole("heading", { level: 1, name: "Test page · Main tray" });
     expect(within(screen.getByRole("region", { name: "Test page" })).getByText("Main tray")).toBeVisible();
+  });
+
+  it("does not talk about cells when a printing probe page is cancelled", async () => {
+    const payload = { kind: "probe_page", tray: "main", media: "A4", detail: { type_key: TYPE_KEY, version: 1, grid: false } };
+    const extra = {
+      [`GET /api/v1/sheet-types/${TYPE_KEY}`]: TYPE,
+      [`GET /api/v1/printers/${PAGE_PRINTER.id}/status`]: pageStatus(PAGE_PRINTER.id),
+      [`POST /api/v1/jobs/${ID}/cancel`]: job(ID, PAGE_PRINTER.id, "printing", { template_key: null, payload }),
+    };
+    mockApi(routes("printing", { payload }, extra));
+    await renderApp({ path: `/jobs/${ID}` });
+    await userEvent.click(await screen.findByRole("button", { name: /Cancel/ }));
+    expect(await screen.findByText("Asked the printer to cancel.")).toBeVisible();
+    expect(screen.queryByText(/The cells are settled/)).toBeNull();
   });
 
   it("does not talk about cells when a printing test page is cancelled", async () => {

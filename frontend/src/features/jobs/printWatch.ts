@@ -12,7 +12,7 @@ import { useSyncExternalStore } from "react";
  * Interfaces for readers: `useWatchedPrints()` (all entries), `useJobLive(jobId)` (one job).
  */
 
-export type PrintKind = "item" | "cart" | "sheet" | "calibration" | "test";
+export type PrintKind = "item" | "cart" | "sheet" | "calibration" | "probe" | "test";
 export type JobPhase = "queued" | "paused" | "printing" | "done" | "failed" | "cancelled";
 
 /**

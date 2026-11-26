@@ -8,9 +8,12 @@ type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Json) : {});
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v : typeof v === "number" ? String(v) : null);
 
-export type PageKind = "sheet_page" | "calibration_page" | "test_page" | "sheet_back_page" | "tray_loading_page";
+export type PageKind = "sheet_page" | "calibration_page" | "test_page" | "sheet_back_page" | "tray_loading_page" | "probe_page";
 
-const PAGE_KINDS: readonly PageKind[] = ["sheet_page", "calibration_page", "test_page", "sheet_back_page", "tray_loading_page"];
+const PAGE_KINDS: readonly PageKind[] = ["sheet_page", "calibration_page", "test_page", "sheet_back_page", "tray_loading_page", "probe_page"];
+
+/** The page kinds drawn for a sheet type (`detail.type_key`): their title and detail name the type. */
+export const TYPE_PAGE_KINDS: readonly PageKind[] = ["calibration_page", "probe_page"];
 
 /** What a page job (a sheet page or a calibration page) stores in `payload.detail` and `job_summary`. */
 export interface PageInfo {
@@ -22,9 +25,11 @@ export interface PageInfo {
   idCell: number | null;
   /** Labels on the page: the summary's count, else the cells listed. */
   cellCount: number;
-  /** Calibration page: the sheet type and version it was drawn for. */
+  /** Calibration and probe page: the sheet type and version it was drawn for. */
   typeKey: string | null;
   version: number | null;
+  /** Probe page: the measurement sheet (with the millimetre grid), not the plain probe page. */
+  grid: boolean;
   /** Test page: the tray key it goes to and the paper size it is drawn for. */
   tray: string | null;
   media: string | null;
@@ -84,6 +89,7 @@ export function pageInfoOf(job: Job): PageInfo | null {
     cellCount: num(summary.cell_count) ?? cells.length,
     typeKey: str(detail.type_key),
     version: num(detail.version),
+    grid: detail.grid === true,
     tray: str(p.tray),
     media: str(p.media),
   };
@@ -130,6 +136,16 @@ function pageTitle(page: PageInfo, label: string | null): string {
     if (name === null) return t`Calibration page`;
     const version = page.version;
     return version === null ? t`Calibration page · ${name}` : t`Calibration page · ${name} v${version}`;
+  }
+  if (page.kind === "probe_page") {
+    const name = label ?? page.typeKey;
+    const version = page.version;
+    if (page.grid) {
+      if (name === null) return t`Measurement sheet`;
+      return version === null ? t`Measurement sheet · ${name}` : t`Measurement sheet · ${name} v${version}`;
+    }
+    if (name === null) return t`Probe print`;
+    return version === null ? t`Probe print · ${name}` : t`Probe print · ${name} v${version}`;
   }
   if (page.kind === "test_page") {
     // The payload stores the tray's key; the label is known once the printer's status has been read.

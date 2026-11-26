@@ -102,6 +102,8 @@ describe("jobTitle in German", () => {
   it("names both page kinds in German", () => {
     expect(jobTitle(sheetPage() as never)).toBe("Bogen L4736-0002 · 9 Etiketten");
     expect(jobTitle(calibration() as never, "Avery Zweckform L4736REV-25")).toBe("Kalibrierseite · Avery Zweckform L4736REV-25 v1");
+    const probe = job("j5", P, "queued", { template_key: null, payload: { kind: "probe_page", detail: { type_key: KEY, version: 1, grid: true } } });
+    expect(jobTitle(probe as never, "Avery Zweckform L4736REV-25")).toBe("Messbogen · Avery Zweckform L4736REV-25 v1");
   });
 });
 
@@ -133,6 +135,25 @@ describe("test print jobs", () => {
   it("a cancelled test page can be retried, a finished one cannot", () => {
     expect(canRetry(testPage({ state: "cancelled" }) as never)).toBe(true);
     expect(canRetry(testPage({ state: "done" }) as never)).toBe(false);
+  });
+});
+
+describe("probe pages (#241)", () => {
+  const probe = (detail: Record<string, unknown> = { type_key: KEY, version: 1, grid: false }, state = "queued") =>
+    job("j5", P, state, { template_key: null, payload: { kind: "probe_page", tray: "main", media: "A4", detail } });
+
+  it("names a probe page and a measurement sheet by the sheet type", () => {
+    expect(jobTitle(probe() as never, "Avery Zweckform L4736REV-25")).toBe("Probe print · Avery Zweckform L4736REV-25 v1");
+    expect(jobTitle(probe({ type_key: KEY, version: 2, grid: true }) as never)).toBe(`Measurement sheet · ${KEY} v2`);
+    expect(jobTitle(probe({}) as never)).toBe("Probe print");
+    expect(pageInfoOf(probe() as never)).toMatchObject({ kind: "probe_page", typeKey: KEY, version: 1, grid: false, sheetCode: null });
+  });
+
+  it("a probe page is cancelled while it prints and retried once cancelled, like a calibration page", () => {
+    expect(canCancel(probe(undefined, "printing") as never)).toBe(true);
+    expect(canRetry(probe(undefined, "cancelled") as never)).toBe(true);
+    expect(canRetry(probe(undefined, "failed") as never)).toBe(true);
+    expect(canRetry(probe(undefined, "done") as never)).toBe(false);
   });
 });
 

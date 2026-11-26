@@ -117,6 +117,33 @@ export function calibrationPdfUrl(
   })}`;
 }
 
+export type ProbeRequest = Schemas["ProbeRequest"];
+
+/**
+ * Prints the probe page or, with `grid`, the measurement sheet on plain paper (#241): no sheet, no cell. The job is
+ * handed to the notification stack, which follows it to the end; the dialog that asked for it has closed by then.
+ */
+export function usePrintProbePage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ printerId, tray, request }: { printerId: string; tray: string; request: ProbeRequest }) =>
+      apiFetch<Schemas["ProbeJobAccepted"]>(`${trayPath(printerId, tray)}/probe`, { method: "POST", json: request }),
+    onSuccess: (accepted, { printerId }) => {
+      void watchPrint({ kind: "probe", printerId, jobIds: [accepted.job_id] });
+    },
+    onSettled: (_data, _error, { printerId, tray }) => {
+      void client.invalidateQueries({ queryKey: ["jobs"] });
+      // The page took the tray's next run number: the run list shows it.
+      void client.invalidateQueries({ queryKey: runsKey(printerId, tray) });
+    },
+  });
+}
+
+/** The address of the probe page (or the measurement sheet) as a PDF. */
+export function probePdfUrl(printerId: string, tray: string, options: { type: string; version?: number | null; grid: boolean }): string {
+  return `${trayPath(printerId, tray)}/probe/pdf${queryString({ type: options.type, version: options.version, grid: options.grid || undefined })}`;
+}
+
 export const useCapabilities = (printerId: string) =>
   useQuery({
     queryKey: capabilitiesKey(printerId),

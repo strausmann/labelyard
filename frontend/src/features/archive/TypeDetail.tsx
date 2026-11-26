@@ -26,6 +26,7 @@ import { useArchiveErrorText } from "./errors";
 import { Badge } from "./fields";
 import { FeedbackLinks } from "./FeedbackLinks";
 import { IdPlacementSection } from "./IdPlacementSection";
+import { ProbePrintDialog } from "./ProbePrintDialog";
 import { TypeForm } from "./TypeForm";
 import { httpUrl, linkHost } from "./search";
 import { TypeSheetsList } from "./TypeSheetsList";
@@ -215,6 +216,8 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
   const remove = useDeleteType();
   const [editing, setEditing] = useState<"geometry" | "details" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // The probe print (#241): null while closed, else whether it opens as the measurement sheet.
+  const [probe, setProbe] = useState<{ grid: boolean } | null>(null);
 
   if (query.isPending) return <p className="text-ink-2">{t`Loading…`}</p>;
   if (query.isError) {
@@ -265,6 +268,8 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
                   <Button onPress={() => setEditing("details")} className={SECONDARY_BUTTON}>{t`Edit details`}</Button>
                 </>
               ) : null}
+              <Button onPress={() => setProbe({ grid: false })} className={SECONDARY_BUTTON}>{t`Probe print on plain paper`}</Button>
+              <Button onPress={() => setProbe({ grid: true })} className={SECONDARY_BUTTON}>{t`Measurement sheet`}</Button>
               <a href={exportTypeUrl(type.key)} download className={`${SECONDARY_BUTTON} no-underline`}>
                 {t`Export`}
               </a>
@@ -338,6 +343,12 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
         </>
       )}
 
+      <ProbePrintDialog
+        type={{ key: type.key, version: type.current_version }}
+        grid={probe?.grid ?? false}
+        isOpen={probe !== null}
+        onClose={() => setProbe(null)}
+      />
       <ModalDialog title={t`Delete this type?`} isOpen={confirmDelete} onClose={() => setConfirmDelete(false)} alert>
         <p>{t`${type.key} has no sheets. Deleting it removes it and all its versions for good.`}</p>
         <div className="flex flex-wrap gap-3">

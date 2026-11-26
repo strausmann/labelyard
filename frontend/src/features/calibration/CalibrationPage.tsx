@@ -4,6 +4,7 @@
 import { useLingui } from "@lingui/react/macro";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { NoTypesInstalled } from "../archive/NoTypesInstalled";
+import { ProbePrintDialog } from "../archive/ProbePrintDialog";
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Button, Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 import { ApiError } from "../../api/client";
@@ -246,6 +247,8 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
   });
   // The check print asks first: the same sheet again (the next pass) or a new one (design 7.2).
   const [checking, setChecking] = useState(false);
+  // The probe print on plain paper (#241), next to the calibration page: same printer, tray and type to start with.
+  const [probing, setProbing] = useState(false);
   const send = (print: PrintMutation, corrected: boolean, sheet?: CheckSheetMode) => {
     // A press while the same print is still being queued is ignored (the button may stay enabled, see `lockWhilePending`).
     if (type && !print.isPending) setPressedWhileBusy(false);
@@ -337,6 +340,9 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
               >
                 {t`Download PDF`}
               </a>
+              <Button onPress={() => setProbing(true)} className={SECONDARY_BUTTON}>
+                {t`Probe print on plain paper`}
+              </Button>
             </PrintAction>
           </>
         )}
@@ -423,6 +429,15 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           </Button>
         </div>
       </ModalDialog>
+      {type && (
+        <ProbePrintDialog
+          type={{ key: type.key, version: type.current_version }}
+          printerId={printer.id}
+          tray={tray}
+          isOpen={probing}
+          onClose={() => setProbing(false)}
+        />
+      )}
       {type && (
         <CheckPrintDialog
           printerId={printer.id}

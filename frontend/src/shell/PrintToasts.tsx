@@ -46,6 +46,8 @@ function useKindTitle(): (kind: PrintKind) => string {
         return t`Sheet print`;
       case "calibration":
         return t`Calibration page`;
+      case "probe":
+        return t`Probe print`;
       case "test":
         return t`Test print`;
     }
