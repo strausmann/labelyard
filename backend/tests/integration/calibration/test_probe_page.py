@@ -180,7 +180,9 @@ async def test_probe_cell_rectangles_without_calibration(async_session_factory: 
         assert _close(got, want), (got, want)
     texts = pi.texts(pdf)
     assert "1" in texts and "R1 C1" in texts and "48" in texts and "R12 C4" in texts
-    assert "Probe print on plain paper · probe-plain v1" in texts
+    assert "Probe print on plain paper · probe-plain v1 · No run (downloaded PDF) · " in "|".join(
+        texts
+    )
     assert "No correction applied" in texts
     assert pi.colour_operators(pdf) == set()
 
@@ -252,7 +254,8 @@ async def test_measurement_grid_at_whole_mm_from_the_corner_and_unaffected_by_co
         assert abs(ln["width"] - want) < 1e-6, (at, ln["width"])
     texts = pi.texts(pdf)
     assert {str(v) for v in range(10, 210, 10)} <= set(texts)  # labelled every 10 mm
-    assert probe.GRID_FOOTER in texts and "Measurement sheet · probe-grid v1" in texts
+    assert probe.GRID_FOOTER in texts
+    assert any(t.startswith("Measurement sheet · probe-grid v1 · No run") for t in texts)
     # The labels are drawn too, uncorrected, at the geometry.
     for got, want in zip(sorted(_rects_mm(pdf)), sorted(_cells_mm(G48)), strict=True):
         assert _close(got, want), (got, want)
@@ -346,3 +349,95 @@ async def test_header_lines_use_both_margins_before_dropping_one(
     for line in probe.header_lines(payload):
         assert line in texts, line
     assert (probe.GRID_FOOTER if grid else "No correction applied") in texts
+
+
+# ---------------------------------------------------------------------------- the run is never lost
+
+
+def _catalog_geometry(key: str) -> Geometry:
+    from app.catalog import loader
+    from app.sheets.exchange import geometry_from_doc
+
+    return geometry_from_doc(loader.load_entry(key).version.geometry)
+
+
+def _stamped(payload: Any) -> Any:
+    """The payload as the job prints it: with run number, time and id (``runs.stamp``)."""
+    detail = {**payload.detail, "run_no": 7, "time": "14:05", "run_id": str(uuid4())}
+    return payload.model_copy(update={"detail": detail})
+
+
+def _placed_texts(pdf: bytes) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """Every shown string with its box on the page (mm, y down), as ``text_box_mm`` measures it."""
+    from app.page_render.pdf import text_width_mm
+
+    sizes = [a[-1] for op, a in _ops(pdf) if op == "Tf"]
+    out = []
+    for text, (x_pt, y_pt), size in zip(pi.texts(pdf), pi.text_positions(pdf), sizes, strict=True):
+        x, y = x_pt / PT_PER_MM, (PAGE_H_PT - y_pt) / PT_PER_MM
+        em = size * 25.4 / 72
+        out.append((text, (x, y - em, x + text_width_mm(text, size), y + em * 0.25)))
+    return out
+
+
+@pytest.mark.parametrize("grid", [False, True])
+async def test_6121_keeps_the_run_number_and_time(
+    async_session_factory: Factory, grid: bool
+) -> None:
+    """Review I1 on #450: on the 6121 each margin holds one header line; the run number and time
+    are never the line that is left out (spec 7.3)."""
+    pid = await _printer(async_session_factory)
+    await _type(async_session_factory, "probe-6121", _catalog_geometry("avery-zweckform-6121"))
+    payload = _stamped(await _payload(async_session_factory, pid, "probe-6121", grid=grid))
+    texts = pi.texts(probe.render_probe_page(payload, compress=False))
+    assert any("Run #7" in t and "14:05" in t for t in texts), texts[-5:]
+    assert (probe.GRID_FOOTER if grid else "No correction applied") in texts
+
+
+async def test_measurement_sheet_header_does_not_overprint_the_grid_labels(
+    async_session_factory: Factory,
+) -> None:
+    """Review on #450: on the 6121 the title shared the top margin with the labels 90 to 120."""
+    pid = await _printer(async_session_factory)
+    await _type(async_session_factory, "probe-6121g", _catalog_geometry("avery-zweckform-6121"))
+    payload = _stamped(await _payload(async_session_factory, pid, "probe-6121g", grid=True))
+    placed = _placed_texts(probe.render_probe_page(payload, compress=False))
+    labels = [(t, b) for t, b in placed if t.isdigit() and int(t) % 10 == 0 and int(t) >= 10]
+    headers = [(t, b) for t, b in placed if " · " in t or t == probe.GRID_FOOTER]
+    assert headers
+    for _, (ax0, ay0, ax1, ay1) in labels:
+        for text, (bx0, by0, bx1, by1) in headers:
+            assert ax1 <= bx0 or bx1 <= ax0 or ay1 <= by0 or by1 <= ay0, text
+    # Every 10 mm line still has its label (moved to the other edge when it had to give way).
+    assert {str(v) for v in range(10, 210, 10)} <= {t for t, _ in labels}
+
+
+def _catalog() -> list[tuple[str, Geometry]]:
+    from app.catalog import loader
+
+    return [(e.key, _catalog_geometry(e.key)) for e in loader.load_index()]
+
+
+@pytest.mark.parametrize("hw", [300, 500, 800])
+@pytest.mark.parametrize("grid", [False, True])
+def test_every_catalog_probe_page_carries_its_run(hw: int, grid: bool) -> None:
+    """(guard) Every catalog type, on a printer with 3, 5 or 8 mm hardware margins: the printed
+    probe page names its run number and time."""
+    from app.calibration.layout import printable_area
+    from app.page_render.transform import IDENTITY
+    from app.printer_backends.ipp.attributes import Margins
+    from app.services.page_jobs import PagePayload
+
+    for key, g in _catalog():
+        area = printable_area(g, Margins(top=hw, left=hw, bottom=hw, right=hw), IDENTITY)
+        payload = PagePayload(
+            kind="probe_page", media=g.page_size, tray="tray-1", render_dpi=600,
+            job_name="Probe", calibration=None,
+            detail={
+                "type_key": key, "version": 1, "printer_name": "Office printer", "date":
+                "2026-11-25", "grid": grid, "geometry": asdict(g), "zones": [], "id_rect": None,
+                "printable_area": asdict(area), "run_no": 123456, "time": "14:05",
+            },
+        )  # fmt: skip
+        texts = pi.texts(probe.render_probe_page(payload, compress=False))
+        assert any("Run #123456" in t and "14:05" in t for t in texts), (key, hw, grid)

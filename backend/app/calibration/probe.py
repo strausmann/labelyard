@@ -25,12 +25,18 @@ a retry draws the same page.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final
 from uuid import UUID
 
-from app.calibration.layout import PrintableArea, correction_line, printable_area
+from app.calibration.layout import (
+    Anchor,
+    PrintableArea,
+    correction_line,
+    printable_area,
+    text_box_mm,
+)
 from app.page_render.pdf import VectorPen, text_width_mm, write_pdf
 from app.page_render.transform import page_size_mm
 from app.services.page_jobs import PagePayload, snapshot_to_deviation
@@ -209,24 +215,56 @@ async def fresh_offline(
 # ---------------------------------------------------------------------------- texts
 
 
-def header_lines(payload: PagePayload) -> list[str]:
-    """The page's text lines: what it is, the run, and the correction it is printed with."""
+def _run_text(payload: PagePayload) -> str:
+    """The run number and time (spec 7.3): ``Run #7 · 2026-11-25 14:05``; never shortened."""
+    d = payload.detail
+    run_no, time = d.get("run_no"), d.get("time")
+    run = f"Run #{run_no}" if isinstance(run_no, int) else "No run (downloaded PDF)"
+    return f"{run} · {d['date']} {time}" if time else f"{run} · {d['date']}"
+
+
+def _shortened(text: str, limit: int) -> str:
+    if limit >= len(text):
+        return text
+    return text[: limit - 3] + "..." if limit > 3 else text[: max(limit, 0)]
+
+
+def header_lines(
+    payload: PagePayload, *, room_mm: float = 1e9, size_pt: float = HEADER_PT
+) -> list[str]:
+    """The page's text lines, most important first in meaning, in reading order: what the page
+    is with its run number and time, then printer and tray, then the correction it is printed
+    with (the measurement sheet's footer). Fitted to ``room_mm`` as the calibration page does:
+    the type key shortens in the first line, the printer name then the tray in the second; the
+    version, the run number, the date and the time never shorten."""
     d = payload.detail
     grid = bool(d.get("grid"))
     title = "Measurement sheet" if grid else "Probe print on plain paper"
-    run_no, time = d.get("run_no"), d.get("time")
-    run = f"Run #{run_no}" if isinstance(run_no, int) else "No run (downloaded PDF)"
-    when = f"{d['date']} {time}" if time else str(d["date"])
+    run = _run_text(payload)
+    key = str(d["type_key"])
+    keep = len(key)
+
+    def first() -> str:
+        return f"{title} · {_shortened(key, keep)} v{d['version']} · {run}"
+
+    while text_width_mm(first(), size_pt) > room_mm and keep > 0:
+        keep -= 1
+    fields = [str(d["printer_name"]), payload.tray]
+    lens = [len(f) for f in fields]
+
+    def second() -> str:
+        name, tray = (_shortened(f, n) for f, n in zip(fields, lens, strict=True))
+        return f"{name} · tray {tray}"
+
+    for i in range(2):
+        while text_width_mm(second(), size_pt) > room_mm and lens[i] > 0:
+            lens[i] -= 1
     footer = (
         GRID_FOOTER if grid else correction_line(
             snapshot_to_deviation(payload.calibration) if payload.calibration else None
         )
     )  # fmt: skip
-    return [
-        f"{title} · {d['type_key']} v{d['version']}",
-        f"{run} · {when} · {d['printer_name']} · tray {payload.tray}",
-        footer,
-    ]
+    return [first(), second(), footer]
 
 
 # ---------------------------------------------------------------------------- drawing
@@ -263,7 +301,9 @@ def hatch_segments(x0: float, y0: float, x1: float, y1: float) -> list[tuple[flo
     return segs
 
 
-def _draw_grid(pen: VectorPen, page: str, area: PrintableArea) -> None:
+def _draw_grid(
+    pen: VectorPen, page: str, area: PrintableArea, avoid: Sequence[tuple[float, ...]]
+) -> None:
     w_mm, h_mm = page_size_mm(page)
     for x in range(int(w_mm) + 1):
         heavy = x % 5 == 0
@@ -272,15 +312,25 @@ def _draw_grid(pen: VectorPen, page: str, area: PrintableArea) -> None:
         heavy = y % 5 == 0
         pen.line(0, y, w_mm, y, width_mm=GRID_HEAVY_MM if heavy else GRID_THIN_MM)
     left, top, right, bottom = area.rect_mm()
+
+    def label(spots: Sequence[tuple[float, float, Anchor]], text: str) -> None:
+        """At the first spot clear of the header; left out when none is (never overprinted)."""
+        for x, y, anchor in spots:
+            if not any(_overlaps(text_box_mm(x, y, text, GRID_LABEL_PT, anchor), b) for b in avoid):
+                pen.text(x, y, text, size_pt=GRID_LABEL_PT, anchor=anchor)
+                return
+
     for x in range(10, int(w_mm), 10):
         if left <= x <= right:
-            pen.text(x + 0.3, top + 1.2, str(x), size_pt=GRID_LABEL_PT)
+            label([(x + 0.3, top + 1.2, "start"), (x + 0.3, bottom - 0.3, "start")], str(x))
     for y in range(10, int(h_mm), 10):
         if top <= y <= bottom:
-            pen.text(left + 0.3, y - 0.3, str(y), size_pt=GRID_LABEL_PT)
+            label([(left + 0.3, y - 0.3, "start"), (right - 0.3, y - 0.3, "end")], str(y))
 
 
-def _draw_cells(pen: VectorPen, g: Geometry) -> None:
+def _draw_cells(pen: VectorPen, g: Geometry, run: str | None = None) -> None:
+    """Outlines, numbers and ``R<row> C<col>``; ``run`` (when no margin holds the header) goes
+    into cell 1 in place of its row and column."""
     lw, lh = g.label_w / 100, g.label_h / 100
     radius = (g.corner_radius or 0) / 100
     line = CELL_PT * _PT_MM * _LEADING
@@ -295,6 +345,8 @@ def _draw_cells(pen: VectorPen, g: Geometry) -> None:
             else:
                 pen.rect(x, y, lw, lh, width_mm=OUTLINE_MM)
             number, where = str(r * g.cols + c + 1), f"R{r + 1} C{c + 1}"
+            if run is not None and r == 0 and c == 0:
+                where = run
             cx, cy = x + lw / 2, y + lh / 2
             room = lw * (0.7 if g.shape == "round" else 0.9)
             if lh >= 2 * line + 1 and text_width_mm(where, CELL_PT) <= room:
@@ -318,48 +370,79 @@ def _draw_id_rect(pen: VectorPen, r: Rect) -> None:
         pen.line(*seg, width_mm=ID_OUTLINE_MM, dash=ID_DASH)
 
 
-def _text_band(g: Geometry, area: PrintableArea, count: int) -> list[float | None]:
-    """Baselines for ``count`` header lines, never across the labels: all in the top band when it
-    holds them, else all in the bottom band, else split over both (the last lines go below, so
-    the correction line is the last one left out). ``None`` for a line that fits nowhere."""
-    _left, top, _right, bottom = area.rect_mm()
+HEADER_PT_STEPS: Final = (6.0, 5.5, 5.0, 4.5)
+"""Sizes the header tries, as the margin blocks of the calibration page (layout 14b)."""
+_PRIORITY: Final = (0, 2, 1)
+"""Which header lines go first when the margins are short: the title with the run, then the
+correction (the measurement sheet's footer), then printer and tray."""
+
+
+@dataclass(frozen=True)
+class _Line:
+    x: float
+    y: float
+    text: str
+    size_pt: float
+
+    def box(self) -> tuple[float, float, float, float]:
+        return text_box_mm(self.x, self.y, self.text, self.size_pt, "middle")
+
+
+def _header(payload: PagePayload, g: Geometry, area: PrintableArea) -> list[_Line]:
+    """Where the header lines go, never across the labels. At the largest size that places at
+    least the first line: all lines in the top margin when they fit, else all in the bottom one,
+    else split over both (the last lines below) after leaving out the least important. Empty
+    when no margin has room even at 4.5 pt: then cell 1 carries the run (``_draw_cells``)."""
+    left, top, right, bottom = area.rect_mm()
     grid_top = g.margin_top / 100
     grid_bottom = (g.margin_top + (g.rows - 1) * g.pitch_y + g.label_h) / 100
-    step = HEADER_PT * _PT_MM * _LEADING
     bands = [(top, grid_top - _GAP_MM), (grid_bottom + _GAP_MM, bottom)]
-    fits = [max(0, int((b - a) // step)) for a, b in bands]
+    cx, room = (left + right) / 2, right - left
+    for size in HEADER_PT_STEPS:
+        step = size * _PT_MM * _LEADING
+        fits = [max(0, int((b - a) // step)) for a, b in bands]
+        lines = header_lines(payload, room_mm=room, size_pt=size)
+        wide = [text_width_mm(t, size) > room for t in lines]
+        wanted = [i for i in _PRIORITY if not wide[i]][: fits[0] + fits[1]]
+        if 0 not in wanted:
+            continue
+        kept = [lines[i] for i in sorted(wanted)]
+        if fits[0] >= len(kept):
+            above, below = len(kept), 0
+        elif fits[1] >= len(kept):
+            above, below = 0, len(kept)
+        else:
+            below = min(fits[1], len(kept))
+            above = len(kept) - below
+        ys = [bands[0][0] + step * (i + 1) - 0.4 for i in range(above)]
+        ys += [bands[1][0] + step * (i + 1) - 0.4 for i in range(below)]
+        return [_Line(cx, y, t, size) for y, t in zip(ys, kept, strict=True)]
+    return []
 
-    def baselines(band: int, n: int) -> list[float]:
-        return [bands[band][0] + step * (i + 1) - 0.4 for i in range(n)]
 
-    if fits[0] >= count:
-        return list(baselines(0, count))
-    if fits[1] >= count:
-        return list(baselines(1, count))
-    below = min(fits[1], count)
-    above = min(fits[0], count - below)
-    missing: list[float | None] = [None] * (count - above - below)
-    return [*baselines(0, above), *missing, *baselines(1, below)]
+def _overlaps(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
 def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
-    """Draw the probe page (black only): the grid first, then labels, zones, the ID and texts."""
+    """Draw the probe page (black only): the grid first, then labels, zones, the ID and texts.
+
+    On the measurement sheet only the grid lines are the page's own coordinates; the ID
+    rectangle, the printable area that bounds the grid labels, and the header position follow
+    the tray's stored correction (where a sheet code would land on this printer)."""
     d = payload.detail
     g = Geometry(**d["geometry"])
     area = _area(payload, g)
+    header = _header(payload, g, area)
     if d.get("grid"):
-        _draw_grid(pen, payload.media, area)
-    _draw_cells(pen, g)
+        _draw_grid(pen, payload.media, area, [h.box() for h in header])
+    _draw_cells(pen, g, run=None if header else _run_text(payload))
     _draw_zones(pen, _rects(d.get("zones")))
     id_rect = d.get("id_rect")
     if isinstance(id_rect, Mapping):
         _draw_id_rect(pen, _rects([id_rect])[0])
-    lines = header_lines(payload)
-    cx = (area.left + area.right) / 200
-    room = (area.right - area.left) / 100
-    for y, text in zip(_text_band(g, area, len(lines)), lines, strict=True):
-        if y is not None and text_width_mm(text, HEADER_PT) <= room:
-            pen.text(cx, y, text, size_pt=HEADER_PT, anchor="middle")
+    for h in header:
+        pen.text(h.x, h.y, h.text, size_pt=h.size_pt, anchor="middle")
 
 
 def render_probe_page(payload: PagePayload, *, compress: bool = True) -> bytes:
