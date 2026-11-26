@@ -178,6 +178,11 @@ msgstr "{0} × {1} mm"
 msgid "{0} has no sheets. Deleting it removes it and all its versions for good."
 msgstr "{0} hat keine Bögen. Beim Löschen verschwinden der Typ und alle seine Versionen endgültig."
 
+#. placeholder {0}: printer.name
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "{0} is offline"
+msgstr "{0} ist offline"
+
 #. placeholder {0}: shown.length
 #. placeholder {1}: matches.length
 #: src/features/about/DependencyLicences.tsx
@@ -2231,6 +2236,7 @@ msgstr "Abwärts bei {name}: wo die Tinte liegt"
 msgid "Down: + = the ink lies below the middle of the gap, − = above it."
 msgstr "Abwärts: + = die Farbe liegt unterhalb der Mitte der Lücke, − = darüber."
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Download PDF"
 msgstr "PDF herunterladen"
@@ -2724,6 +2730,10 @@ msgstr "Dicke durchgezogene Linie: die gedruckte S-Linie. Dicke gestrichelte Lin
 msgid "Height"
 msgstr "Höhe"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Held while the device is swapped"
+msgstr "Angehalten, solange das Gerät getauscht ist"
+
 #: src/features/archive/CatalogTab.tsx
 msgid "Hide details"
 msgstr "Details ausblenden"
@@ -2951,6 +2961,10 @@ msgstr "Steht „OBEN“ neben dem Kreuz?"
 msgid "Is the print on the side with the cross?"
 msgstr "Ist der Druck auf der Seite mit dem Kreuz?"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "It goes through the print queue: you can see it under Jobs and retry it."
+msgstr "Er läuft über die Druckwarteschlange: Du siehst ihn unter Aufträge und kannst ihn wiederholen."
+
 #: src/features/calibration/SuggestionCard.tsx
 msgid "It is not known which sheet type the saved correction was measured on (it was typed in, or its history is gone), so the sheet cannot be told apart from the printer."
 msgstr "Es ist nicht bekannt, auf welchem Bogentyp die gespeicherte Korrektur gemessen wurde (sie wurde eingetippt, oder ihr Verlauf ist weg). Deshalb lässt sich der Bogen nicht vom Drucker unterscheiden."
@@ -2967,9 +2981,18 @@ msgstr "Er ragt über die Seite hinaus. Lass ihn innerhalb des Bogens."
 msgid "It will probably become <0>{hintCode}</0>."
 msgstr "Er bekommt voraussichtlich die Nummer <0>{hintCode}</0>."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Its last status says it does not answer. Switch it on, or choose another printer."
+msgstr "Sein letzter Status sagt, dass er nicht antwortet. Schalte ihn ein oder wähle einen anderen Drucker."
+
 #: src/features/archive/TypeSheetsList.tsx
 msgid "Its sheets"
 msgstr "Seine Bögen"
+
+#. placeholder {0}: timeOf(status.data.captured_at, i18n.locale)
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Its status was read at {0} and the printer did not answer. Switch it on, or choose another printer."
+msgstr "Sein Status wurde um {0} gelesen, und der Drucker hat nicht geantwortet. Schalte ihn ein oder wähle einen anderen Drucker."
 
 #: src/features/jobs/JobsPage.tsx
 #: src/features/search/jobsSource.ts
@@ -3357,6 +3380,7 @@ msgstr "Hersteller werden geladen …"
 #: src/features/about/DependencyLicences.tsx
 #: src/features/archive/ArchivePage.tsx
 #: src/features/archive/CatalogTab.tsx
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeSheetsList.tsx
@@ -3489,6 +3513,24 @@ msgstr "Gemessen auf einer Bogentyp-Version, die inzwischen gelöscht ist."
 #: src/features/archive/TypeDetail.tsx
 msgid "Measurement"
 msgstr "Maß"
+
+#: src/features/archive/TypeDetail.tsx
+#: src/features/jobs/model.ts
+#: src/features/jobs/PageJobInfo.tsx
+msgid "Measurement sheet"
+msgstr "Messbogen"
+
+#: src/features/jobs/model.ts
+msgid "Measurement sheet · {name}"
+msgstr "Messbogen · {name}"
+
+#: src/features/jobs/model.ts
+msgid "Measurement sheet · {name} v{version}"
+msgstr "Messbogen · {name} v{version}"
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Measurement sheet: add a millimetre grid, no correction"
+msgstr "Messbogen: Millimeterraster dazu, ohne Korrektur"
 
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
@@ -4680,6 +4722,10 @@ msgstr "Seite drucken"
 msgid "Print pass {passNo} of {total}"
 msgstr "Durchgang {passNo} von {total} drucken"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Print probe page"
+msgstr "Probedruck drucken"
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Print sheet code"
 msgstr "Bogencode drucken"
@@ -4760,6 +4806,7 @@ msgid "Printed, cell {n}"
 msgstr "Gedruckt, Zelle {n}"
 
 #: src/features/archive/MarginPlacement.tsx
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/PageJobInfo.tsx
@@ -4845,6 +4892,7 @@ msgstr "Druckt"
 msgid "Printing and marking cells need a print or admin key."
 msgstr "Zum Drucken und Markieren von Zellen braucht es einen Druck- oder Admin-Schlüssel."
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/lookup/CartPage.tsx
 #: src/features/lookup/ItemView.tsx
@@ -4880,6 +4928,10 @@ msgstr "druckt auf die Seite, die nach oben zeigt"
 msgid "Prints the code in the free band around the labels. No extra pass through the printer."
 msgstr "Druckt den Code in den freien Rand um die Etiketten. Kein zusätzlicher Durchgang durch den Drucker."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Prints the outline of every label so you can hold the page against a real sheet. No sheet is used, no cell is reserved."
+msgstr "Druckt den Umriss jedes Etiketts, damit du die Seite gegen einen echten Bogen halten kannst. Es wird kein Bogen verbraucht und keine Zelle reserviert."
+
 #: src/features/calibration/LiveFit.tsx
 msgid "probable misread"
 msgstr "wohl falsch abgelesen"
@@ -4887,6 +4939,26 @@ msgstr "wohl falsch abgelesen"
 #: src/features/calibration/RunsTable.tsx
 msgid "Probe page"
 msgstr "Probeseite"
+
+#: src/features/jobs/model.ts
+#: src/features/jobs/PageJobInfo.tsx
+#: src/shell/PrintToasts.tsx
+msgid "Probe print"
+msgstr "Probedruck"
+
+#: src/features/jobs/model.ts
+msgid "Probe print · {name}"
+msgstr "Probedruck · {name}"
+
+#: src/features/jobs/model.ts
+msgid "Probe print · {name} v{version}"
+msgstr "Probedruck · {name} v{version}"
+
+#: src/features/archive/ProbePrintDialog.tsx
+#: src/features/archive/TypeDetail.tsx
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Probe print on plain paper"
+msgstr "Probedruck auf Normalpapier"
 
 #: src/features/overview/OverviewPage.tsx
 #: src/features/printers/model.ts
@@ -6546,6 +6618,10 @@ msgstr "Die abzulesenden Kreuzungen"
 msgid "The crossings to read on {typeName}"
 msgstr "Die abzulesenden Kreuzungen auf {typeName}"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The current correction of this tray is applied: dx {dx} mm, dy {dy} mm."
+msgstr "Die aktuelle Korrektur dieses Fachs wird angewendet: dx {dx} mm, dy {dy} mm."
+
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The cut between two rows."
 msgstr "Der Schnitt zwischen zwei Zeilen."
@@ -6635,6 +6711,10 @@ msgstr "Host oder Port haben sich geändert. Gib die SNMP-Community erneut ein o
 msgid "The hub cannot draw a preview right now. Try again later."
 msgstr "Der Hub kann gerade keine Vorschau zeichnen. Versuch es später noch einmal."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The hub cannot draw the page right now. Try again later."
+msgstr "Der Hub kann die Seite gerade nicht zeichnen. Versuche es später noch einmal."
+
 #: src/features/printers/TestPrintButton.tsx
 msgid "The hub cannot read this printer's status, so it cannot tell whether it is ready. An admin can check its address in the printer settings, then try again."
 msgstr "Der Hub kann den Status dieses Druckers nicht lesen und weiß deshalb nicht, ob er bereit ist. Ein Admin kann seine Adresse in den Druckereinstellungen prüfen. Versuche es dann erneut."
@@ -6674,6 +6754,10 @@ msgstr "Der Hub hat diese Stelle nach dem nutzbaren Rand gewählt. Du kannst sie
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub restarted while this label waited for the next part. Print it again."
 msgstr "Der Hub wurde neu gestartet, während dieses Etikett auf den nächsten Teil wartete. Drucke es noch einmal."
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The hub sees a different device behind this printer. Like a calibration page, a probe page is not printed until an admin confirms the device on the printer's page: the stored correction would be wrong for it."
+msgstr "Der Hub sieht hinter diesem Drucker ein anderes Gerät. Wie eine Kalibrierseite wird ein Probedruck erst gedruckt, wenn ein Admin das Gerät auf der Seite des Druckers bestätigt: Die gespeicherte Korrektur wäre für dieses Gerät falsch."
 
 #: src/features/printers/wiring.tsx
 msgid "The hub tries again by itself."
@@ -6896,6 +6980,10 @@ msgstr "Der Randcode konnte nicht gedruckt werden."
 msgid "The margin could not be checked on this printer."
 msgstr "Der Rand konnte auf diesem Drucker nicht geprüft werden."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The measurement sheet is drawn without correction, so its millimetres are the page's own."
+msgstr "Der Messbogen wird ohne Korrektur gezeichnet, seine Millimeter sind also die der Seite selbst."
+
 #: src/features/archive/errors.ts
 msgid "The measurements are the same as in the current version. Change something first."
 msgstr "Die Maße sind dieselben wie in der aktuellen Version. Ändere zuerst etwas."
@@ -6974,6 +7062,7 @@ msgstr "Der Abstand ist eine Zahl in mm von 0 bis 1000, zum Beispiel 12,5."
 msgid "The other changes in this form were not stored either. They are still here: fix the area and save again."
 msgstr "Auch die anderen Änderungen in diesem Formular wurden nicht gespeichert. Die Werte stehen noch da: Korrigier den Bereich und speichere erneut."
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 msgid "The page could not be queued."
 msgstr "Die Seite konnte nicht eingereiht werden."
@@ -6986,6 +7075,10 @@ msgstr "Die Seitenhöhe"
 msgid "The page size is not valid."
 msgstr "Das Papierformat ist ungültig."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The page took too long to draw. Try again later."
+msgstr "Das Zeichnen der Seite hat zu lange gedauert. Versuche es später noch einmal."
+
 #: src/features/archive/errors.ts
 msgid "The page width"
 msgstr "Die Seitenbreite"
@@ -6993,6 +7086,10 @@ msgstr "Die Seitenbreite"
 #: src/features/archive/errors.ts
 msgid "The paper size"
 msgstr "Das Papierformat"
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The PDF could not be made."
+msgstr "Das PDF konnte nicht erstellt werden."
 
 #: src/features/settings/PrinterForm.tsx
 msgid "The port must be between 1 and 65535."
@@ -7530,6 +7627,7 @@ msgstr "Design"
 msgid "Theme: {chosen}. Switch to {next}"
 msgstr "Design: {chosen}. Wechseln zu {next}"
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 msgid "There is no page printer yet. Add one under Settings › Printers."
 msgstr "Es gibt noch keinen Seitendrucker. Füge unter Einstellungen › Drucker einen hinzu."
@@ -7761,6 +7859,10 @@ msgstr "Dieser Drucker druckt den Code nicht in den Rand."
 msgid "This printer has no tray to calibrate."
 msgstr "Dieser Drucker hat kein Fach zum Kalibrieren."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "This printer has no tray to print from."
+msgstr "Dieser Drucker hat kein Fach, aus dem gedruckt werden kann."
+
 #: src/features/sheets/errors.ts
 msgid "This printer is switched off."
 msgstr "Dieser Drucker ist ausgeschaltet."
@@ -7814,6 +7916,10 @@ msgstr "Dieser Bogentyp hat eine neuere Version als die, für die der Kontrolldr
 msgid "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
 msgstr "Dieser Bogentyp hat weniger als zwei Spalten oder zwei Zeilen, seine Kalibrierseite hat daher keine Kreuzungen."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "This sheet type has too many labels for a probe page."
+msgstr "Dieser Bogentyp hat zu viele Etiketten für einen Probedruck."
+
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "This sheet type is archived or no longer exists. Grocy labels for it are refused."
 msgstr "Dieser Bogentyp ist archiviert oder existiert nicht mehr. Grocy-Etiketten dafür werden abgelehnt."
@@ -7837,6 +7943,10 @@ msgstr "Diese Bandbreite kann dieses Etikett nicht drucken. Lege ein anderes Ban
 #: src/features/archive/MarginPlacement.tsx
 msgid "This tray could not be checked."
 msgstr "Dieses Fach konnte nicht geprüft werden."
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "This tray has no correction stored: the page is printed as it comes."
+msgstr "Für dieses Fach ist keine Korrektur gespeichert: Die Seite wird so gedruckt, wie sie ist."
 
 #: src/features/archive/errors.ts
 msgid "This type cannot be deleted. Archive it instead."
@@ -7898,6 +8008,10 @@ msgstr "Toner fast leer"
 msgid "Too many attempts. Wait a minute and try again."
 msgstr "Zu viele Versuche. Warte eine Minute und versuche es erneut."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Too many pages are being drawn right now. Try again in a moment."
+msgstr "Gerade werden zu viele Seiten gezeichnet. Versuche es gleich noch einmal."
+
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Too many previews at once. The preview updates in a moment."
 msgstr "Gerade laufen zu viele Vorschauen. Die Vorschau kommt gleich."
@@ -7957,6 +8071,7 @@ msgstr "Oberkante des Drucks zuerst"
 msgid "Top-edge mark"
 msgstr "Markierung an der Oberkante"
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/PageJobInfo.tsx
 #: src/features/printers/TestPrintButton.tsx

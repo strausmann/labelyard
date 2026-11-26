@@ -140,6 +140,25 @@ The check print follows the same rule: every crossing within ±0.5 mm is done. A
 - Vendor data sheets can be off. Measure a pitch with a ruler over ten labels and divide by ten.
 - For photos: full resolution, zoom into each crossing, and low-angle light makes the cut visible. Bent paper makes lines look curved, so judge at the crossing only.
 
+## Probe print on plain paper
+
+Before you spend a sheet of labels, you can see on plain paper whether a sheet type fits. The **probe print** draws the outline of every label of the type with its number and its row and column (`R2 C3`), the preprinted areas hatched and the place of the sheet code dashed. It uses the tray's current correction. Hold the page against a real sheet in front of a window or a lamp: when the outlines sit on the cuts, the sheet type and the correction are right.
+
+Open it with **Probe print on plain paper** on a sheet type in the [sheet archive](/using/sheets/), or next to **Print calibration page** on the **Print page** tab. Choose the printer and the tray and press **Print probe page**, or **Download PDF** to print it yourself. No sheet is used and no cell is reserved. The page goes through the print queue like any other: you find it under **Jobs**, where you can cancel or retry it, and it takes the tray's next run number, so **History** lists it with the calibration pages.
+
+The dialog says before printing when the printer's latest status says it is offline (switch it on or choose another printer) and when the hub sees a different device behind the printer: a probe page is not printed until an admin confirms the device, because the stored correction would be wrong for it.
+
+### Photograph the measurement sheet
+
+The **measurement sheet** is the probe print with a millimetre grid over the whole page: a line every millimetre, a heavier one every 5 mm and a number every 10 mm, counted from the top-left corner of the page. It is drawn **without** correction, so the grid shows the page's own millimetres. Use it to find out where a vendor's preprint (a logo, a printed border, a text field) sits on a sheet:
+
+1. Choose **Measurement sheet** on the sheet type, or tick **Measurement sheet** in the dialog.
+2. Print it **on a real sheet** of the type, not on plain paper, so the preprint and the grid end up on the same page.
+3. Photograph the sheet straight from above, at full resolution, with even light. Zoom in on the edges of each preprinted area and read their positions off the grid.
+4. Enter what you read as preprinted areas of the sheet type (see [Sheets and layouts](/using/sheets/)).
+
+The footer of the page says "Measurement sheet — no correction". On sheet types whose margins are too narrow for a line of text (such as Avery 3474, 3490 or 5159), that footer, and the run number and time, are printed inside the first label cell that lies in the printable area instead. Expect them there in the photo.
+
 ## History
 
 Every save is kept. The **History** tab lists the corrections of the tray, newest first, with the one in use now marked. Each entry shows its values, how much each one changed against the entry before (**vs. before**), where the values came from (a fit from readings of a numbered print, typed by hand, or restored from an earlier entry), the sheet type it was measured on and an optional note. The correction a tray had when you upgraded to 1.8.0 is the first entry, marked **Imported**. Labelyard keeps the newest 500 entries per printer and tray.

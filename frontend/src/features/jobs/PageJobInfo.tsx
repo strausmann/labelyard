@@ -9,7 +9,7 @@ import { ApiError } from "../../api/client";
 import { useSheet } from "../sheets/api";
 import { PANEL, SECTION_HEADING } from "../ui";
 import type { Job } from "./api";
-import { pageInfoOf } from "./model";
+import { pageInfoOf, TYPE_PAGE_KINDS } from "./model";
 import { usePageJobStatus } from "./pageJobText";
 import { useTrayLabel, useTypeLabel } from "./useJobTitle";
 
@@ -59,8 +59,11 @@ export function PageJobInfo({ job, cancelRequested, printer }: { job: Job; cance
   const { t } = useLingui();
   const page = pageInfoOf(job);
   const status = usePageJobStatus(job);
-  const typeLabel = useTypeLabel(page?.kind === "calibration_page" ? page.typeKey : null);
-  const trayLabel = useTrayLabel(job.printer_id, page?.kind === "test_page" || page?.kind === "tray_loading_page" ? page.tray : null);
+  const typeLabel = useTypeLabel(page && TYPE_PAGE_KINDS.includes(page.kind) ? page.typeKey : null);
+  const trayLabel = useTrayLabel(
+    job.printer_id,
+    page?.kind === "test_page" || page?.kind === "tray_loading_page" || page?.kind === "probe_page" ? page.tray : null,
+  );
   const code = page?.kind === "sheet_page" || page?.kind === "sheet_back_page" ? page.sheetCode : null;
   // Read for every sheet page: the cells to settle after a stop, and whether the sheet still exists (#204: purged).
   const sheet = useSheet(code ?? "");
@@ -82,11 +85,16 @@ export function PageJobInfo({ job, cancelRequested, printer }: { job: Job; cance
   const unconfirmed = (SETTLED_BY_HAND.has(job.state) ? (sheet.data?.cells ?? []) : []).filter((c) => c.state === "unconfirmed" && c.job_id === job.id).map((c) => c.cell);
   const discarded = sheet.data?.state === "discarded";
   const calibration = page.kind === "calibration_page";
+  const probe = page.kind === "probe_page";
   const testPage = page.kind === "test_page" || page.kind === "tray_loading_page";
   const backPage = page.kind === "sheet_back_page";
   const heading = calibration
     ? t`Calibration page`
-    : page.kind === "tray_loading_page"
+    : probe
+      ? page.grid
+        ? t`Measurement sheet`
+        : t`Probe print`
+      : page.kind === "tray_loading_page"
       ? t`Tray loading test`
       : testPage
         ? t`Test page`
@@ -103,7 +111,7 @@ export function PageJobInfo({ job, cancelRequested, printer }: { job: Job; cance
         <div role="status" className="flex flex-col gap-1">
           {status && <p className={`font-bold ${status.stopped ? "text-bad" : ""}`}>{status.text}</p>}
           {cancelRequested && (
-            <p className="text-ink-2">{testPage ? t`Asked the printer to cancel.` : t`Asked the printer to cancel. The cells are settled when it reports.`}</p>
+            <p className="text-ink-2">{testPage || probe ? t`Asked the printer to cancel.` : t`Asked the printer to cancel. The cells are settled when it reports.`}</p>
           )}
         </div>
       )}
@@ -116,8 +124,11 @@ export function PageJobInfo({ job, cancelRequested, printer }: { job: Job; cance
           </>
         ) : backPage ? (
           <Row label={t`Sheet`}>{sheetLink}</Row>
-        ) : calibration ? (
-          <Row label={t`Sheet type`}>{page.typeKey ? `${typeLabel ?? page.typeKey}${page.version === null ? "" : ` v${page.version}`}` : "—"}</Row>
+        ) : calibration || probe ? (
+          <>
+            <Row label={t`Sheet type`}>{page.typeKey ? `${typeLabel ?? page.typeKey}${page.version === null ? "" : ` v${page.version}`}` : "—"}</Row>
+            {probe && <Row label={t`Tray`}>{trayLabel ?? page.tray ?? "—"}</Row>}
+          </>
         ) : (
           <>
             <Row label={t`Sheet`}>{sheetLink}</Row>

@@ -140,6 +140,25 @@ Für den Kontrolldruck gilt dieselbe Regel: Liegt jede Kreuzung innerhalb von ±
 - Datenblätter der Hersteller können danebenliegen. Miss einen Abstand mit dem Lineal über zehn Etiketten und teile durch zehn.
 - Für Fotos: volle Auflösung, an jede Kreuzung heranzoomen, und flaches Licht macht den Schnitt sichtbar. Gebogenes Papier lässt Linien krumm wirken, beurteile deshalb nur an der Kreuzung.
 
+## Probedruck auf Normalpapier
+
+Bevor du einen Etikettenbogen verbrauchst, kannst du auf Normalpapier sehen, ob ein Bogentyp passt. Der **Probedruck** zeichnet den Umriss jedes Etiketts des Typs mit seiner Nummer und seiner Zeile und Spalte (`R2 C3`), die vorgedruckten Flächen schraffiert und den Platz des Bogencodes gestrichelt. Er verwendet die aktuelle Korrektur des Fachs. Halte die Seite vor einem Fenster oder einer Lampe gegen einen echten Bogen: Liegen die Umrisse auf den Schnitten, stimmen Bogentyp und Korrektur.
+
+Du öffnest ihn mit **Probedruck auf Normalpapier** an einem Bogentyp im [Bogenarchiv](/de/using/sheets/) oder neben **Kalibrierseite drucken** im Reiter **Seite drucken**. Wähle Drucker und Fach und drücke **Probedruck drucken**, oder **PDF herunterladen**, um ihn selbst zu drucken. Es wird kein Bogen verbraucht und keine Zelle reserviert. Die Seite läuft wie jede andere über die Druckwarteschlange: Du findest sie unter **Aufträge**, wo du sie abbrechen oder wiederholen kannst, und sie bekommt die nächste Laufnummer des Fachs, daher führt der **Verlauf** sie zusammen mit den Kalibrierseiten.
+
+Der Dialog sagt vor dem Druck, wenn der neueste Status des Druckers sagt, dass er offline ist (schalte ihn ein oder wähle einen anderen Drucker), und wenn der Hub hinter dem Drucker ein anderes Gerät sieht: Dann wird kein Probedruck gedruckt, bis ein Admin das Gerät bestätigt, denn die gespeicherte Korrektur wäre für dieses Gerät falsch.
+
+### Den Messbogen fotografieren
+
+Der **Messbogen** ist der Probedruck mit einem Millimeterraster über die ganze Seite: eine Linie je Millimeter, alle 5 mm eine kräftigere und alle 10 mm eine Zahl, gezählt ab der oberen linken Ecke der Seite. Er wird **ohne** Korrektur gezeichnet, das Raster zeigt also die eigenen Millimeter der Seite. Damit findest du heraus, wo der Vordruck eines Herstellers (ein Logo, ein gedruckter Rand, ein Textfeld) auf einem Bogen liegt:
+
+1. Wähle **Messbogen** am Bogentyp oder setze im Dialog den Haken bei **Messbogen**.
+2. Drucke ihn **auf einen echten Bogen** des Typs, nicht auf Normalpapier, damit Vordruck und Raster auf derselben Seite landen.
+3. Fotografiere den Bogen gerade von oben, in voller Auflösung und bei gleichmäßigem Licht. Zoome an die Kanten jeder vorgedruckten Fläche heran und lies ihre Lage am Raster ab.
+4. Trage das Abgelesene als vorgedruckte Flächen des Bogentyps ein (siehe [Bögen und Layouts](/de/using/sheets/)).
+
+Die Fußzeile der Seite lautet „Measurement sheet — no correction“. Bei Bogentypen, deren Ränder für eine Textzeile zu schmal sind (etwa Avery 3474, 3490 oder 5159), stehen diese Fußzeile sowie Laufnummer und Uhrzeit stattdessen in der ersten Etikettenzelle, die im bedruckbaren Bereich liegt. Rechne auf dem Foto dort mit ihnen.
+
 ## Verlauf
 
 Jedes Speichern bleibt erhalten. Der Reiter **Verlauf** listet die Korrekturen des Fachs, die neueste zuerst; die gerade benutzte ist markiert. Jeder Eintrag zeigt seine Werte, wie stark sich jeder gegenüber dem Eintrag davor geändert hat (**zum vorigen**), woher die Werte kommen (berechnet aus den Messwerten eines nummerierten Drucks, von Hand eingegeben oder aus einem früheren Eintrag wiederhergestellt), den Bogentyp, auf dem gemessen wurde, und eine Notiz, falls eine da ist. Die Korrektur, die ein Fach beim Update auf 1.8.0 hatte, ist der erste Eintrag, markiert mit **Übernommen**. Labelyard behält die neuesten 500 Einträge je Drucker und Fach.

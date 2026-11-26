@@ -546,6 +546,23 @@ test.describe("short viewport (on-screen keyboard)", () => {
         }
       });
 
+      test("probe dialog footer in view", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
+        await page.getByRole("button", { name: "Probe print on plain paper" }).click();
+        const dialog = dialogOf(page);
+        await expect(dialog).toBeVisible();
+        // The dialog has no text field: the keyboard stands for any short visible area (a keyboard left open, a landscape phone).
+        await dialog.getByRole("checkbox", { name: "Measurement sheet: add a millimetre grid, no correction" }).focus();
+        await keyboard(mode);
+        await expectInSight(page, frameOf(dialog), "the dialog");
+        // Download and Print sit in a sticky footer: in sight without scrolling.
+        await expectInSightOnceSettled(page, buttonIn(dialog, "Print probe page"), "the Print probe page button");
+        await expectInSightOnceSettled(page, dialog.getByRole("link", { name: "Download PDF" }), "the Download PDF link");
+        await page.keyboard.press("Escape");
+        await expect(dialog).toHaveCount(0);
+      });
+
       test("zone editor fields and sticky Save stay in view", async () => {
         await prepare(mode);
         await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");

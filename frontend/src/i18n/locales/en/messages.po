@@ -178,6 +178,11 @@ msgstr "{0} × {1} mm"
 msgid "{0} has no sheets. Deleting it removes it and all its versions for good."
 msgstr "{0} has no sheets. Deleting it removes it and all its versions for good."
 
+#. placeholder {0}: printer.name
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "{0} is offline"
+msgstr "{0} is offline"
+
 #. placeholder {0}: shown.length
 #. placeholder {1}: matches.length
 #: src/features/about/DependencyLicences.tsx
@@ -2231,6 +2236,7 @@ msgstr "Down at {name}: where the ink lies"
 msgid "Down: + = the ink lies below the middle of the gap, − = above it."
 msgstr "Down: + = the ink lies below the middle of the gap, − = above it."
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Download PDF"
 msgstr "Download PDF"
@@ -2724,6 +2730,10 @@ msgstr "Heavy solid line: the printed S line. Heavy dashed line: the printed Z l
 msgid "Height"
 msgstr "Height"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Held while the device is swapped"
+msgstr "Held while the device is swapped"
+
 #: src/features/archive/CatalogTab.tsx
 msgid "Hide details"
 msgstr "Hide details"
@@ -2951,6 +2961,10 @@ msgstr "Is “TOP” next to the cross?"
 msgid "Is the print on the side with the cross?"
 msgstr "Is the print on the side with the cross?"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "It goes through the print queue: you can see it under Jobs and retry it."
+msgstr "It goes through the print queue: you can see it under Jobs and retry it."
+
 #: src/features/calibration/SuggestionCard.tsx
 msgid "It is not known which sheet type the saved correction was measured on (it was typed in, or its history is gone), so the sheet cannot be told apart from the printer."
 msgstr "It is not known which sheet type the saved correction was measured on (it was typed in, or its history is gone), so the sheet cannot be told apart from the printer."
@@ -2967,9 +2981,18 @@ msgstr "It reaches outside the page. Keep it inside the sheet."
 msgid "It will probably become <0>{hintCode}</0>."
 msgstr "It will probably become <0>{hintCode}</0>."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Its last status says it does not answer. Switch it on, or choose another printer."
+msgstr "Its last status says it does not answer. Switch it on, or choose another printer."
+
 #: src/features/archive/TypeSheetsList.tsx
 msgid "Its sheets"
 msgstr "Its sheets"
+
+#. placeholder {0}: timeOf(status.data.captured_at, i18n.locale)
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Its status was read at {0} and the printer did not answer. Switch it on, or choose another printer."
+msgstr "Its status was read at {0} and the printer did not answer. Switch it on, or choose another printer."
 
 #: src/features/jobs/JobsPage.tsx
 #: src/features/search/jobsSource.ts
@@ -3357,6 +3380,7 @@ msgstr "Loading vendors…"
 #: src/features/about/DependencyLicences.tsx
 #: src/features/archive/ArchivePage.tsx
 #: src/features/archive/CatalogTab.tsx
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeSheetsList.tsx
@@ -3489,6 +3513,24 @@ msgstr "Measured on a sheet type version that was deleted since."
 #: src/features/archive/TypeDetail.tsx
 msgid "Measurement"
 msgstr "Measurement"
+
+#: src/features/archive/TypeDetail.tsx
+#: src/features/jobs/model.ts
+#: src/features/jobs/PageJobInfo.tsx
+msgid "Measurement sheet"
+msgstr "Measurement sheet"
+
+#: src/features/jobs/model.ts
+msgid "Measurement sheet · {name}"
+msgstr "Measurement sheet · {name}"
+
+#: src/features/jobs/model.ts
+msgid "Measurement sheet · {name} v{version}"
+msgstr "Measurement sheet · {name} v{version}"
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Measurement sheet: add a millimetre grid, no correction"
+msgstr "Measurement sheet: add a millimetre grid, no correction"
 
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
@@ -4680,6 +4722,10 @@ msgstr "Print page"
 msgid "Print pass {passNo} of {total}"
 msgstr "Print pass {passNo} of {total}"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Print probe page"
+msgstr "Print probe page"
+
 #: src/features/sheets/backSide/ActivateBackSide.tsx
 msgid "Print sheet code"
 msgstr "Print sheet code"
@@ -4760,6 +4806,7 @@ msgid "Printed, cell {n}"
 msgstr "Printed, cell {n}"
 
 #: src/features/archive/MarginPlacement.tsx
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/PageJobInfo.tsx
@@ -4845,6 +4892,7 @@ msgstr "Printing"
 msgid "Printing and marking cells need a print or admin key."
 msgstr "Printing and marking cells need a print or admin key."
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/lookup/CartPage.tsx
 #: src/features/lookup/ItemView.tsx
@@ -4880,6 +4928,10 @@ msgstr "prints on the side facing up"
 msgid "Prints the code in the free band around the labels. No extra pass through the printer."
 msgstr "Prints the code in the free band around the labels. No extra pass through the printer."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Prints the outline of every label so you can hold the page against a real sheet. No sheet is used, no cell is reserved."
+msgstr "Prints the outline of every label so you can hold the page against a real sheet. No sheet is used, no cell is reserved."
+
 #: src/features/calibration/LiveFit.tsx
 msgid "probable misread"
 msgstr "probable misread"
@@ -4887,6 +4939,26 @@ msgstr "probable misread"
 #: src/features/calibration/RunsTable.tsx
 msgid "Probe page"
 msgstr "Probe page"
+
+#: src/features/jobs/model.ts
+#: src/features/jobs/PageJobInfo.tsx
+#: src/shell/PrintToasts.tsx
+msgid "Probe print"
+msgstr "Probe print"
+
+#: src/features/jobs/model.ts
+msgid "Probe print · {name}"
+msgstr "Probe print · {name}"
+
+#: src/features/jobs/model.ts
+msgid "Probe print · {name} v{version}"
+msgstr "Probe print · {name} v{version}"
+
+#: src/features/archive/ProbePrintDialog.tsx
+#: src/features/archive/TypeDetail.tsx
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Probe print on plain paper"
+msgstr "Probe print on plain paper"
 
 #: src/features/overview/OverviewPage.tsx
 #: src/features/printers/model.ts
@@ -6546,6 +6618,10 @@ msgstr "The crossings to read"
 msgid "The crossings to read on {typeName}"
 msgstr "The crossings to read on {typeName}"
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The current correction of this tray is applied: dx {dx} mm, dy {dy} mm."
+msgstr "The current correction of this tray is applied: dx {dx} mm, dy {dy} mm."
+
 #: src/features/calibration/guide/ReadingGuide.tsx
 msgid "The cut between two rows."
 msgstr "The cut between two rows."
@@ -6635,6 +6711,10 @@ msgstr "The host or port changed. Enter the SNMP community again, or restore the
 msgid "The hub cannot draw a preview right now. Try again later."
 msgstr "The hub cannot draw a preview right now. Try again later."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The hub cannot draw the page right now. Try again later."
+msgstr "The hub cannot draw the page right now. Try again later."
+
 #: src/features/printers/TestPrintButton.tsx
 msgid "The hub cannot read this printer's status, so it cannot tell whether it is ready. An admin can check its address in the printer settings, then try again."
 msgstr "The hub cannot read this printer's status, so it cannot tell whether it is ready. An admin can check its address in the printer settings, then try again."
@@ -6674,6 +6754,10 @@ msgstr "The hub picked this place from the usable margin. You can change it."
 #: src/features/jobs/jobErrorText.ts
 msgid "The hub restarted while this label waited for the next part. Print it again."
 msgstr "The hub restarted while this label waited for the next part. Print it again."
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The hub sees a different device behind this printer. Like a calibration page, a probe page is not printed until an admin confirms the device on the printer's page: the stored correction would be wrong for it."
+msgstr "The hub sees a different device behind this printer. Like a calibration page, a probe page is not printed until an admin confirms the device on the printer's page: the stored correction would be wrong for it."
 
 #: src/features/printers/wiring.tsx
 msgid "The hub tries again by itself."
@@ -6896,6 +6980,10 @@ msgstr "The margin code could not be printed."
 msgid "The margin could not be checked on this printer."
 msgstr "The margin could not be checked on this printer."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The measurement sheet is drawn without correction, so its millimetres are the page's own."
+msgstr "The measurement sheet is drawn without correction, so its millimetres are the page's own."
+
 #: src/features/archive/errors.ts
 msgid "The measurements are the same as in the current version. Change something first."
 msgstr "The measurements are the same as in the current version. Change something first."
@@ -6974,6 +7062,7 @@ msgstr "The offset is a number of mm from 0 to 1000, for example 12.5."
 msgid "The other changes in this form were not stored either. They are still here: fix the area and save again."
 msgstr "The other changes in this form were not stored either. They are still here: fix the area and save again."
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 msgid "The page could not be queued."
 msgstr "The page could not be queued."
@@ -6986,6 +7075,10 @@ msgstr "The page height"
 msgid "The page size is not valid."
 msgstr "The page size is not valid."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The page took too long to draw. Try again later."
+msgstr "The page took too long to draw. Try again later."
+
 #: src/features/archive/errors.ts
 msgid "The page width"
 msgstr "The page width"
@@ -6993,6 +7086,10 @@ msgstr "The page width"
 #: src/features/archive/errors.ts
 msgid "The paper size"
 msgstr "The paper size"
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "The PDF could not be made."
+msgstr "The PDF could not be made."
 
 #: src/features/settings/PrinterForm.tsx
 msgid "The port must be between 1 and 65535."
@@ -7530,6 +7627,7 @@ msgstr "Theme"
 msgid "Theme: {chosen}. Switch to {next}"
 msgstr "Theme: {chosen}. Switch to {next}"
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 msgid "There is no page printer yet. Add one under Settings › Printers."
 msgstr "There is no page printer yet. Add one under Settings › Printers."
@@ -7761,6 +7859,10 @@ msgstr "This printer does not print the code in the margin."
 msgid "This printer has no tray to calibrate."
 msgstr "This printer has no tray to calibrate."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "This printer has no tray to print from."
+msgstr "This printer has no tray to print from."
+
 #: src/features/sheets/errors.ts
 msgid "This printer is switched off."
 msgstr "This printer is switched off."
@@ -7814,6 +7916,10 @@ msgstr "This sheet type has a newer version than the one the check print was mad
 msgid "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
 msgstr "This sheet type has fewer than two columns or two rows, so its calibration page has no crossings."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "This sheet type has too many labels for a probe page."
+msgstr "This sheet type has too many labels for a probe page."
+
 #: src/features/settings/GrocyLabelSettings.tsx
 msgid "This sheet type is archived or no longer exists. Grocy labels for it are refused."
 msgstr "This sheet type is archived or no longer exists. Grocy labels for it are refused."
@@ -7837,6 +7943,10 @@ msgstr "This tape width cannot print this label. Load another tape."
 #: src/features/archive/MarginPlacement.tsx
 msgid "This tray could not be checked."
 msgstr "This tray could not be checked."
+
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "This tray has no correction stored: the page is printed as it comes."
+msgstr "This tray has no correction stored: the page is printed as it comes."
 
 #: src/features/archive/errors.ts
 msgid "This type cannot be deleted. Archive it instead."
@@ -7898,6 +8008,10 @@ msgstr "toner low"
 msgid "Too many attempts. Wait a minute and try again."
 msgstr "Too many attempts. Wait a minute and try again."
 
+#: src/features/archive/ProbePrintDialog.tsx
+msgid "Too many pages are being drawn right now. Try again in a moment."
+msgstr "Too many pages are being drawn right now. Try again in a moment."
+
 #: src/features/sheets/print/SheetSection.tsx
 msgid "Too many previews at once. The preview updates in a moment."
 msgstr "Too many previews at once. The preview updates in a moment."
@@ -7957,6 +8071,7 @@ msgstr "top of the print first"
 msgid "Top-edge mark"
 msgstr "Top-edge mark"
 
+#: src/features/archive/ProbePrintDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/PageJobInfo.tsx
 #: src/features/printers/TestPrintButton.tsx
