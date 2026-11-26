@@ -233,7 +233,9 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const request = useMemo(() => readingsRequest(type.key, version, list, run?.id ?? null), [type.key, version, list, run?.id]);
   const complete = request.readings.length;
   // No fit without the print the readings belong to, when the prints could not be loaded; none on an unknown grid.
-  const canFit = !runsFailed && gridState === "ready";
+  // Nor while the prints are still loading: without them the readings would go out tied to no print, and check
+  // readings could be filled in as a correction.
+  const canFit = !runsPending && !runsFailed && gridState === "ready";
   const live = useLiveFit(printerId, tray, canFit ? request : null);
   // The request the form shows now, for an answer that arrives after the readings or the print changed.
   const latest = useRef(request);

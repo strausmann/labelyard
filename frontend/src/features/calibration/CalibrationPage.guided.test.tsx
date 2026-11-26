@@ -518,4 +518,17 @@ describe("guided readings", () => {
     await fillThreePlain();
     expect(await button("Fit")).toBeEnabled();
   });
+
+  it("nothing is fitted while the list of prints is still loading", async () => {
+    let release: (value: Response) => void = () => {};
+    const pending = new Promise<Response>((resolve) => (release = resolve));
+    const { calls } = await open(withRuns({ [`GET ${BASE}/main/runs`]: () => pending, [`POST ${BASE}/main/fit`]: FIT }));
+    await fillThreePlain();
+    expect(await button("Fit")).toBeDisabled();
+    await new Promise((r) => setTimeout(r, 600));
+    expect(only(calls, "POST", "/fit")).toHaveLength(0);
+    // Counter-check: once the prints are there, the readings are tied to one and Fit works.
+    await act(async () => release(new Response(JSON.stringify(RUNS), { status: 200, headers: { "Content-Type": "application/json" } })));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Fit" })).toBeEnabled());
+  });
 });
