@@ -558,8 +558,26 @@ async def get_open_check_sheet(
             return None
         # The slots pass 1 reserved, in the layout it was printed with.
         first = await first_pass_payload(session, sheet.check_sheet_id)
-        slots = len(page.payload_layout(first).run_line_slots) if first is not None else 0
-        return sheet.model_copy(update={"run_line_slots": slots})
+        # Each later pass as it would print now, with the tray's current correction: does the
+        # slot pass 1 reserved still land inside its printable area (review on #449)?
+        printed = {p.pass_no for p in sheet.passes}
+        fits: dict[int, bool] = {}
+        for pass_no in range(2, sheet.passes_total + 1):
+            later = payload.model_copy(
+                update={
+                    "detail": {**payload.detail, "passes_total": sheet.passes_total,
+                               "pass_no": pass_no}
+                }
+            )  # fmt: skip
+            fits[pass_no] = first is not None and page.later_run_line_box(later, first) is not None
+        return sheet.model_copy(
+            update={
+                "run_line_slots": sum(fits.values()),
+                "passes_without_run_line": [
+                    p for p, ok in fits.items() if not ok and p not in printed
+                ],
+            }
+        )
 
 
 @router.get(

@@ -23,6 +23,7 @@ const openSheet = (slots = 2) => ({
   next_pass: 2,
   run_line_slots: slots,
   passes: [{ pass_no: 1, run_no: 12, run_id: RUN12 }],
+  passes_without_run_line: [2, 3].filter((p) => p - 2 >= slots),
 });
 
 async function dialog() {
@@ -182,6 +183,18 @@ describe("the check print dialog (design 7.2)", () => {
     const note = await d.findByRole("note", { name: "Before you print" });
     expect(within(note).getByText("Pass 3 on this sheet will print without its run line.")).toBeVisible();
     expect(within(note).queryByText(/Later check passes/)).toBeNull();
+  });
+
+  it("pass 2 is warned when the current correction moves its reserved slot off the page", async () => {
+    // Pass 1 reserved both slots; the tray's correction changed since and pass 2's slot no longer fits.
+    await open({
+      [`GET ${BASE}/main/page/layout`]: { ...LAYOUT, passes_total: 3, run_line_slots: 2 },
+      [`GET ${BASE}/main/check-sheets/open`]: { ...openSheet(2), run_line_slots: 1, passes_without_run_line: [2] },
+    });
+    const d = await dialog();
+    const note = await d.findByRole("note", { name: "Before you print" });
+    expect(within(note).getByText("This pass prints without its run line.")).toBeVisible();
+    expect(within(note).queryByText(/Pass 3 on this sheet/)).toBeNull();
   });
 
   it("the calibration page says the same before it is printed, without a dialog", async () => {

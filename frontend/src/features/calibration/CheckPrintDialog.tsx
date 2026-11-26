@@ -51,6 +51,11 @@ interface NoteWords {
 interface PassOptions {
   /** 1 for a new sheet, 2 or 3 for the next pass of an open one. */
   pass?: number;
+  /**
+   * The passes to come that lack their run line, as the open sheet reports them with the tray's current
+   * correction (`passes_without_run_line`). Without it a pass lacks its line when pass 1 reserved no slot for it.
+   */
+  lacking?: number[];
 }
 
 /** The decision behind ``useLayoutNotes``, without the words: which notes a layout calls for. */
@@ -70,8 +75,9 @@ export function layoutNotes(layout: PageLayoutSummary, options: PassOptions, wor
   }
   const pass = options.pass;
   if (pass !== undefined && layout.passes_total > 1) {
-    // Pass p (2 or 3) has a run line when pass 1 reserved slot p - 2.
-    const lacks = (p: number) => p - 2 >= layout.run_line_slots;
+    // Pass p (2 or 3) has a run line when pass 1 reserved slot p - 2 and it still prints.
+    const lacking = options.lacking;
+    const lacks = (p: number) => (lacking ? lacking.includes(p) : p - 2 >= layout.run_line_slots);
     if (pass >= 2 && lacks(pass)) notes.push(words.thisPassNoRunLine);
     const later = Array.from({ length: layout.passes_total - Math.max(pass, 1) }, (_, i) => Math.max(pass, 1) + 1 + i).filter(lacks);
     if (pass === 1 && later.length === layout.passes_total - 1) notes.push(words.noRunLine);
@@ -159,7 +165,7 @@ function Body({ printerId, tray, type, onClose, onPrint }: Omit<CheckPrintDialog
             margin_text: { top: "full", bottom: "full" },
             run_line_slots: sheet?.run_line_slots ?? layout.data.run_line_slots,
           },
-          { pass: passNo },
+          { pass: passNo, lacking: sheet?.passes_without_run_line },
         )
     : [];
 

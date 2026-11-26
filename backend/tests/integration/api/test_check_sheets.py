@@ -115,6 +115,7 @@ async def test_new_sheet_starts_pass_1(env: _Env) -> None:
         "next_pass": 2,
         "run_line_slots": 0,
         "passes": [{"pass_no": 1, "run_no": run.run_no, "run_id": str(run.id)}],
+        "passes_without_run_line": [2, 3],  # the 6121 at 5 mm leaves no slot
     }
     # Pass 1 prints the full page: its run's page codes are stored, where pass 1 draws them.
     assert run.page_codes is not None and len(run.page_codes) == 4
@@ -530,3 +531,29 @@ async def test_the_layout_summary_describes_the_page_that_would_print(env: _Env)
 
     assert single == summary(full, 1)
     assert sheet == summary(first, 3)
+
+
+async def test_the_open_sheet_reports_a_run_line_the_current_correction_cannot_print(
+    env: _Env,
+) -> None:
+    """Codex on #449: pass 1 reserved its slot under no offset; with +5 mm now, pass 2's moved
+    slot leaves the printable area. The open sheet must say so before printing, as the print
+    then does: no run line on pass 2."""
+    async with env.client() as c:
+        r = await c.put(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1",
+            json={"offset_x_mm": 0, "offset_y_mm": 0},
+        )
+    assert r.status_code == 200, r.text
+    await _printed(env, "new", "cal-run")
+    assert (await _open(env, "cal-run"))["passes_without_run_line"] == []
+    async with env.client() as c:
+        r = await c.put(
+            f"/api/v1/printers/{env.printer_id}/calibration/tray-1",
+            json={"offset_x_mm": 0, "offset_y_mm": 5.0},
+        )
+    assert r.status_code == 200, r.text
+    opened = await _open(env, "cal-run")
+    assert opened["passes_without_run_line"] == [2] and opened["run_line_slots"] == 0
+    second = await _payload(env, await _printed(env, "next", "cal-run"))
+    assert payload_layout(second).run_line is None

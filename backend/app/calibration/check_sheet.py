@@ -140,11 +140,19 @@ class CheckSheetOpen(BaseModel):
         ge=0,
         le=2,
         description=(
-            "Run-line slots for passes 2 and 3 on this printer and tray; fewer than "
-            "`passes_total - 1`: the later passes print without their run line."
+            "The slots pass 1 reserved for passes 2 and 3 that the tray's current correction "
+            "can still print; `passes_without_run_line` names the passes to come that lack one."
         ),
     )
     passes: list[CheckSheetPassRead] = Field(description="The printed passes, by pass number.")
+    passes_without_run_line: list[int] = Field(
+        default_factory=list,
+        description=(
+            "The passes still to print (2 or 3) that would print without their run line now: "
+            "pass 1 left no slot for them, or the current correction moves the slot out of the "
+            "printable area."
+        ),
+    )
 
 
 async def first_pass_payload(session: AsyncSession, sheet_id: UUID) -> PagePayload | None:
