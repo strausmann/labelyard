@@ -347,7 +347,20 @@ async def print_calibration_page(
         def page_codes(pass_no: int | None) -> list[dict[str, Any]]:
             if pass_no is not None and pass_no > 1:
                 return []  # passes 2 and 3 draw no codes
-            return page.payload_layout(payload).page_code_records()
+            drawn = payload
+            if choice is not None and pass_no == 1 and choice.passes:
+                # Pass 1 is laid out with its crosses, not the full grid: its codes sit there.
+                drawn = payload.model_copy(
+                    update={
+                        "detail": {
+                            **payload.detail,
+                            "pass_no": 1,
+                            "pass_crossings": [list(c) for c in choice.crossings(1) or []],
+                            "reserved_crossings": [list(c) for c in choice.reserved(1)],
+                        }
+                    }
+                )
+            return page.payload_layout(drawn).page_code_records()
 
         async def submit(stamped: PagePayload, job_id: UUID) -> UUID:
             # The run number is known now: a page code that no longer fits is refused, never cut.

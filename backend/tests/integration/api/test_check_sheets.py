@@ -19,7 +19,7 @@ import httpx
 import pytest
 from app.calibration import runs
 from app.calibration.check_sheet import check_passes
-from app.calibration.page import render_calibration_page
+from app.calibration.page import payload_layout, render_calibration_page
 from app.models.calibration_run import (
     CalibrationCheckSheet,
     CalibrationCheckSheetPass,
@@ -116,8 +116,11 @@ async def test_new_sheet_starts_pass_1(env: _Env) -> None:
         "run_line_slots": 0,
         "passes": [{"pass_no": 1, "run_no": run.run_no, "run_id": str(run.id)}],
     }
-    # Pass 1 prints the full page: its run's page codes are stored.
+    # Pass 1 prints the full page: its run's page codes are stored, where pass 1 draws them.
     assert run.page_codes is not None and len(run.page_codes) == 4
+    assert run.page_codes == payload_layout(payload).page_code_records()
+    later = [list(c) for p in check_passes(5, 13)[1:] for c in p]
+    assert payload.detail["reserved_crossings"] == later
 
 
 async def test_next_pass_on_the_same_sheet_links_the_run(env: _Env) -> None:
@@ -371,3 +374,16 @@ async def test_a_failed_last_pass_opens_the_sheet_again(env: _Env) -> None:
     assert opened is not None and opened["next_pass"] == 3
     third = await env.run_row(await _printed(env, "next"))
     assert third.pass_no == 3 and third.check_sheet_id == first.check_sheet_id
+
+
+async def test_a_pruned_pass_closes_its_sheet(env: _Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Codex on #449: retention drops the run of pass 1 and its pass row; the pass must not look
+    free again (pass 1 would print the full page over the earlier ink): the sheet is closed."""
+    await _setup(env)
+    monkeypatch.setattr(runs, "RUN_RETENTION", 2)
+    await env.run_row(await _printed(env, "new"))
+    await env.post_page(type="chk-6121")
+    await env.post_page(type="chk-6121")  # pass 1's run falls out of the newest two
+    assert await _open(env) is None
+    r = await _check(env, "next")
+    assert r.status_code == 409 and r.json()["detail"]["error_code"] == "check_sheet_full"

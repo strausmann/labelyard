@@ -496,9 +496,18 @@ def _k_label(m: _Marks, x: float, y: float, text: str, centre: tuple[float, floa
             return
 
 
-def _pass_marks(g: Geometry, m: _Marks, crossings: Sequence[tuple[int, int]], pass_no: int) -> None:
+def _pass_marks(
+    g: Geometry,
+    m: _Marks,
+    crossings: Sequence[tuple[int, int]],
+    pass_no: int,
+    reserved: Sequence[tuple[int, int]] = (),
+) -> None:
     """A check pass (design 7.2): the mini scale and a ``K<pass>`` label at each of its crossings,
-    never gap lines or edge rulers; pass 1 adds the corner marks of every label."""
+    never gap lines or edge rulers; pass 1 adds the corner marks of every label, except around
+    the ``reserved`` crossings of the later passes: their scales land there later, and old corner
+    legs among new ticks would be read wrongly once the correction moved (review on #449)."""
+    keep_clear = {(c - 1, r - 1) for c, r in reserved}
     scales: dict[tuple[int, int], list[_Seg]] = {}
     for col_gap, row_gap in crossings:
         x, y = crossing_point(g, col_gap, row_gap)
@@ -521,6 +530,8 @@ def _pass_marks(g: Geometry, m: _Marks, crossings: Sequence[tuple[int, int]], pa
                 ((left, r), (lx0, ly1, 1, -1)),
                 ((c, r), (lx1, ly1, -1, -1)),
             ):
+                if (cx, cy) in keep_clear:
+                    continue
                 inner = 0 <= cx < g.cols - 1 and 0 <= cy < g.rows - 1
                 _corner_mark(m, x, y, dx, dy, ticks=scales.get((cx, cy), []), inner=inner)
 
@@ -883,6 +894,7 @@ def check_page_layout(
     bottom_lines: int | None = None,
     pass_no: int | None = None,
     crossings: Sequence[tuple[int, int]] | None = None,
+    reserved: Sequence[tuple[int, int]] = (),
 ) -> PageLayout:
     """The calibration page (or pass 1 of a check sheet that takes ``passes`` passes) for ``g``.
 
@@ -896,7 +908,8 @@ def check_page_layout(
 
     ``pass_no`` and ``crossings`` lay out one pass of a check sheet (``check_sheet.check_passes``):
     pass 1 is the full page with crosses (mini scale and ``K1``) only at its crossings and no gap
-    lines or rulers; passes 2 and 3 are their crosses and, in their run-line slot of pass 1's
+    lines or rulers, and no corner marks around the ``reserved`` crossings of the later passes;
+    passes 2 and 3 are their crosses and, in their run-line slot of pass 1's
     layout (``run_line``), one run line, and nothing else. Without them the page is the full
     calibration or check page.
     """
@@ -923,7 +936,7 @@ def check_page_layout(
     else:
         if pass_no is None:
             raise ValueError("check pass: crossings without a pass number")
-        _pass_marks(g, marks, crossings, pass_no)
+        _pass_marks(g, marks, crossings, pass_no, reserved)
     if pass_no is not None and pass_no > 1:
         # Nothing of pass 1 again: printed after a correction it would land offset over it.
         return PageLayout(

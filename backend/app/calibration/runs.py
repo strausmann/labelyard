@@ -26,7 +26,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, literal_column, or_, select
+from sqlalchemy import delete, literal_column, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import col
 
@@ -82,6 +82,10 @@ class CheckSheetChoice:
     @property
     def passes_total(self) -> int:
         return max(len(self.passes), 1)
+
+    def reserved(self, pass_no: int) -> list[tuple[int, int]]:
+        """The crossings of the passes after ``pass_no``: pass 1 keeps its corner marks off them."""
+        return [tuple(c) for p in self.passes[pass_no:] for c in p]  # type: ignore[misc]
 
     def crossings(self, pass_no: int) -> list[tuple[int, int]] | None:
         """The crossings pass ``pass_no`` prints; ``None`` on a grid without passes."""
@@ -266,6 +270,20 @@ async def _drop_old_runs(
     )
     if not old_ids:
         return
+    # A dropped pass is still printed on its sheet: the sheet closes, so ``next`` never offers that
+    # pass again (pass 1 would print the full page over the earlier ink; review on #449).
+    await session.execute(
+        update(CalibrationCheckSheet)
+        .where(
+            col(CalibrationCheckSheet.id).in_(
+                select(col(CalibrationCheckSheetPass.check_sheet_id)).where(
+                    col(CalibrationCheckSheetPass.run_id).in_(old_ids)
+                )
+            ),
+            col(CalibrationCheckSheet.closed_at).is_(None),
+        )
+        .values(closed_at=datetime.now(UTC))
+    )
     # The pass rows go explicitly too: the cascade only acts where foreign keys are on.
     await session.execute(
         delete(CalibrationCheckSheetPass).where(col(CalibrationCheckSheetPass.run_id).in_(old_ids))
@@ -287,6 +305,7 @@ def stamp(
     *,
     time_zone: str = "UTC",
     crossings: Sequence[tuple[int, int]] | None = None,
+    reserved: Sequence[tuple[int, int]] = (),
 ) -> PagePayload:
     """The payload with the run's number, time (``HH:MM`` in the hub's ``time_zone``, the setting
     ``general.time_zone``; an unknown zone is UTC) and id in ``detail``; for a pass of a check
@@ -305,6 +324,8 @@ def stamp(
     if run.pass_no is not None and crossings is not None:
         detail["pass_no"] = run.pass_no
         detail["pass_crossings"] = [list(c) for c in crossings]
+        if reserved:
+            detail["reserved_crossings"] = [list(c) for c in reserved]
     return payload.model_copy(update={"detail": detail})
 
 
@@ -356,9 +377,15 @@ async def submit_with_run(
         if check_sheet is not None and run.pass_no is not None
         else None
     )
+    reserved = (
+        check_sheet.reserved(run.pass_no)
+        if check_sheet is not None and run.pass_no is not None
+        else []
+    )
     try:
         submitted = await submit(
-            stamp(payload, run, time_zone=time_zone, crossings=crossings), job_id
+            stamp(payload, run, time_zone=time_zone, crossings=crossings, reserved=reserved),
+            job_id,
         )
     except Exception:
         await _discard_unsubmitted(session, run)

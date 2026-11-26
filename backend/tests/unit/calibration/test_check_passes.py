@@ -125,6 +125,8 @@ def _pass_payload(key: str, hw: int, pass_no: int, *, run_no: int = 12) -> PageP
         "pass_no": pass_no,
         "pass_crossings": [list(c) for c in passes[pass_no - 1]],
     }
+    if pass_no == 1:
+        detail["reserved_crossings"] = [list(c) for p in passes[1:] for c in p]
     return PagePayload(
         kind="calibration_page",
         media=g.page_size,
@@ -282,3 +284,25 @@ def test_a_calibration_page_is_unchanged_by_the_passes() -> None:
     assert any(t.text == "S1" for t in plain.labels) and not any(
         t.text == "K1" for t in plain.labels
     )
+
+
+def test_pass_1_draws_no_corner_mark_where_a_later_pass_puts_its_scale() -> None:
+    """Codex on #449: on a gapless sheet the corner marks meet at the crossings; pass 1 must leave
+    the crossings of passes 2 and 3 clear, or their scales land among its old corner legs."""
+    from app.calibration import scale
+    from app.calibration.fit import crossing_point
+
+    for key in ("avery-zweckform-6121", "avery-zweckform-l4736rev", "avery-5160"):
+        g = next(g for k, g in _catalog() if k == key)
+        later = [c for p in check_passes(g.cols, g.rows)[1:] for c in p]
+        assert later
+        layout = payload_layout(_pass_payload(key, 500, 1))
+        reach = scale.HALF_MM + scale.MIN_GAP_MM
+        zones = [
+            (x - reach, y - reach, x + reach, y + reach)
+            for x, y in (crossing_point(g, c, r) for c, r in later)
+        ]
+        legs = [lay._seg_rect(s) for m in layout.marks if len(m.segs) == 2 for s in m.segs]
+        assert legs, key  # corner marks are still drawn elsewhere
+        hits = [leg for leg in legs for z in zones if _overlap(leg, z)]
+        assert hits == [], (key, hits[:3])

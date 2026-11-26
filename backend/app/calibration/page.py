@@ -195,6 +195,10 @@ def _passes_total(d: Mapping[str, Any]) -> int:
     return raw if isinstance(raw, int) and raw >= 1 else 1
 
 
+def _crossing_list(raw: object) -> list[tuple[int, int]]:
+    return [(int(c), int(r)) for c, r in raw] if isinstance(raw, list) else []
+
+
 def payload_pass(payload: PagePayload) -> tuple[int, list[tuple[int, int]]] | None:
     """The pass of a check sheet a stamped payload prints, with its crossings; ``None`` for a
     full page (a calibration page, a check page of a grid without passes, a download)."""
@@ -202,7 +206,7 @@ def payload_pass(payload: PagePayload) -> tuple[int, list[tuple[int, int]]] | No
     pass_no, crossings = d.get("pass_no"), d.get("pass_crossings")
     if not isinstance(pass_no, int) or not isinstance(crossings, list):
         return None
-    return pass_no, [(int(c), int(r)) for c, r in crossings]
+    return pass_no, _crossing_list(crossings)
 
 
 def payload_layout(payload: PagePayload, *, passes: int | None = None) -> PageLayout:
@@ -221,6 +225,7 @@ def payload_layout(payload: PagePayload, *, passes: int | None = None) -> PageLa
         bottom_lines=bottom_lines_of(payload),
         pass_no=chosen[0] if chosen else None,
         crossings=chosen[1] if chosen else None,
+        reserved=_crossing_list(d.get("reserved_crossings")) if chosen else (),
     )
 
 
