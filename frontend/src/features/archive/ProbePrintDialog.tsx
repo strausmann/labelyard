@@ -75,14 +75,16 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
   const offline = freshlyOffline(status.data);
   // A swapped device refuses new probe pages (409 printer-identity-mismatch): the button waits with the note.
   const held = status.data?.identity_mismatch === true;
-  const loading = printers.isPending || (printer !== undefined && calibration.isPending);
+  const loading = printers.isPending;
+  // The capabilities name the default tray: until they answer, the first row would be a guess (rows come by tray key).
+  const traysLoading = printer !== undefined && (calibration.isPending || capabilities.isPending);
 
   // A choice starts with a clean line: the last answer was about the printer or tray chosen before.
   const clear = () => {
     print.reset();
     download.reset();
   };
-  const pdfUrl = printer && tray ? probePdfUrl(printer.id, tray.key, { type: type.key, version: type.version, grid }) : null;
+  const pdfUrl = printer && tray && !traysLoading ? probePdfUrl(printer.id, tray.key, { type: type.key, version: type.version, grid }) : null;
   const refusedOffline = print.error instanceof ApiError && print.error.code === "printer-offline";
   const printError = print.isError && !refusedOffline ? errorText(print.error, t`The page could not be queued.`) : null;
   const downloadError = download.error ? errorText(download.error, t`The PDF could not be made.`) : null;
@@ -111,7 +113,9 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
         }}
       />
       <div className="flex min-w-0 flex-col gap-1.5">
-        {trays.length > 1 && tray ? (
+        {traysLoading ? (
+          <p role="status" className={`${HINT} m-0`}>{t`Loading…`}</p>
+        ) : trays.length > 1 && tray ? (
           <SelectField
             label={t`Tray`}
             value={tray.key}
@@ -126,7 +130,7 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
             <span className="text-small font-bold">{t`Tray`}</span> <span>{tray ? tray.label : t`This printer has no tray to print from.`}</span>
           </p>
         )}
-        {tray ? <p className={`${HINT} m-0`}>{grid ? t`The measurement sheet is drawn without correction, so its millimetres are the page's own.` : correctionWords(tray.row)}</p> : null}
+        {tray && !traysLoading ? <p className={`${HINT} m-0`}>{grid ? t`The measurement sheet is drawn without correction, so its millimetres are the page's own.` : correctionWords(tray.row)}</p> : null}
       </div>
       <Checkbox
         isSelected={grid}
@@ -175,7 +179,7 @@ function Body({ type, onClose, grid: initialGrid = false, printerId: initialPrin
             {t`Download PDF`}
           </a>
         ) : null}
-        <Button isDisabled={!canPrint || !tray || offline || held || print.isPending} onPress={send} className={PRIMARY_BUTTON}>
+        <Button isDisabled={!canPrint || !tray || traysLoading || offline || held || print.isPending} onPress={send} className={PRIMARY_BUTTON}>
           {t`Print probe page`}
         </Button>
       </div>

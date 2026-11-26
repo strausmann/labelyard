@@ -72,6 +72,19 @@ describe("the probe print dialog (#241, M9)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Probe print on plain paper" })).toBeNull());
   });
 
+  it("waits for the trays' labels before it picks the default tray (Codex on #453)", async () => {
+    // The hub lists calibration rows by tray key, so `bypass` comes before the default `main`; the capabilities that
+    // name the default answer last.
+    const late = () => new Promise((resolve) => setTimeout(() => resolve(PAGE_CAPABILITIES), 300));
+    const { calls, dialog: d } = await openDialog({ [`GET ${calibration(P)}`]: [NONE, CORRECTED], [`GET /api/v1/printers/${P}/capabilities`]: late });
+    // While the trays load, Print waits; then the default tray (with its correction) is the one chosen.
+    expect(d.getByRole("button", { name: "Print probe page" })).toBeDisabled();
+    expect(await d.findByText("The current correction of this tray is applied: dx +0.41 mm, dy −0.66 mm.")).toBeVisible();
+    await userEvent.click(d.getByRole("button", { name: "Print probe page" }));
+    await waitFor(() => expect(posts(calls)).toHaveLength(1));
+    expect(posts(calls)[0]!.path).toBe(`${calibration(P)}/main/probe`);
+  });
+
   it("measurement sheet option sends grid true", async () => {
     const { calls, dialog: d } = await openDialog();
     const grid = d.getByRole("checkbox", { name: "Measurement sheet: add a millimetre grid, no correction" });
