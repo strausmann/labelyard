@@ -120,6 +120,11 @@ msgstr "{0, plural, one {Mark # cell as used} other {Mark # cells as used}}"
 msgid "{0, plural, one {Purge # sheet} other {Purge # sheets}}"
 msgstr "{0, plural, one {Purge # sheet} other {Purge # sheets}}"
 
+#. placeholder {0}: readings.length
+#: src/features/archive/TypeLog.tsx
+msgid "{0, plural, one {Readings (# crossing)} other {Readings (# crossings)}}"
+msgstr "{0, plural, one {Readings (# crossing)} other {Readings (# crossings)}}"
+
 #. placeholder {0}: keys.length
 #: src/features/archive/RemoveUnusedDialog.tsx
 msgid "{0, plural, one {Remove # type} other {Remove # types}}"
@@ -183,6 +188,12 @@ msgstr "{0} has no sheets. Deleting it removes it and all its versions for good.
 msgid "{0} is offline"
 msgstr "{0} is offline"
 
+#. placeholder {0}: entries.length
+#. placeholder {1}: entries.length
+#: src/features/archive/TypeLog.tsx
+msgid "{0} of {1} entries. The newest {LOG_KEPT} per type are kept."
+msgstr "{0} of {1} entries. The newest {LOG_KEPT} per type are kept."
+
 #. placeholder {0}: shown.length
 #. placeholder {1}: matches.length
 #: src/features/about/DependencyLicences.tsx
@@ -195,6 +206,11 @@ msgstr "{0} of {1} packages"
 #: src/features/archive/TypeSheetsList.tsx
 msgid "{0} of {1} used · {2} free"
 msgstr "{0} of {1} used · {2} free"
+
+#. placeholder {0}: note.length
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "{0} of {LOG_NOTE_MAX} characters"
+msgstr "{0} of {LOG_NOTE_MAX} characters"
 
 #. placeholder {0}: own.length
 #: src/features/archive/PreprintZonesEditor.tsx
@@ -605,6 +621,14 @@ msgstr "{title} was cancelled"
 msgid "{token}: licence text at SPDX"
 msgstr "{token}: licence text at SPDX"
 
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "{typeName} · only the verdict and the note change."
+msgstr "{typeName} · only the verdict and the note change."
+
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "{typeName} · saved with your name."
+msgstr "{typeName} · saved with your name."
+
 #: src/features/sheets/print/SheetPreview.tsx
 #: src/features/sheets/SheetsPage.tsx
 msgid "{unconfirmed} unconfirmed"
@@ -842,6 +866,12 @@ msgctxt "page title"
 msgid "About"
 msgstr "About"
 
+#. placeholder {0}: fixed.printerName
+#. placeholder {1}: fixed.trayLabel
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "About {0} · {1}"
+msgstr "About {0} · {1}"
+
 #: src/features/settings/System.tsx
 #: src/shell/PhoneMenu.tsx
 #: src/shell/Sidebar.tsx
@@ -871,6 +901,7 @@ msgstr "Above the cut"
 msgid "Access and keys"
 msgstr "Access and keys"
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/ReadingsHelper.tsx
@@ -912,6 +943,11 @@ msgstr "Activate new sheet"
 msgid "Add"
 msgstr "Add"
 
+#: src/features/archive/TypeLog.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "Add a note"
+msgstr "Add a note"
+
 #: src/features/settings/PrinterForm.tsx
 msgid "Add a printer"
 msgstr "Add a printer"
@@ -935,6 +971,10 @@ msgstr "Add as new version"
 #: src/features/lookup/CartPage.tsx
 msgid "Add items to print onto {linkedSheet}."
 msgstr "Add items to print onto {linkedSheet}."
+
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "Add note"
+msgstr "Add note"
 
 #: src/features/settings/Printers.tsx
 msgid "Add printer"
@@ -968,6 +1008,10 @@ msgstr "Add to print queue"
 #: src/features/archive/CatalogTab.tsx
 msgid "Add under this key"
 msgstr "Add under this key"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Add verdict and note"
+msgstr "Add verdict and note"
 
 #: src/features/archive/CatalogTab.tsx
 msgid "Add with this prefix"
@@ -1017,9 +1061,14 @@ msgid "After a restart"
 msgstr "After a restart"
 
 #: src/features/archive/ArchivePage.tsx
+#: src/features/archive/TypeLog.tsx
 #: src/features/jobs/JobsPage.tsx
 msgid "All"
 msgstr "All"
+
+#: src/features/archive/TypeLog.tsx
+msgid "All printers"
+msgstr "All printers"
 
 #: src/features/calibration/errors.ts
 msgid "All readings lie on one line. Read crossings that are far apart, in both directions."
@@ -1098,6 +1147,10 @@ msgstr "Any page size"
 #: src/features/sheets/SheetsPage.tsx
 msgid "Any sheet type"
 msgstr "Any sheet type"
+
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "Any tray"
+msgstr "Any tray"
 
 #: src/features/archive/ArchivePage.tsx
 msgid "Any vendor"
@@ -1433,6 +1486,7 @@ msgstr "Can't be read with the current secret key — enter it again"
 #: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
 #: src/features/archive/TypeForm.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/CheckPrintDialog.tsx
 #: src/features/calibration/RestoreDialog.tsx
@@ -1484,6 +1538,14 @@ msgstr "Catalog (v{revision})"
 #: src/features/archive/CatalogTab.tsx
 msgid "Catalog entries"
 msgstr "Catalog entries"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Catalog update"
+msgstr "Catalog update"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Catalog updates"
+msgstr "Catalog updates"
 
 #: src/features/archive/TypeDetail.tsx
 msgid "Catalog version {revision}"
@@ -1589,6 +1651,14 @@ msgstr "Check page"
 #: src/features/calibration/CalibrationPage.tsx
 msgid "Check page status"
 msgstr "Check page status"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Check print"
+msgstr "Check print"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Check prints"
+msgstr "Check prints"
 
 #: src/features/calibration/RunPicker.tsx
 msgid "Check sheet of run #{first} — pass {pass}, run #{runNo}"
@@ -1907,6 +1977,13 @@ msgstr "Corner radius (mm)"
 msgid "Correct that sheet type (add a new version), not the printer."
 msgstr "Correct that sheet type (add a new version), not the printer."
 
+#. placeholder {0}: c.seq
+#. placeholder {1}: signed(c.offset_x_mm)
+#. placeholder {2}: signed(c.offset_y_mm)
+#: src/features/archive/TypeLog.tsx
+msgid "Correction in effect: history entry {0} (dx {1}, dy {2} mm)"
+msgstr "Correction in effect: history entry {0} (dx {1}, dy {2} mm)"
+
 #: src/features/calibration/HistoryPanel.tsx
 msgid "Corrections for this tray"
 msgstr "Corrections for this tray"
@@ -1990,6 +2067,7 @@ msgstr "Created the type {0} as a new key."
 msgid "Created the type {0}."
 msgstr "Created the type {0}."
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/LiveFit.tsx
 msgid "Crossing"
@@ -2217,6 +2295,7 @@ msgstr "Done"
 msgid "door open"
 msgstr "door open"
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/LiveFit.tsx
 #: src/features/calibration/ReadingsHelper.tsx
@@ -2329,6 +2408,10 @@ msgstr "Edit details of {0}"
 #: src/features/archive/TypeDetail.tsx
 msgid "Edit geometry"
 msgstr "Edit geometry"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Edit verdict and note"
+msgstr "Edit verdict and note"
 
 #: src/features/printers/MarkerSwatch.tsx
 msgid "empty"
@@ -2476,6 +2559,10 @@ msgstr "Feed mark printed"
 msgid "Feed mark: no free place on this sheet"
 msgstr "Feed mark: no free place on this sheet"
 
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "Feed variance"
+msgstr "Feed variance"
+
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Filament name"
 msgstr "Filament name"
@@ -2573,6 +2660,7 @@ msgid "fits"
 msgstr "fits"
 
 #: src/features/archive/MarginPlacement.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
 msgid "Fits"
 msgstr "Fits"
 
@@ -2941,6 +3029,10 @@ msgstr "Installed (v{installed})"
 msgid "Integrations"
 msgstr "Integrations"
 
+#: src/features/archive/TypeLog.tsx
+msgid "Internal only"
+msgstr "Internal only"
+
 #: src/features/settings/Integrations.tsx
 msgid "Internal. Only admins see this address."
 msgstr "Internal. Only admins see this address."
@@ -3051,6 +3143,10 @@ msgstr "Key name"
 #: src/features/settings/SpoolmanLabelFields.tsx
 msgid "Keys of the extra fields in your Spoolman."
 msgstr "Keys of the extra fields in your Spoolman."
+
+#: src/features/archive/TypeLog.tsx
+msgid "Kind"
+msgstr "Kind"
 
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/JobsPage.tsx
@@ -3387,6 +3483,7 @@ msgstr "Loading vendors…"
 #: src/features/archive/ProbePrintDialog.tsx
 #: src/features/archive/RemoveUnusedDialog.tsx
 #: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeLog.tsx
 #: src/features/archive/TypeSheetsList.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/CheckPrintDialog.tsx
@@ -3416,6 +3513,16 @@ msgstr "Loading…"
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Location"
 msgstr "Location"
+
+#: src/features/archive/TypeDetail.tsx
+#: src/features/archive/TypeLog.tsx
+msgid "Log"
+msgstr "Log"
+
+#. placeholder {0}: typeLabelWithKey(type)
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Log of {0} for this printer and tray"
+msgstr "Log of {0} for this printer and tray"
 
 #: src/features/search/lookupSource.ts
 msgid "Look up {query} in {name}"
@@ -3468,6 +3575,10 @@ msgstr "Mark cells as used"
 #: src/features/archive/FeedbackLinks.tsx
 msgid "Mark this type as verified?"
 msgstr "Mark this type as verified?"
+
+#: src/features/archive/TypeLog.tsx
+msgid "Marked as verified"
+msgstr "Marked as verified"
 
 #: src/features/sheets/SheetDetail.tsx
 msgctxt "cell source"
@@ -3674,9 +3785,15 @@ msgstr "New sheet type"
 msgid "New type"
 msgstr "New type"
 
+#: src/features/archive/TypeLog.tsx
 #: src/shell/UpdateNotice.tsx
 msgid "New version"
 msgstr "New version"
+
+#. placeholder {0}: entry.type_version
+#: src/features/archive/TypeLog.tsx
+msgid "New version {0}"
+msgstr "New version {0}"
 
 #: src/features/notifications/useEntryText.ts
 msgid "New version {version} available"
@@ -3686,6 +3803,10 @@ msgstr "New version {version} available"
 #: src/shell/UpdateNotice.tsx
 msgid "New version available"
 msgstr "New version available"
+
+#: src/features/archive/TypeLog.tsx
+msgid "New versions"
+msgstr "New versions"
 
 #: src/features/scan/GrocycodePage.tsx
 msgid "Next charge"
@@ -3836,6 +3957,7 @@ msgstr "No preview available."
 msgid "No preview for this tape."
 msgstr "No preview for this tape."
 
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "No printer"
 msgstr "No printer"
@@ -3930,6 +4052,10 @@ msgstr "No tray to calibrate."
 #: src/features/archive/RemoveUnusedDialog.tsx
 msgid "No unused type matches the filter."
 msgstr "No unused type matches the filter."
+
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "No verdict"
+msgstr "No verdict"
 
 #: src/features/settings/System.tsx
 msgid "No warnings or errors recorded."
@@ -4079,6 +4205,8 @@ msgid "Not yet validated"
 msgstr "Not yet validated"
 
 #: src/features/archive/PreprintZonesEditor.tsx
+#: src/features/archive/TypeLog.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/sheets/SheetDetail.tsx
 msgid "Note"
 msgstr "Note"
@@ -4093,6 +4221,7 @@ msgid "Note: {0}"
 msgstr "Note: {0}"
 
 #: src/features/archive/TypeForm.tsx
+#: src/features/archive/TypeLog.tsx
 msgid "Notes"
 msgstr "Notes"
 
@@ -4128,6 +4257,14 @@ msgstr "Nothing is printing."
 #: src/features/printers/PrinterDetail.tsx
 msgid "Nothing is waiting."
 msgstr "Nothing is waiting."
+
+#: src/features/archive/TypeLog.tsx
+msgid "Nothing logged for this printer and tray yet."
+msgstr "Nothing logged for this printer and tray yet."
+
+#: src/features/archive/TypeLog.tsx
+msgid "Nothing logged yet. Check prints, verdicts, new versions and catalog updates appear here."
+msgstr "Nothing logged yet. Check prints, verdicts, new versions and catalog updates appear here."
 
 #: src/features/sheets/AddSheetDialog.tsx
 msgid "Nothing marked yet"
@@ -4302,6 +4439,10 @@ msgstr "One of those cells is already in use. The sheet shows the current state.
 #: src/features/archive/MarginPlacement.tsx
 msgid "One row per enabled page printer, with the tray its sheets use. Pick another tray on a row to check it."
 msgstr "One row per enabled page printer, with the tray its sheets use. Pick another tray on a row to check it."
+
+#: src/features/calibration/errors.ts
+msgid "Only a check print's readings are recorded in the log. Choose the check print the readings come from."
+msgstr "Only a check print's readings are recorded in the log. Choose the check print the readings come from."
 
 #: src/features/sheets/errors.ts
 msgid "Only cells that were marked by hand can be un-marked."
@@ -4539,6 +4680,11 @@ msgstr "Part {partNo} of {parts}"
 msgid "Parts of the crossing"
 msgstr "Parts of the crossing"
 
+#. placeholder {0}: entry.run.pass_no
+#: src/features/archive/TypeLog.tsx
+msgid "pass {0}"
+msgstr "pass {0}"
+
 #: src/features/calibration/CheckPrintDialog.tsx
 msgid "Pass {pass} on this sheet will print without its run line."
 msgstr "Pass {pass} on this sheet will print without its run line."
@@ -4648,6 +4794,11 @@ msgstr "Print"
 #: src/features/integrations/IntegrationPage.tsx
 msgid "Print {0}"
 msgstr "Print {0}"
+
+#. placeholder {0}: entry.run.run_no
+#: src/features/archive/TypeLog.tsx
+msgid "print #{0}"
+msgstr "print #{0}"
 
 #. placeholder {0}: mismatch.run_no
 #. placeholder {1}: labelOf(mismatch.actual_media_source!)
@@ -4815,6 +4966,8 @@ msgstr "Printed, cell {n}"
 
 #: src/features/archive/MarginPlacement.tsx
 #: src/features/archive/ProbePrintDialog.tsx
+#: src/features/archive/TypeLog.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/JobDetail.tsx
 #: src/features/jobs/PageJobInfo.tsx
@@ -5126,6 +5279,7 @@ msgstr "Reading {n} names a gap that this sheet does not have."
 msgid "Reading the printer…"
 msgstr "Reading the printer…"
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/ReadingsHelper.tsx
@@ -5184,6 +5338,10 @@ msgstr "Reconnect"
 #: src/shell/LiveStatus.tsx
 msgid "Reconnecting…"
 msgstr "Reconnecting…"
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "Record check readings"
+msgstr "Record check readings"
 
 #: src/features/archive/TypeForm.tsx
 msgid "Rectangle"
@@ -5315,6 +5473,7 @@ msgstr "Reset to no correction."
 msgid "Reset. This tray prints without correction."
 msgstr "Reset. This tray prints without correction."
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/calibration/LiveFit.tsx
 msgid "Residual"
@@ -5518,6 +5677,7 @@ msgid "Same device"
 msgstr "Same device"
 
 #: src/features/archive/IdPlacementSection.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 #: src/features/printers/RollColourPrompt.tsx
 #: src/features/settings/GrocyLabelSettings.tsx
@@ -5857,6 +6017,10 @@ msgstr "Sheet front with the preprinted areas hatched and the planned sheet code
 msgid "Sheet front with the sheet code where this printer puts it"
 msgstr "Sheet front with the sheet code where this printer puts it"
 
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "Sheet geometry"
+msgstr "Sheet geometry"
+
 #: src/features/jobs/model.ts
 #: src/features/jobs/PageJobInfo.tsx
 msgid "Sheet page"
@@ -5966,6 +6130,7 @@ msgctxt "action"
 msgid "Show licence text of {0}"
 msgstr "Show licence text of {0}"
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/calibration/HistoryPanel.tsx
 msgid "Show older entries"
 msgstr "Show older entries"
@@ -6000,6 +6165,11 @@ msgstr "Showing {0} of {1} entries. The hub keeps the newest {HISTORY_KEPT} per 
 #: src/features/calibration/HistoryPanel.tsx
 msgid "Showing the newest {0} entries. The hub keeps the newest {HISTORY_KEPT} per printer and tray."
 msgstr "Showing the newest {0} entries. The hub keeps the newest {HISTORY_KEPT} per printer and tray."
+
+#. placeholder {0}: entries.length
+#: src/features/archive/TypeLog.tsx
+msgid "Showing the newest {0} entries. The newest {LOG_KEPT} per type are kept."
+msgstr "Showing the newest {0} entries. The newest {LOG_KEPT} per type are kept."
 
 #: src/shell/SignIn.tsx
 msgid "Sign in"
@@ -6381,6 +6551,10 @@ msgstr "That is not a valid address."
 msgid "That key was not accepted."
 msgstr "That key was not accepted."
 
+#: src/features/archive/errors.ts
+msgid "That log entry no longer exists."
+msgstr "That log entry no longer exists."
+
 #: src/features/settings/feedback.tsx
 msgid "That name is already used by another printer."
 msgstr "That name is already used by another printer."
@@ -6392,6 +6566,10 @@ msgstr "That preset is for another paper size."
 #: src/features/archive/errors.ts
 msgid "That preset no longer exists."
 msgstr "That preset no longer exists."
+
+#: src/features/calibration/errors.ts
+msgid "That print belongs to another printer or tray. Choose a print of this tray."
+msgstr "That print belongs to another printer or tray. Choose a print of this tray."
 
 #: src/features/archive/errors.ts
 msgid "That printer cannot print sheets."
@@ -6580,6 +6758,14 @@ msgstr "The cells could not be un-marked."
 #: src/features/calibration/CalibrationPage.tsx
 msgid "The check page printed. Measure the crossings again: each one should be within 0.5 mm."
 msgstr "The check page printed. Measure the crossings again: each one should be within 0.5 mm."
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "The check readings are in the log of this sheet type, under History. The stored correction is unchanged."
+msgstr "The check readings are in the log of this sheet type, under History. The stored correction is unchanged."
+
+#: src/features/calibration/ReadingsHelper.tsx
+msgid "The check readings could not be recorded."
+msgstr "The check readings could not be recorded."
 
 #: src/features/archive/errors.ts
 msgid "The code prefix"
@@ -6980,6 +7166,7 @@ msgstr "The loaded tape does not match the label. Put in the right tape and retr
 msgid "The loaded tape does not match this label."
 msgstr "The loaded tape does not match this label."
 
+#: src/features/archive/TypeLog.tsx
 #: src/features/settings/System.tsx
 msgid "The log could not be loaded."
 msgstr "The log could not be loaded."
@@ -7023,6 +7210,10 @@ msgstr "The new version could not be added."
 #: src/features/calibration/RunPicker.tsx
 msgid "The newest print of this printer, tray and type."
 msgstr "The newest print of this printer, tray and type."
+
+#: src/features/archive/errors.ts
+msgid "The note"
+msgstr "The note"
 
 #: src/features/archive/errors.ts
 msgid "The note about the change"
@@ -7823,6 +8014,10 @@ msgstr "This label is {length} mm long; this tape holds at most {max} mm. Shorte
 msgid "This label is longer than this tape allows. Shorten the text."
 msgstr "This label is longer than this tape allows. Shorten the text."
 
+#: src/features/archive/TypeLog.tsx
+msgid "This log names your printers and trays. It is never part of an export, of the catalog or of a pre-filled feedback issue. Other tools read it through the API: {LOG_API}."
+msgstr "This log names your printers and trays. It is never part of an export, of the catalog or of a pre-filled feedback issue. Other tools read it through the API: {LOG_API}."
+
 #: src/pages/placeholders.tsx
 msgid "This page is not available yet."
 msgstr "This page is not available yet."
@@ -8084,6 +8279,7 @@ msgid "Top-edge mark"
 msgstr "Top-edge mark"
 
 #: src/features/archive/ProbePrintDialog.tsx
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/calibration/CalibrationPage.tsx
 #: src/features/jobs/PageJobInfo.tsx
 #: src/features/printers/TestPrintButton.tsx
@@ -8344,9 +8540,14 @@ msgstr "Vendor, key, description or product code"
 msgid "Vendor, product code or size."
 msgstr "Vendor, product code or size."
 
+#: src/features/archive/TypeLogEntryDialog.tsx
 #: src/features/calibration/LiveFit.tsx
 msgid "Verdict"
 msgstr "Verdict"
+
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "Verdict and note"
+msgstr "Verdict and note"
 
 #: src/features/archive/CatalogTab.tsx
 msgid "Verified"
@@ -8377,6 +8578,11 @@ msgstr "Version"
 msgctxt "column"
 msgid "Version"
 msgstr "Version"
+
+#. placeholder {0}: entry.type_version
+#: src/features/archive/TypeLog.tsx
+msgid "version {0}"
+msgstr "version {0}"
 
 #: src/features/calibration/SuggestionCard.tsx
 msgid "Version {added} of {key} is added."
@@ -8477,6 +8683,10 @@ msgstr "What a print uses when it names no layout. The print dialog starts from 
 #: src/features/archive/TypeVersions.tsx
 msgid "What changed"
 msgstr "What changed"
+
+#: src/features/archive/TypeLogEntryDialog.tsx
+msgid "What did you see?"
+msgstr "What did you see?"
 
 #: src/features/calibration/guide/StillOff.tsx
 msgid "What the deviation tells you"

@@ -8,7 +8,7 @@ import { useSheetType, type SheetTypeRead } from "../archive/api";
 import { parseDecimal } from "../shared/decimal";
 import { HINT, LABEL, SelectField, type Option } from "../settings/controls";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "../ui";
-import { useCalibrationScale, useFit, type FitResponse } from "./api";
+import { useCalibrationScale, useFit, useRecordCheckReadings, type FitResponse } from "./api";
 import { DirectionPicker } from "./DirectionPicker";
 import { useCalibrationErrorText } from "./errors";
 import { LiveFitPanel, useLiveFit, type FitResult } from "./LiveFit";
@@ -197,7 +197,8 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const step = stepKind === "fine" ? READING_STEP_MM : (scale?.step_mm ?? 0.5);
   const [chosenRun, setChosenRun] = useState<string | null>(null);
   const [fitted, setFitted] = useState<FitResult | null>(null);
-  const [outcome, setOutcome] = useState<"filled" | "check" | null>(null);
+  const [outcome, setOutcome] = useState<"filled" | "check" | "recorded" | null>(null);
+  const record = useRecordCheckReadings(printerId);
 
   const { choices, defaultChoice, isPending: runsPending, isError: runsFailed, refreshFailed } = useRunChoices(printerId, tray, {
     key: type.key,
@@ -244,11 +245,13 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   }, [request]);
 
   const { reset: resetFit } = fit;
+  const { reset: resetRecord } = record;
   const changed = useCallback(() => {
     setFitted(null);
     setOutcome(null);
     resetFit();
-  }, [resetFit]);
+    resetRecord();
+  }, [resetFit, resetRecord]);
   // Stable between renders: they are props of the memoised cards.
   const edit = useCallback(
     (id: number, patch: Partial<ReadingRow>) => {
@@ -322,6 +325,15 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
         },
       },
     );
+  };
+
+  // A check print's readings verify the stored correction (ruling 18-A): an admin records them in the sheet type's log,
+  // which never touches the correction. The live fit beside them writes nothing.
+  const recordsCheck = run?.kind === "check_page" && admin;
+  const pressRecord = () => {
+    if (!run) return;
+    setOutcome(null);
+    record.mutate({ tray, body: { run_id: run.id, readings: request.readings } }, { onSuccess: () => setOutcome("recorded") });
   };
 
   // The server numbers the complete readings it got; the person sees rows, empty ones included.
@@ -433,6 +445,16 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
             {errorText(fit.error, t`The fit failed.`, completeRows)}
           </p>
         )}
+        {record.isError && (
+          <p role="alert" className="m-0 text-bad">
+            {errorText(record.error, t`The check readings could not be recorded.`, completeRows)}
+          </p>
+        )}
+        {outcome === "recorded" && (
+          <p role="status" className="m-0 text-ok">
+            {t`The check readings are in the log of this sheet type, under History. The stored correction is unchanged.`}
+          </p>
+        )}
         {outcome === "filled" && (
           <p role="status" className="m-0 text-ok">
             {t`The values are filled in below. Nothing is saved yet.`}
@@ -456,9 +478,14 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
             </svg>
             {t`Add reading`}
           </Button>
-          <Button onPress={press} isDisabled={!canFit || complete < MIN_READINGS || fit.isPending} className={PRIMARY_BUTTON}>
+          <Button onPress={press} isDisabled={!canFit || complete < MIN_READINGS || fit.isPending} className={recordsCheck ? SECONDARY_BUTTON : PRIMARY_BUTTON}>
             {t`Fit`}
           </Button>
+          {recordsCheck ? (
+            <Button onPress={pressRecord} isDisabled={!canFit || complete < MIN_READINGS || record.isPending || outcome === "recorded"} className={PRIMARY_BUTTON}>
+              {t`Record check readings`}
+            </Button>
+          ) : null}
           <span className={HINT}>{complete < MIN_READINGS ? t`Enter at least three readings to fit.` : t`${complete} readings`}</span>
         </div>
       </div>

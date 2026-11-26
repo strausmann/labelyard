@@ -367,12 +367,46 @@ describe("guided readings", () => {
     expect(body(only(calls, "POST", "/fit").at(-1)).run_id).toBe("run-15");
   });
 
-  it("check readings are never filled in as a correction, and a save after them sends no run and no readings", async () => {
-    const { calls } = await open(withRuns({ [`POST ${BASE}/main/fit`]: FIT, [`PUT ${BASE}/main`]: stored }));
+  it("check readings are never filled in as a correction", async () => {
+    await open(withRuns({ [`POST ${BASE}/main/fit`]: FIT, [`PUT ${BASE}/main`]: stored }));
     await chooseRun(/pass 2, run #14/);
     await fillThreePlain();
     await userEvent.click(await button("Fit"));
     expect(await screen.findByText(/These are check readings: they show what is left with the stored correction/)).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.4");
+  });
+
+  it("an admin records check readings in the log: the check-readings route, never a save", async () => {
+    const recorded = { id: "log-1", kind: "check_print", verdict: "none" };
+    const { calls } = await open(
+      withRuns({ [`POST ${BASE}/main/fit`]: FIT, [`PUT ${BASE}/main`]: stored, [`POST ${BASE}/main/check-readings`]: recorded }),
+    );
+    await chooseRun(/pass 2, run #14/);
+    await fillThreePlain();
+    await userEvent.click(await button("Record check readings"));
+    expect(await screen.findByText(/The check readings are in the log of this sheet type, under History. The stored correction is unchanged./)).toBeVisible();
+    const sent = body(only(calls, "POST", "/check-readings")[0]);
+    expect(sent.run_id).toBe("run-14");
+    expect(sent.readings).toHaveLength(3);
+    expect(sent.readings[0]).toEqual({ col_gap: 1, row_gap: 1, across_mm: 0.2, down_mm: 0.1 });
+    // Recording writes nothing else: no save, and the live fit writes nothing either.
+    expect(only(calls, "PUT")).toHaveLength(0);
+    expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.4");
+    expect(screen.queryByText("The values are filled in below. Nothing is saved yet.")).toBeNull();
+    // A calibration page chosen instead: nothing to record, its fit fills in a correction.
+    await chooseRun(/^#12 · calibration page/);
+    expect(await button("Fit")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Record check readings" })).toBeNull();
+  });
+
+  it("a save after recorded check readings sends no run and no readings", async () => {
+    const { calls } = await open(
+      withRuns({ [`POST ${BASE}/main/fit`]: FIT, [`PUT ${BASE}/main`]: stored, [`POST ${BASE}/main/check-readings`]: { id: "log-1" } }),
+    );
+    await chooseRun(/pass 2, run #14/);
+    await fillThreePlain();
+    await userEvent.click(await button("Record check readings"));
+    await screen.findByText(/The stored correction is unchanged./);
     // The form keeps the stored values (0.4), not the fit's 0.35.
     expect(screen.getByRole("textbox", { name: "Offset X (mm)" })).toHaveValue("0.4");
     expect(screen.queryByText("The values are filled in below. Nothing is saved yet.")).toBeNull();

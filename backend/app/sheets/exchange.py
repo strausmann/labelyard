@@ -506,11 +506,17 @@ async def import_type(
         if mode == "strict":
             raise TypeExistsError()
         if mode == "new_version":
-            added = await ts.add_version_locked(
-                session, existing_key, geometry, actor=actor, change_note=note
-            )
             # Nobody checked the imported numbers against paper: the type is no longer verified
-            # (#204 note 5). The sheet-type log entry for this arrives with the log (Task 18).
+            # (#204 note 5); its log entry says so (design 7.6).
+            was_verified = existing.verified
+            added = await ts.add_version_locked(
+                session,
+                existing_key,
+                geometry,
+                actor=actor,
+                change_note=note,
+                log_note=f"{note}. No longer verified." if was_verified else None,
+            )
             existing.verified = False
             await session.commit()
             return ImportResult("version_added", existing_key, added.version)

@@ -232,3 +232,41 @@ describe("the reading guide in step 2", () => {
     expect(within(current).getByRole("link", { name: /More in the guide/ })).toHaveAttribute("href", expect.stringContaining("/using/calibration/#printer-or-sheet-type"));
   });
 });
+
+describe("the sheet-type log on the calibration page (#351, design 7.6)", () => {
+  it("calibration page shows the log filtered to the current printer and tray", async () => {
+    const entry = {
+      id: "log-1",
+      kind: "check_print",
+      type_version: 1,
+      printer: { id: P, name: "Office laser" },
+      tray: "main",
+      tray_label: "Main tray",
+      run: { id: "run-14", run_no: 14, kind: "check_page", pass_no: null },
+      correction: null,
+      readings: null,
+      verdict: "fits",
+      note: "Within ±0.2 mm everywhere.",
+      actor: "admin",
+      created_at: "2026-11-20T19:10:00Z",
+    };
+    const { calls } = await open(
+      { [`GET ${BASE}/main/history`]: [], "GET /api/v1/sheet-types/L4736REV/log": [entry] },
+      SIGNED_IN,
+      `/calibration?printer=${P}&tray=main&view=history`,
+    );
+    const log = await screen.findByRole("list", { name: "Log" });
+    expect(within(log).getByText("Within ±0.2 mm everywhere.")).toBeVisible();
+    expect(within(log).getByText("Fits")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Log of .*L4736REV.* for this printer and tray$/ })).toBeVisible();
+    // Fixed to this printer and tray: the request names both, and there is no printer to choose in the log.
+    const asked = calls.filter((c) => c.path === "/api/v1/sheet-types/L4736REV/log");
+    expect(asked.length).toBeGreaterThan(0);
+    for (const c of asked) {
+      const query = new URLSearchParams(c.search);
+      expect(query.get("printer")).toBe(P);
+      expect(query.get("tray")).toBe("main");
+    }
+    expect(screen.queryByRole("button", { name: /^All printers/ })).toBeNull();
+  });
+});

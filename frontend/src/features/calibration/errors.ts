@@ -75,6 +75,10 @@ export function useCalibrationErrorText(): (error: unknown, fallback?: string, r
           return t`These readings come from a check print. They show what is left with the stored correction and are never saved as a correction.`;
         case "run_is_a_probe_print":
           return t`A probe print has no readings that could be a correction. Choose the calibration page the readings come from.`;
+        case "run_not_a_check_print":
+          return t`Only a check print's readings are recorded in the log. Choose the check print the readings come from.`;
+        case "run_not_for_this_tray":
+          return t`That print belongs to another printer or tray. Choose a print of this tray.`;
         case "check_sheet_full":
           return t`That check sheet has no free pass left. Print on a new sheet.`;
       }

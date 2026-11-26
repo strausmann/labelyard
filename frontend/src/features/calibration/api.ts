@@ -228,3 +228,19 @@ export const useOpenCheckSheet = (printerId: string, tray: string, type: { key: 
       apiFetch<CheckSheetOpen | null>(`${trayPath(printerId, tray)}/check-sheets/open${queryString({ type: type!.key, version: type!.version })}`),
     enabled: enabled && type !== null,
   });
+
+export type CheckReadingsRequest = Schemas["CheckReadingsRequest"];
+export type SheetTypeLogEntry = Schemas["SheetTypeLogRead"];
+
+/**
+ * Records the readings of a check print in the log of its sheet type (#351, ruling 18-A). The tray's correction stays
+ * as it is: a check verifies it. The log lives under the type's key, so every open type log refreshes.
+ */
+export function useRecordCheckReadings(printerId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tray, body }: { tray: string; body: CheckReadingsRequest }) =>
+      apiFetch<SheetTypeLogEntry>(`${trayPath(printerId, tray)}/check-readings`, { method: "POST", json: body }),
+    onSettled: () => void client.invalidateQueries({ queryKey: ["sheet-types", "detail"] }),
+  });
+}

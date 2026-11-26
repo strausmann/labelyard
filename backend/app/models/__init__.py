@@ -37,6 +37,7 @@ from app.models.sheet import (
     SheetTypeVersion,
     SheetWriteLock,
 )
+from app.models.sheet_type_log import SheetTypeLog
 from app.models.ui_session import UiSession
 
 __all__ = [
@@ -66,6 +67,7 @@ __all__ = [
     "SheetCell",
     "SheetIdCounter",
     "SheetType",
+    "SheetTypeLog",
     "SheetTypeVersion",
     "SheetWriteLock",
     "UiSession",

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Björn Strausmann and Labelyard contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../../api/client";
 import type { components } from "../../api/schema.gen";
 import { queryString } from "../../api/queryString";
@@ -250,4 +250,50 @@ export const useDeleteUnused = () =>
     () => null,
     // Every removed type: an open detail of one must not keep showing it.
     { keysOf: (keys) => keys },
+  );
+
+export type SheetTypeLogEntry = Schemas["SheetTypeLogRead"];
+export type LogNoteCreate = Schemas["LogNoteCreate"];
+export type LogEntryPatch = Schemas["LogEntryPatch"];
+export type LogVerdict = SheetTypeLogEntry["verdict"];
+export type LogKind = SheetTypeLogEntry["kind"];
+
+/** Entries per page of the log; the hub keeps the newest 500 per sheet type (#351). */
+export const LOG_PAGE = 50;
+export const LOG_KEPT = 500;
+/** Longest note of a log entry (`NOTE_MAX` of `sheets/type_log.py`). */
+export const LOG_NOTE_MAX = 2000;
+
+export interface LogFilters {
+  printer?: string;
+  tray?: string;
+  kind?: LogKind;
+}
+
+/** The log of a sheet type, newest first, a page at a time. Under the type's key: every type write refreshes it. */
+export const useTypeLog = (key: string, filters: LogFilters = {}, enabled = true) =>
+  useInfiniteQuery({
+    queryKey: [...typeKey(key), "log", filters] as const,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      apiFetch<SheetTypeLogEntry[]>(`${typePath(key)}/log${queryString({ ...filters, limit: LOG_PAGE, offset: pageParam })}`),
+    // A full page may have a next one; an empty next page ends the list.
+    getNextPageParam: (last, pages) => (last.length === LOG_PAGE ? pages.length * LOG_PAGE : undefined),
+    enabled,
+  });
+
+/** A hand entry (admin): a note with a verdict, optionally about a printer and tray. */
+export const useAddLogNote = () =>
+  useTypeWrite(
+    ({ key, body }: { key: string; body: LogNoteCreate }) =>
+      apiFetch<SheetTypeLogEntry>(`${typePath(key)}/log`, { method: "POST", json: body }),
+    (v) => v.key,
+  );
+
+/** Sets the verdict and note of an entry (admin); nothing else of it changes. */
+export const usePatchLogEntry = () =>
+  useTypeWrite(
+    ({ key, id, patch }: { key: string; id: string; patch: LogEntryPatch }) =>
+      apiFetch<SheetTypeLogEntry>(`${typePath(key)}/log/${encode(id)}`, { method: "PATCH", json: patch }),
+    (v) => v.key,
   );

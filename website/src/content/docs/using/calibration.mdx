@@ -168,3 +168,13 @@ Every save is kept. The **History** tab lists the corrections of the tray, newes
 **Restore these values** (admins only) uses an earlier entry again. The confirmation names the values and takes an optional note. Restoring adds a new entry; nothing is overwritten or deleted.
 
 Below the corrections, **Pages printed from this tray** lists every calibration, check and probe page with its run number. A retry keeps the number of its run and says **(retry)**; a page that was never handed to the printer is marked **not submitted**. **Printed from** is the tray the printer reported. When it is not the tray you asked for, the tab warns at the top: a correction measured on such a page belongs to the tray the page really came from. Some printers do not report it; the column then says so.
+
+## The sheet-type log
+
+Every sheet type keeps a log of what was checked and decided about it. The **Log** tab of a type in the [sheet archive](/using/sheets/) shows it, newest first, filtered by printer and kind; **History** here shows the part of the log for the chosen sheet type, printer and tray.
+
+- **Check readings.** When the readings come from a check print, **Record check readings** (admins only) writes them to the log of the sheet type, each with how far it lies from the fit, the print and the correction it was printed with. It never changes the correction: a check print verifies it. **Fit** next to it only shows the result, and the live fit writes nothing.
+- **Written by themselves.** "Mark as verified", every new version (also one restored, applied from a geometry suggestion or imported) and every catalog update add an entry.
+- **Verdict and note.** An admin adds a note with **Add a note** and sets a verdict on any entry with **Edit verdict and note**: **Fits**, **Sheet geometry** (the type's measurements are off), **Feed variance** (the paper feed differs from sheet to sheet) or **Printer**. A note holds up to 2000 characters.
+
+The log names your printers and trays, so it stays in the hub: it is never part of an export, of the catalog or of a pre-filled feedback issue. Labelyard keeps the newest 500 entries per sheet type. Other tools read it through the API (`GET /api/v1/sheet-types/{key}/log`); a key limited to some printers sees only their entries and the entries without a printer.

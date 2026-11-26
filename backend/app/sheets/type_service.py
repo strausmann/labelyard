@@ -26,6 +26,7 @@ from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories import sheet_types as repo
 from app.repositories.sheet_types import NO_USAGE, TypeUsage, UsageState
 from app.repositories.write_lock import write_transaction
+from app.sheets import type_log
 from app.sheets.errors import (
     BackingDesignPageSizeMismatchError,
     IdCellOutOfRangeError,
@@ -97,6 +98,16 @@ class TypeFields:
     source_name: str | None = None
     source_url: str | None = None
     notes: str | None = None
+
+
+@dataclass(frozen=True)
+class LogRefs:
+    """What a sheet-type log entry of a new version names besides the type (design 7.6)."""
+
+    printer_id: UUID | None = None
+    tray: str | None = None
+    history_id: UUID | None = None
+    run_id: UUID | None = None
 
 
 def _now() -> datetime:
@@ -392,8 +403,10 @@ async def patch_type(
     key: str,
     changes: dict[str, Any],
     *,
-    actor: str,  # noqa: ARG001 - actor kept for the call contract; not logged
+    actor: str,
 ) -> SheetType:
+    """Edit the non-geometric fields. Marking a type as verified writes a ``verified`` entry to
+    the sheet-type log (design 7.6) in the same transaction."""
     for name, value in changes.items():
         if name not in _EDITABLE:
             raise InvalidFieldError(name, "not editable")
@@ -409,6 +422,7 @@ async def patch_type(
             if await repo.get_by_prefix(session, new_prefix) is not None:
                 raise PrefixTakenError()
         changed = False
+        newly_verified = changes.get("verified") is True and not t.verified
         if "id_cell" in changes and changes["id_cell"] is not None:
             check_id_cell(changes["id_cell"], await current_version(session, t.id))
         if "backing_design" in changes:
@@ -425,6 +439,14 @@ async def patch_type(
                 changed = True
         if changed:
             t.updated_at = _now()
+        if newly_verified:
+            await type_log.log_entry(
+                session,
+                type_id=t.id,
+                version_id=(await current_version(session, t.id)).id,
+                kind="verified",
+                actor=actor,
+            )
         await session.commit()
     logger.info("sheet type %s edited: %s", log_value(key), log_value(names))
     return t
@@ -528,9 +550,23 @@ async def _check_position_on(session: AsyncSession, t: SheetType, g: Geometry) -
 
 
 async def add_version_locked(
-    session: AsyncSession, key: str, geometry: Geometry, *, actor: str, change_note: str
+    session: AsyncSession,
+    key: str,
+    geometry: Geometry,
+    *,
+    actor: str,
+    change_note: str,
+    log: bool = True,
+    log_note: str | None = None,
+    log_refs: LogRefs | None = None,
 ) -> SheetTypeVersion:
-    """Add the next version inside a transaction that already holds the write lock."""
+    """Add the next version inside a transaction that already holds the write lock.
+
+    With ``log`` (the default) a ``new_version`` entry is written to the sheet-type log (design
+    7.6), its note ``log_note`` or else the change note, naming the printer, tray, run and
+    correction of ``log_refs`` when the version came from a check print. A caller that logs the
+    change itself (a catalog update) passes ``log=False``.
+    """
     change_note = _clean_change_note(change_note) or ""
     if not change_note:
         raise InvalidFieldError("change_note", "must not be empty")
@@ -543,6 +579,20 @@ async def add_version_locked(
     v = _new_version(t.id, latest.version + 1, geometry, actor=actor, change_note=change_note)
     session.add(v)
     t.updated_at = _now()
+    if log:
+        refs = log_refs or LogRefs()
+        await type_log.log_entry(
+            session,
+            type_id=t.id,
+            version_id=v.id,
+            kind="new_version",
+            printer_id=refs.printer_id,
+            tray=refs.tray,
+            history_id=refs.history_id,
+            run_id=refs.run_id,
+            note=log_note if log_note is not None else change_note,
+            actor=actor,
+        )
     return v
 
 
