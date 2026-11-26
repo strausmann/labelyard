@@ -276,4 +276,68 @@ describe("guided readings", () => {
       view.unmount();
     }
   });
+
+  it("a suggestion is only offered for the readings and the print it was computed from", async () => {
+    await open(
+      withRuns({
+        "GET /api/v1/sheet-types": [SHEET_TYPE, typeB],
+        "GET /api/v1/sheet-types/L4736REV": { ...SHEET_TYPE, versions: [{ version: 1, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "a", sheets: 1 }] },
+        [`GET ${BASE}`]: [{ ...stored, measured_on: { type_key: "OTHERTYPE", version: 3 } }, none],
+        [`POST ${BASE}/main/fit`]: {
+          ...FIT,
+          residuals_mm: [0.05, 0.1, 0.1],
+          flagged: [],
+          suggestion: { pitch_x_hmm: 4820, pitch_y_hmm: null, margin_left_hmm: null, margin_top_hmm: null, uneven: false },
+          suggestion_unavailable: null,
+        },
+      }),
+    );
+    await chooseRun(/pass 2, run #14/);
+    await fillThreePlain();
+    await userEvent.click(await button("Fit"));
+    expect(await screen.findByRole("button", { name: "Apply as new version" })).toBeVisible();
+    // A corrected reading: the old suggestion is gone at once, not applied under the new readings.
+    await enter(across("S1 · Z1"), "0,3");
+    expect(screen.queryByRole("button", { name: "Apply as new version" })).toBeNull();
+    // Another print: the same.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Apply as new version" })).toBeVisible(), { timeout: 5_000 });
+    await chooseRun(/pass 1, run #13/);
+    expect(screen.queryByRole("button", { name: "Apply as new version" })).toBeNull();
+  });
+
+  it("the crossings follow the grid of the version the chosen print was made for", async () => {
+    const sixRows = { ...GEOMETRY_L4736, rows: 6 };
+    const typeV2 = { ...SHEET_TYPE, current_version: 2 };
+    const { calls } = await open(
+      withRuns({
+        "GET /api/v1/sheet-types": [typeV2],
+        "GET /api/v1/sheet-types/L4736REV": {
+          ...typeV2,
+          versions: [
+            { version: 2, change_note: null, created_at: null, geometry: GEOMETRY_L4736, geometry_hash: "b", sheets: 0 },
+            { version: 1, change_note: null, created_at: null, geometry: sixRows, geometry_hash: "a", sheets: 1 },
+          ],
+        },
+        [`POST ${BASE}/main/fit`]: FIT,
+      }),
+    );
+    // Run #12 was printed for version 1, a 4 x 6 sheet: Z goes to 5, and the suggested crossings sit on that grid.
+    expect(await screen.findByLabelText(across("S1 · Z5"), {}, { timeout: 5_000 })).toBeVisible();
+    await userEvent.click(within(card(1)).getByRole("button", { name: /Gap Z of reading 1/ }));
+    expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual(["Z1", "Z2", "Z3", "Z4", "Z5"]);
+    await userEvent.keyboard("{Escape}");
+    await enterAll([
+      [across("S1 · Z1"), "0,1"],
+      [down("S1 · Z1"), "0,1"],
+      [across("S3 · Z1"), "0,1"],
+      [down("S3 · Z1"), "0,1"],
+      [across("S1 · Z5"), "0,1"],
+      [down("S1 · Z5"), "0,1"],
+    ]);
+    await userEvent.click(await button("Fit"));
+    await waitFor(() => expect(only(calls, "POST", "/fit").length).toBeGreaterThan(0));
+    const sent = body(only(calls, "POST", "/fit").at(-1));
+    expect(sent.version).toBe(1);
+    expect(Math.max(...sent.readings.map((r: { row_gap: number }) => r.row_gap))).toBe(5);
+  });
 });

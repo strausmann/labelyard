@@ -4,7 +4,7 @@
 import { useLingui } from "@lingui/react/macro";
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, Radio, RadioGroup } from "react-aria-components";
-import type { SheetTypeRead } from "../archive/api";
+import { useSheetType, type SheetTypeRead } from "../archive/api";
 import { parseDecimal } from "../shared/decimal";
 import { HINT, LABEL, SelectField, type Option } from "../settings/controls";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "../ui";
@@ -186,11 +186,10 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const { t, i18n } = useLingui();
   const locale = i18n.locale;
   const errorText = useCalibrationErrorText();
-  const { cols, rows } = type.geometry;
   const scale = useCalibrationScale().data;
   const half = scale?.half_mm ?? 2;
   const fit = useFit(printerId);
-  const initial = useState(() => suggestedCrossings(cols, rows).map((c, i) => emptyReading(i, c)))[0];
+  const initial = useState(() => suggestedCrossings(type.geometry.cols, type.geometry.rows).map((c, i) => emptyReading(i, c)))[0];
   // Row ids come from one counter that only counts up: a removed row's id is never handed out again.
   const nextId = useRef(initial.length);
   const [list, setList] = useState<ReadingRow[]>(initial);
@@ -199,14 +198,26 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   const [chosenRun, setChosenRun] = useState<string | null>(null);
   const [fitted, setFitted] = useState<FitResult | null>(null);
   const [outcome, setOutcome] = useState<"filled" | "check" | null>(null);
-  const colOptions = useMemo(() => gapOptions("S", Math.max(cols - 1, 1)), [cols]);
-  const rowOptions = useMemo(() => gapOptions("Z", Math.max(rows - 1, 1)), [rows]);
 
   const { choices, isPending: runsPending } = useRunChoices(printerId, tray, { key: type.key, version: type.current_version });
   // Default: the newest calibration page of this printer, tray and type; else the newest pass of the open check sheet.
   const run = choices.find((c) => c.id === chosenRun) ?? choices.find((c) => c.kind === "calibration_page") ?? choices.at(-1) ?? null;
   // A fit with a run must name the version the run was printed for (else 422 run_version_mismatch).
   const version = run?.version ?? type.current_version;
+  // The crossings are those of that version's grid: an older print may have other rows or columns than the type now.
+  const detail = useSheetType(type.key, version !== type.current_version);
+  const printed = version !== type.current_version ? detail.data?.versions.find((v) => v.version === version)?.geometry : undefined;
+  const { cols, rows } = printed ?? type.geometry;
+  // Another grid: the readings start again at its suggested crossings (they belong to another page).
+  const [grid, setGrid] = useState(`${cols}x${rows}`);
+  if (grid !== `${cols}x${rows}`) {
+    setGrid(`${cols}x${rows}`);
+    // New ids above every one in use, so no card keeps the state of a removed one.
+    const from = list.reduce((max, r) => Math.max(max, r.id + 1), 0);
+    setList(suggestedCrossings(cols, rows).map((c, i) => emptyReading(from + i, c)));
+  }
+  const colOptions = useMemo(() => gapOptions("S", Math.max(cols - 1, 1)), [cols]);
+  const rowOptions = useMemo(() => gapOptions("Z", Math.max(rows - 1, 1)), [rows]);
   const request = useMemo(() => readingsRequest(type.key, version, list, run?.id ?? null), [type.key, version, list, run?.id]);
   const complete = request.readings.length;
   const live = useLiveFit(printerId, tray, request);
@@ -252,7 +263,8 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
     [changed, locale],
   );
   const add = () => {
-    const id = nextId.current++;
+    const id = list.reduce((max, r) => Math.max(max, r.id + 1), nextId.current);
+    nextId.current = id + 1;
     setList((now) => [...now, emptyReading(id, unusedCrossing(now, cols, rows))]);
   };
   const remove = useCallback(
@@ -290,6 +302,9 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
   // The server numbers the complete readings it got; the person sees rows, empty ones included.
   const completeRows = list.flatMap((r, i) => (completeReadings([r]).length === 1 ? [i + 1] : []));
   const shown = fitted ?? live.result;
+  // The suggestion acts on one print and one set of readings: while the readings or the print differ from the fit
+  // shown (recalculating, or the new fit failed), it is not offered.
+  const shownIsCurrent = shown !== null && JSON.stringify(shown.request) === JSON.stringify(request);
 
   // A reading's field takes the focus, or the keyboard opens under it: its direction picker and the field come into the
   // part of the screen between the top bar and the actions bar (mockup M8, entry view). The browser only scrolls the
@@ -404,7 +419,7 @@ export function ReadingsHelper({ printerId, tray, type, labelOf, measuredOn, adm
 
       <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-20">
         <LiveFitPanel result={shown} error={fit.isIdle ? live.error : null} updating={!fitted && live.updating} complete={complete} readingRows={completeRows} />
-        {shown && (
+        {shown && shownIsCurrent && (
           <SuggestionCard
             type={type}
             run={run ? { id: run.id, run_no: run.run_no, kind: run.kind } : null}
