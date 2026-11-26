@@ -14345,7 +14345,7 @@
     },
     "/api/v1/printers/{printer_id}/calibration/{tray}/page/layout": {
       "get": {
-        "description": "The layout the page would get now: the printer's hardware margins (5 mm per side when it\nreports none) and the tray's stored offset decide the printable area, as when it is printed.\nNothing is stored and no run is taken.",
+        "description": "The layout the page would get now: the printer's hardware margins (5 mm per side when it\nreports none) and the tray's stored offset decide the printable area, as when it is printed.\nThe summary describes exactly the page the same print request would draw. Nothing is stored\nand no run is taken.",
         "operationId": "get_calibration_page_layout_api_v1_printers__printer_id__calibration__tray__page_layout_get",
         "parameters": [
           {
@@ -14419,6 +14419,28 @@
               ],
               "title": "Kind",
               "type": "string"
+            }
+          },
+          {
+            "description": "With `check_page`: the page is pass 1 of a check sheet (as `check_sheet` on the print request); `passes_total` counts the sheet's passes and `run_line_slots` the slots pass 1 reserves for them. Without it the check page is the single full page, one pass. Ignored for `calibration_page`.",
+            "in": "query",
+            "name": "check_sheet",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "new",
+                    "next"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "With `check_page`: the page is pass 1 of a check sheet (as `check_sheet` on the print request); `passes_total` counts the sheet's passes and `run_line_slots` the slots pass 1 reserves for them. Without it the check page is the single full page, one pass. Ignored for `calibration_page`.",
+              "title": "Check Sheet"
             }
           }
         ],

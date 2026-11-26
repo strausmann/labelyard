@@ -4321,6 +4321,10 @@ msgid "Parts of the crossing"
 msgstr "Teile der Kreuzung"
 
 #: src/features/calibration/CheckPrintDialog.tsx
+msgid "Pass {pass} on this sheet will print without its run line."
+msgstr "Durchgang {pass} auf diesem Bogen wird ohne seine Laufzeile gedruckt."
+
+#: src/features/calibration/CheckPrintDialog.tsx
 msgid "Pass 1 of {total} on a fresh sheet of labels."
 msgstr "Durchgang 1 von {total} auf einem frischen Etikettenbogen."
 
@@ -7442,6 +7446,10 @@ msgstr "Diese Seite wird ohne ihren oberen Randtext (Lauf, Datum, Bogentyp) gedr
 #: src/features/calibration/CheckPrintDialog.tsx
 msgid "This page prints without margin text; the page codes carry the run and correction."
 msgstr "Diese Seite wird ohne Randtext gedruckt; die Seitencodes tragen Lauf und Korrektur."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This pass prints without its run line."
+msgstr "Dieser Durchgang wird ohne seine Laufzeile gedruckt."
 
 #: src/features/settings/IppPrinterFields.tsx
 msgid "This printer cannot print PDF, so the hub cannot use it for sheets."

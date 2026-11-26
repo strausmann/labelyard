@@ -941,7 +941,8 @@ export interface paths {
          * How a calibration or check page fits the printable area of a printer and tray
          * @description The layout the page would get now: the printer's hardware margins (5 mm per side when it
          *     reports none) and the tray's stored offset decide the printable area, as when it is printed.
-         *     Nothing is stored and no run is taken.
+         *     The summary describes exactly the page the same print request would draw. Nothing is stored
+         *     and no run is taken.
          */
         get: operations["get_calibration_page_layout_api_v1_printers__printer_id__calibration__tray__page_layout_get"];
         put?: never;
@@ -8932,6 +8933,8 @@ export interface operations {
                 version?: number | null;
                 /** @description `check_page` is printed with the tray's stored correction. */
                 kind?: "calibration_page" | "check_page";
+                /** @description With `check_page`: the page is pass 1 of a check sheet (as `check_sheet` on the print request); `passes_total` counts the sheet's passes and `run_line_slots` the slots pass 1 reserves for them. Without it the check page is the single full page, one pass. Ignored for `calibration_page`. */
+                check_sheet?: ("new" | "next") | null;
             };
             header?: never;
             path: {

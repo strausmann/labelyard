@@ -472,10 +472,22 @@ async def get_calibration_page_layout(
         PageKindQuery,
         Query(description="`check_page` is printed with the tray's stored correction."),
     ] = "calibration_page",
+    check_sheet: Annotated[
+        runs.CheckSheetMode | None,
+        Query(
+            description=(
+                "With `check_page`: the page is pass 1 of a check sheet (as `check_sheet` on the "
+                "print request); `passes_total` counts the sheet's passes and `run_line_slots` "
+                "the slots pass 1 reserves for them. Without it the check page is the single "
+                "full page, one pass. Ignored for `calibration_page`."
+            )
+        ),
+    ] = None,
 ) -> PageLayoutSummary:
     """The layout the page would get now: the printer's hardware margins (5 mm per side when it
     reports none) and the tray's stored offset decide the printable area, as when it is printed.
-    Nothing is stored and no run is taken."""
+    The summary describes exactly the page the same print request would draw. Nothing is stored
+    and no run is taken."""
     check_printer_access(auth, printer_id)
     with mapped():
         payload = await page.build_payload(
@@ -485,8 +497,17 @@ async def get_calibration_page_layout(
         g = ts.version_geometry(
             await ts.get_version(session, payload.detail["type_key"], payload.detail["version"])
         )
-        passes = max(len(check_passes(g.cols, g.rows)), 1) if kind == "check_page" else 1
-        layout = page.payload_layout(payload, passes=passes)
+        sheet_passes = check_passes(g.cols, g.rows) if kind == "check_page" and check_sheet else []
+        passes = max(len(sheet_passes), 1)
+        if sheet_passes:
+            # Pass 1 as it is stamped: its own crosses, the later ones reserved.
+            payload.detail.update(
+                passes_total=passes,
+                pass_no=1,
+                pass_crossings=[list(c) for c in sheet_passes[0]],
+                reserved_crossings=[list(c) for p in sheet_passes[1:] for c in p],
+            )
+        layout = page.payload_layout(payload)
     return PageLayoutSummary(
         page_codes=len(layout.page_codes),
         run_line_slots=len(layout.run_line_slots),

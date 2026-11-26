@@ -431,3 +431,102 @@ async def test_a_later_run_line_lands_in_pass_1s_slot_after_the_correction_moved
         assert not (line[0] < b[2] and b[0] < line[2] and line[1] < b[3] and b[1] < line[3])
     texts = pi.texts(render_calibration_page(second, compress=False))
     assert any(t.startswith("#") and "· K2 ·" in t for t in texts)
+
+
+# ---------------------------------------------------------------------------- fix round 1
+
+
+async def _sheet_of(run: CalibrationRun) -> CalibrationCheckSheet | None:
+    async with engine_module.async_session() as s:
+        return await s.get(CalibrationCheckSheet, run.check_sheet_id)
+
+
+async def _prune(printer_id: UUID, keep: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retention keeping the newest ``keep`` runs; every run counts as settled (window 0 days)."""
+    monkeypatch.setattr(runs, "RUN_RETENTION", keep)
+    async with engine_module.async_session() as s:
+        await runs.prune_runs(s, printer_id, "tray-1", retention_days=0)
+
+
+async def _discard(run: CalibrationRun) -> None:
+    async with engine_module.async_session() as s:
+        await runs._discard_unsubmitted(s, run)
+
+
+async def test_a_sheet_retention_closed_stays_closed_when_a_later_pass_fails(
+    production_engine, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    """Review on #449: passes 2 and 3 are taken, retention drops pass 1 and closes the sheet,
+    then pass 3's submit fails. The sheet must stay closed: reopened, `next` would print pass 1
+    (the full page) over the earlier ink."""
+    del production_engine
+    pid, version = await _sheet_and_printer()
+    first = await _take(pid, version, "new")
+    second = await _take(pid, version, "next")
+    third = await _take(pid, version, "next")
+    assert all(isinstance(r, CalibrationRun) for r in (first, second, third))
+    await _prune(pid, 2, monkeypatch)  # keeps passes 2 and 3, drops pass 1
+    sheet = await _sheet_of(first)  # type: ignore[arg-type]
+    assert sheet is not None and sheet.closed_at is not None
+    await _discard(third)  # type: ignore[arg-type]
+    sheet = await _sheet_of(first)  # type: ignore[arg-type]
+    assert sheet is not None and sheet.closed_at is not None
+    assert await _take(pid, version, "next") == "check_sheet_full"
+
+
+async def test_a_failed_first_pass_racing_a_next_never_frees_pass_1(production_engine) -> None:  # type: ignore[no-untyped-def]
+    """Review on #449: `next` took pass 2 while pass 1 of the new sheet was still in flight, then
+    pass 1's submit failed. Pass 1 must not become free: the paper may carry pass 2 already."""
+    del production_engine
+    pid, version = await _sheet_and_printer()
+    first = await _take(pid, version, "new")
+    second = await _take(pid, version, "next")
+    assert isinstance(first, CalibrationRun) and isinstance(second, CalibrationRun)
+    await _discard(first)
+    taken = await _take(pid, version, "next")
+    assert not (isinstance(taken, CalibrationRun) and taken.pass_no == 1), taken
+
+
+async def test_retention_deletes_a_sheet_it_emptied_and_closes_one_it_did_not(
+    production_engine, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    """Review on #449: a sheet whose every pass retention dropped has nothing left to show or to
+    print on; its row goes. A sheet that keeps a pass stays, closed."""
+    del production_engine
+    pid, version = await _sheet_and_printer()
+    old = await _take(pid, version, "new")  # sheet A: pass 1 only
+    kept = await _take(pid, version, "new")  # sheet B: pass 1 and 2
+    later = await _take(pid, version, "next")
+    assert all(isinstance(r, CalibrationRun) for r in (old, kept, later))
+    await _prune(pid, 2, monkeypatch)  # drops sheet A's only run
+    assert await _sheet_of(old) is None  # type: ignore[arg-type]
+    await _prune(pid, 1, monkeypatch)  # drops sheet B's pass 1, keeps its pass 2
+    b = await _sheet_of(kept)  # type: ignore[arg-type]
+    assert b is not None and b.closed_at is not None
+
+
+async def test_the_layout_summary_describes_the_page_that_would_print(env: _Env) -> None:
+    """Review on #449: without `check_sheet` a check page is the single full page (one pass);
+    with it, pass 1 of a sheet. The summary describes exactly that page."""
+    await _setup(env)
+    base = f"/api/v1/printers/{env.printer_id}/calibration/tray-1/page/layout"
+    async with env.client() as c:
+        single = (await c.get(base, params={"type": "chk-6121", "kind": "check_page"})).json()
+        sheet = (
+            await c.get(
+                base, params={"type": "chk-6121", "kind": "check_page", "check_sheet": "new"}
+            )
+        ).json()
+    full = payload_layout(await _payload(env, await env.post_page(type="chk-6121", corrected=True)))
+    first = payload_layout(await _payload(env, await _printed(env, "new")))
+
+    def summary(layout: Any, passes: int) -> dict[str, Any]:
+        return {
+            "page_codes": len(layout.page_codes),
+            "run_line_slots": len(layout.run_line_slots),
+            "passes_total": passes,
+            "margin_text": dict(layout.margin_text),
+        }
+
+    assert single == summary(full, 1)
+    assert sheet == summary(first, 3)

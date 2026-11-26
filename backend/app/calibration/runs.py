@@ -227,7 +227,8 @@ async def _take_pass(
             .scalars()
             .all()
         )
-        free = [n for n in range(1, sheet.passes_total + 1) if n not in used]
+        # Pass 1 is only ever printed by ``new``: a sheet without it is not continued.
+        free = [n for n in range(2, sheet.passes_total + 1) if n not in used] if 1 in used else []
         if not free:
             raise CheckSheetFullError()
         pass_no = free[0]
@@ -272,23 +273,42 @@ async def _drop_old_runs(
         return
     # A dropped pass is still printed on its sheet: the sheet closes, so ``next`` never offers that
     # pass again (pass 1 would print the full page over the earlier ink; review on #449).
-    await session.execute(
-        update(CalibrationCheckSheet)
-        .where(
-            col(CalibrationCheckSheet.id).in_(
-                select(col(CalibrationCheckSheetPass.check_sheet_id)).where(
-                    col(CalibrationCheckSheetPass.run_id).in_(old_ids)
-                )
-            ),
-            col(CalibrationCheckSheet.closed_at).is_(None),
+    sheet_ids = list(
+        (
+            await session.execute(
+                select(col(CalibrationCheckSheetPass.check_sheet_id))
+                .where(col(CalibrationCheckSheetPass.run_id).in_(old_ids))
+                .distinct()
+            )
         )
-        .values(closed_at=datetime.now(UTC))
+        .scalars()
+        .all()
     )
+    if sheet_ids:
+        await session.execute(
+            update(CalibrationCheckSheet)
+            .where(
+                col(CalibrationCheckSheet.id).in_(sheet_ids),
+                col(CalibrationCheckSheet.closed_at).is_(None),
+            )
+            .values(closed_at=datetime.now(UTC))
+        )
     # The pass rows go explicitly too: the cascade only acts where foreign keys are on.
     await session.execute(
         delete(CalibrationCheckSheetPass).where(col(CalibrationCheckSheetPass.run_id).in_(old_ids))
     )
     await session.execute(delete(CalibrationRun).where(col(CalibrationRun.id).in_(old_ids)))
+    if sheet_ids:
+        # A sheet retention emptied has no pass and no run left to show or to print on: its row
+        # goes, so the table stays bounded by the kept runs (review on #449).
+        await session.execute(
+            delete(CalibrationCheckSheet).where(
+                col(CalibrationCheckSheet.id).in_(sheet_ids),
+                ~col(CalibrationCheckSheet.id).in_(
+                    select(col(CalibrationCheckSheetPass.check_sheet_id))
+                ),
+            )
+        )
 
 
 def hub_zone(name: str) -> tzinfo:
@@ -429,22 +449,31 @@ async def _discard_unsubmitted(session: AsyncSession, run: CalibrationRun) -> No
 
 
 async def _free_pass(session: AsyncSession, sheet_id: UUID) -> None:
-    """After a pass was taken back: a sheet with no pass left goes (its pass 1 never printed),
-    else it is open again, so ``next`` finds the freed pass."""
+    """After a pass was taken back: a sheet with no pass left goes (nothing of it printed). A
+    sheet that still holds pass 1 is open again, so ``next`` finds the freed pass. A sheet
+    without pass 1 (retention dropped it, or pass 1 itself failed while a later pass was taken)
+    stays or becomes closed: reopened, ``next`` could print over ink it no longer knows of
+    (review on #449)."""
     sheet = await session.get(CalibrationCheckSheet, sheet_id, populate_existing=True)
     if sheet is None:
         return
-    left = (
-        await session.execute(
-            select(col(CalibrationCheckSheetPass.pass_no)).where(
-                col(CalibrationCheckSheetPass.check_sheet_id) == sheet_id
+    left = set(
+        (
+            await session.execute(
+                select(col(CalibrationCheckSheetPass.pass_no)).where(
+                    col(CalibrationCheckSheetPass.check_sheet_id) == sheet_id
+                )
             )
         )
-    ).first()
-    if left is None:
+        .scalars()
+        .all()
+    )
+    if not left:
         await session.delete(sheet)
-    else:
+    elif 1 in left:
         sheet.closed_at = None
+    elif sheet.closed_at is None:
+        sheet.closed_at = datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------- list

@@ -4321,6 +4321,10 @@ msgid "Parts of the crossing"
 msgstr "Parts of the crossing"
 
 #: src/features/calibration/CheckPrintDialog.tsx
+msgid "Pass {pass} on this sheet will print without its run line."
+msgstr "Pass {pass} on this sheet will print without its run line."
+
+#: src/features/calibration/CheckPrintDialog.tsx
 msgid "Pass 1 of {total} on a fresh sheet of labels."
 msgstr "Pass 1 of {total} on a fresh sheet of labels."
 
@@ -7442,6 +7446,10 @@ msgstr "This page prints without its top margin text (run, date, sheet type); th
 #: src/features/calibration/CheckPrintDialog.tsx
 msgid "This page prints without margin text; the page codes carry the run and correction."
 msgstr "This page prints without margin text; the page codes carry the run and correction."
+
+#: src/features/calibration/CheckPrintDialog.tsx
+msgid "This pass prints without its run line."
+msgstr "This pass prints without its run line."
 
 #: src/features/settings/IppPrinterFields.tsx
 msgid "This printer cannot print PDF, so the hub cannot use it for sheets."

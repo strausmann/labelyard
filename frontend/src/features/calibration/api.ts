@@ -179,11 +179,15 @@ export const usePageLayout = (
   type: { key: string; version: number } | null,
   kind: "calibration_page" | "check_page",
   enabled = true,
+  /** A check page as pass 1 of a check sheet: the summary counts the sheet's passes and their run-line slots. */
+  checkSheet?: CheckSheetMode,
 ) =>
   useQuery({
-    queryKey: [...calibrationKey(printerId), "layout", tray, type?.key, type?.version, kind] as const,
+    queryKey: [...calibrationKey(printerId), "layout", tray, type?.key, type?.version, kind, checkSheet] as const,
     queryFn: () =>
-      apiFetch<PageLayoutSummary>(`${trayPath(printerId, tray)}/page/layout${queryString({ type: type!.key, version: type!.version, kind })}`),
+      apiFetch<PageLayoutSummary>(
+        `${trayPath(printerId, tray)}/page/layout${queryString({ type: type!.key, version: type!.version, kind, check_sheet: checkSheet })}`,
+      ),
     enabled: enabled && type !== null,
   });
 
