@@ -563,6 +563,53 @@ test.describe("short viewport (on-screen keyboard)", () => {
         await expect(dialog).toHaveCount(0);
       });
 
+      test("verdict select opens upward with the keyboard open", async () => {
+        await prepare(mode);
+        await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");
+        // Exact: "Catalog" contains "log".
+        await page.getByRole("tab", { name: "Log", exact: true }).click();
+        await page.getByRole("button", { name: "Add a note" }).click();
+        const dialog = dialogOf(page);
+        await expect(dialog).toBeVisible();
+        const note = dialog.getByRole("textbox", { name: "Note" });
+        await note.click();
+        await keyboard(mode);
+        await page.keyboard.type("Feeds differently");
+        await expectInSight(page, frameOf(dialog), "the dialog");
+        await expectInSightOnceSettled(page, note, "the note field");
+        // The note sits under the verdict: with the keyboard up, the room is above the verdict, so its list opens upward
+        // (mockup M12, note view). Bring the verdict down to the keyboard first, as typing in the note leaves it.
+        const verdict = dialog.getByRole("button", { name: /Verdict$/ });
+        const frame = frameOf(dialog);
+        const view = await visible(page);
+        const placed = await verdict.boundingBox();
+        await frame.evaluate((el, dy) => el.scrollBy(0, dy), placed!.y + placed!.height - (view.bottom - 120));
+        await verdict.click();
+        const list = page.locator('[role="listbox"]');
+        await expect(list).toBeVisible();
+        const first = page.locator('[role="option"]').first();
+        await expectInSightOnceSettled(page, first, "the first verdict");
+        await expectInSightOnceSettled(page, list, "the verdict list");
+        await expectInSight(page, verdict, "the Verdict select");
+        // The list opens upward when about four options (44 px each, 12 px gap: useListRoom) do not fit between the select
+        // and the keyboard: the case of the mockup, and of every mode where the dialog scrolls the select down to the
+        // keyboard. Where they fit (the 1280 x 500 dialog does not scroll) it opens below. Never over the select.
+        const box = (await verdict.boundingBox())!;
+        const roomBelow = view.bottom - (box.y + box.height);
+        const fitsBelow = roomBelow >= 4 * 44 + 12;
+        if (mode.visible) expect(fitsBelow, "the select sits by the keyboard").toBe(false);
+        const listBox = async () => (await list.boundingBox())!;
+        if (!fitsBelow) {
+          await expect.poll(async () => (await listBox()).y + (await listBox()).height, { message: "the list ends above the select" }).toBeLessThanOrEqual(box.y + 1);
+        } else {
+          await expect.poll(async () => (await listBox()).y, { message: "the list starts below the select" }).toBeGreaterThanOrEqual(box.y + box.height - 1);
+        }
+        await page.keyboard.press("Escape");
+        await expect(list).toHaveCount(0);
+        await buttonIn(dialog, "Cancel").click();
+        await expect(dialog).toHaveCount(0);
+      });
+
       test("zone editor fields and sticky Save stay in view", async () => {
         await prepare(mode);
         await page.goto("/sheets/archive?type=avery-zweckform-l4736rev");

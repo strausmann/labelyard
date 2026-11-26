@@ -20,7 +20,7 @@ from sqlalchemy import and_, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col
 
-from app.calibration import history
+from app.calibration import history, suggest
 from app.calibration.fit import Reading, fit
 from app.calibration.model import (
     NOTE_MAX,
@@ -38,14 +38,17 @@ from app.models.sheet import SheetType, SheetTypeVersion
 from app.page_render.transform import Deviation
 from app.repositories.write_lock import write_transaction
 from app.services.page_jobs import CalibrationSnapshot
+from app.sheets import type_log
 from app.sheets import type_service as ts
 from app.sheets.errors import (
     InvalidFieldError,
     MediaKindMismatchError,
     PrinterNotFoundError,
     SheetApiError,
+    SheetTypeVersionNotFoundError,
     TrayUnknownError,
 )
+from app.sheets.type_log import SheetTypeLogRead
 
 
 async def _page_printer(session: AsyncSession, printer_id: UUID) -> Printer:
@@ -481,3 +484,52 @@ async def snapshot_with_history(
         method=method, dx_hmm=dx, dy_hmm=dy, sx_ppm=sx, sy_ppm=sy, rotation_udeg=rot
     )
     return snap, history_id
+
+
+async def record_check_readings(
+    session: AsyncSession,
+    printer_id: UUID,
+    tray: str,
+    run_id: UUID,
+    readings: Sequence[Reading],
+    *,
+    actor: str,
+) -> SheetTypeLogRead:
+    """Write the readings of a check print to the sheet-type log (a ``check_print`` entry, design
+    7.6, ruling 18-A), with the residual of each reading from their fit and the correction the
+    page was printed with. The tray's correction is never touched: a check verifies it.
+
+    The run must be a check page of this printer and tray (``run_not_for_this_tray``,
+    ``run_not_a_check_print``); a reading outside the sheet is ``invalid_geometry``, readings on
+    one line ``readings_insufficient``.
+    """
+    await _page_printer(session, printer_id)
+    await _check_tray(session, printer_id, tray)
+    run = await check_run(session, run_id, printer_id, tray, None)
+    if run.kind != "check_page":
+        raise suggest.RunNotACheckPrintError()
+    version = await session.get(SheetTypeVersion, run.type_version_id)
+    if version is None:
+        raise SheetTypeVersionNotFoundError()
+    geometry = ts.version_geometry(version)
+    result = fit(geometry, geometry.page_size, list(readings))
+    stored = [
+        {**dataclasses.asdict(r), "residual_mm": round(res, 4)}
+        for r, res in zip(readings, result.residuals_mm, strict=True)
+    ]
+    async with write_transaction(session):
+        correction = await suggest.correction_entry(session, run)
+        entry = await type_log.log_entry(
+            session,
+            type_id=version.type_id,
+            version_id=version.id,
+            kind="check_print",
+            printer_id=printer_id,
+            tray=tray,
+            history_id=correction.id if correction is not None else None,
+            run_id=run.id,
+            readings=stored,
+            actor=actor,
+        )
+        await session.commit()
+    return await type_log.read_entry(session, entry)

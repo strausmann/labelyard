@@ -15,6 +15,7 @@ export function TextAreaField({
   rows = 4,
   mono,
   required,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -23,11 +24,12 @@ export function TextAreaField({
   rows?: number;
   mono?: boolean;
   required?: boolean;
+  placeholder?: string;
 }) {
   return (
     <TextField value={value} onChange={onChange} isRequired={required} className="flex min-w-0 flex-col gap-1.5">
       <Label className={LABEL}>{label}</Label>
-      <TextArea rows={rows} spellCheck={false} className={`${FIELD} h-auto! py-2 ${mono ? "font-mono text-small" : ""}`} />
+      <TextArea rows={rows} spellCheck={false} placeholder={placeholder} className={`${FIELD} h-auto! py-2 ${mono ? "font-mono text-small" : ""}`} />
       {description ? (
         <Text slot="description" className={HINT}>
           {description}

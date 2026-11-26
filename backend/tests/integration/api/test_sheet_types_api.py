@@ -534,6 +534,9 @@ async def test_openapi_lists_sheet_type_routes(api_client_with_seed):
         ("get", "/api/v1/sheet-types/{key}/export"),
         ("post", "/api/v1/sheet-types/delete-unused"),
         ("post", "/api/v1/sheet-types/{key}/catalog-update"),
+        ("get", "/api/v1/sheet-types/{key}/log"),
+        ("post", "/api/v1/sheet-types/{key}/log"),
+        ("patch", "/api/v1/sheet-types/{key}/log/{entry_id}"),
     }
     present = {
         (method, path)
@@ -559,6 +562,9 @@ async def test_unknown_type_is_404_on_every_keyed_route(api_client_with_seed, ad
         ("delete", "/api/v1/sheet-types/nope-x", None),
         ("get", "/api/v1/sheet-types/nope-x/export", None),
         ("get", "/api/v1/sheet-types/nope-x/versions/1", None),
+        ("get", "/api/v1/sheet-types/nope-x/log", None),
+        ("post", "/api/v1/sheet-types/nope-x/log", {}),
+        ("patch", f"/api/v1/sheet-types/nope-x/log/{uuid4()}", {"verdict": "fits"}),
     ]
     for method, path, payload in calls:
         resp = await api_client_with_seed.request(method, path, json=payload, headers=admin)

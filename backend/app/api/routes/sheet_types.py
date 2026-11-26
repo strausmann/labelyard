@@ -3,8 +3,9 @@
 
 """Sheet type API (spec 15): catalogue, own types, versions, export and import.
 
-Reads need ``read`` scope and are not limited by a key's printer restriction (OC-37); every
-write needs ``admin`` (OC-11). The routes stay thin: parse, call the service, map
+Reads need ``read`` scope and are not limited by a key's printer restriction (OC-37), except the
+log, whose entries of other printers a restricted key does not see (#351); every write needs
+``admin`` (OC-11). The routes stay thin: parse, call the service, map
 ``SheetApiError`` to the existing error shape.
 """
 
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -57,7 +59,7 @@ from app.schemas.sheets import (
 )
 from app.seed.sheet_seed import shipped_source_urls
 from app.sheets import backing_design_service as bds
-from app.sheets import exchange, print_service
+from app.sheets import exchange, print_service, type_log
 from app.sheets import preprint_service as pps
 from app.sheets import type_service as ts
 from app.sheets.errors import ImportTooLargeError, SheetTypeVersionNotFoundError
@@ -745,3 +747,111 @@ async def export_sheet_type(
         content=doc.to_json(),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------- the log (#351)
+
+_LOG_NOT_FOUND: dict[int | str, dict[str, Any]] = {
+    404: {"description": "Sheet type not found (`sheet_type_not_found`)."}
+}
+
+
+@router.get(
+    "/{key}/log",
+    response_model=list[type_log.SheetTypeLogRead],
+    summary="The log of a sheet type: checks, verdicts and changes, newest first",
+    description=(
+        'Every check print whose readings were entered (`check_print`), every "Mark as '
+        'verified" (`verified`), new version (`new_version`) and catalog update '
+        "(`catalog_update`), and the hand entries (`note`), each with its printer and tray, the "
+        "calibration history entry in effect (`correction`), the run, the readings per crossing, "
+        "a verdict and a note. The hub keeps the newest 500 entries per type. 50 per page "
+        "(`limit` up to 100, `offset`); a `Link` header names the next page. A key restricted to "
+        "some printers sees only the entries of those printers and the entries without a "
+        "printer. Internal only: the log is never part of an export, the catalog or a feedback "
+        "issue."
+    ),
+    responses=_LOG_NOT_FOUND,
+)
+async def list_sheet_type_log(
+    request: Request,
+    response: Response,
+    key: KeyPath,
+    session: SessionDep,
+    auth: ReadDep,
+    printer: Annotated[UUID | None, Query(description="Only entries of this printer.")] = None,
+    tray: Annotated[
+        str | None, Query(min_length=1, max_length=100, description="Only entries of this tray.")
+    ] = None,
+    kind: Annotated[
+        type_log.LogKind | None, Query(description="Only entries of this kind.")
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=type_log.LIST_LIMIT_MAX)] = 50,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+) -> list[type_log.SheetTypeLogRead]:
+    with mapped():
+        entries, has_more = await type_log.list_entries(
+            session,
+            key,
+            allowed_printer_ids=auth.allowed_printer_ids,
+            printer_id=printer,
+            tray=tray,
+            kind=kind,
+            limit=limit,
+            offset=offset,
+        )
+    response.headers.update(next_link(request, limit=limit, offset=offset, has_more=has_more))
+    return entries
+
+
+@router.post(
+    "/{key}/log",
+    response_model=type_log.SheetTypeLogRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a note to the log of a sheet type",
+    description=(
+        "A hand entry (kind `note`) on the type's current version, optionally naming a printer "
+        "and tray, with a verdict (`fits`, `sheet_geometry`, `feed_variance`, `printer`, "
+        "`none`) and a note of at most 2000 characters (cleaned, line breaks kept)."
+    ),
+    responses={
+        404: {"description": "Sheet type or printer not found."},
+        422: {
+            "description": (
+                "The note is too long (`label_too_long`) or `tray` came without `printer_id` "
+                "(`invalid_geometry`, `error_detail.field` is `tray`)."
+            )
+        },
+    },
+)
+async def add_sheet_type_log_note(
+    key: KeyPath, body: type_log.LogNoteCreate, session: SessionDep, auth: AdminDep
+) -> type_log.SheetTypeLogRead:
+    with mapped():
+        return await type_log.add_note(session, key, body, actor=actor(auth))
+
+
+@router.patch(
+    "/{key}/log/{entry_id}",
+    response_model=type_log.SheetTypeLogRead,
+    summary="Set the verdict and note of a log entry",
+    description=(
+        "Only `verdict` and `note` change; an omitted field stays, `note: null` clears it. "
+        "Everything else of the entry (kind, printer, readings, time) is kept as written."
+    ),
+    responses={
+        404: {"description": "Sheet type or entry not found (`sheet_type_log_not_found`)."},
+        422: {"description": "The note is too long (`label_too_long`)."},
+    },
+)
+async def patch_sheet_type_log_entry(
+    key: KeyPath,
+    entry_id: Annotated[UUID, Path(description="Log entry id.")],
+    body: type_log.LogEntryPatch,
+    session: SessionDep,
+    _auth: AdminDep,
+) -> type_log.SheetTypeLogRead:
+    with mapped():
+        return await type_log.patch_entry(
+            session, key, entry_id, body.model_dump(exclude_unset=True)
+        )

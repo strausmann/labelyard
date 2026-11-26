@@ -54,6 +54,7 @@ from app.settings_store.registry import SETTINGS
 from app.sheets import type_service as ts
 from app.sheets.errors import PrinterNotFoundError, SheetPrinterDisabledError
 from app.sheets.print_service import RenderTimeoutApiError, RenderUnavailableApiError
+from app.sheets.type_log import SheetTypeLogRead
 
 router = APIRouter(prefix="/api/v1/printers", tags=["calibration"])
 
@@ -257,6 +258,45 @@ async def fit_calibration(
         suggestion=suggestion,
         suggestion_unavailable=unavailable,
     )
+
+
+class CheckReadingsRequest(BaseModel):
+    run_id: UUID = Field(description="The check print the readings were taken on.")
+    readings: list[ReadingIn] = Field(min_length=3, max_length=READINGS_MAX)
+
+
+@router.post(
+    "/{printer_id}/calibration/{tray}/check-readings",
+    response_model=SheetTypeLogRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
+            "description": (
+                "`run_id` names a run of another printer or tray (`run_not_for_this_tray`) or a "
+                "page that is no check print (`run_not_a_check_print`), the tray is unknown "
+                "(`tray_unknown`), the readings lie on one line (`readings_insufficient`), or a "
+                "reading names a gap outside the sheet (`invalid_geometry`)."
+            )
+        }
+    },
+    summary="Record the readings of a check print in the sheet-type log (the correction stays)",
+)
+async def record_check_readings(
+    printer_id: PrinterPath,
+    tray: TrayPath,
+    body: CheckReadingsRequest,
+    session: SessionDep,
+    auth: AdminDep,
+) -> SheetTypeLogRead:
+    """Write a `check_print` entry to the log of the run's sheet type: the readings, each with its
+    residual from their fit, the run and the correction the page was printed with. The tray's
+    correction and its history are never changed; a check verifies the correction."""
+    check_printer_access(auth, printer_id)
+    readings = [Reading(r.col_gap, r.row_gap, r.across_mm, r.down_mm) for r in body.readings]
+    with mapped():
+        return await service.record_check_readings(
+            session, printer_id, tray, body.run_id, readings, actor=actor(auth)
+        )
 
 
 class PageRequest(BaseModel):

@@ -201,6 +201,11 @@ async def _correction_entry(
     return entry if entry is not None and _same_values(entry, run.correction or {}) else None
 
 
+async def correction_entry(session: AsyncSession, run: CalibrationRun) -> CalibrationHistory | None:
+    """The history entry a check page was printed with, or ``None`` when it is not known."""
+    return await _correction_entry(session, run)
+
+
 def _same_values(entry: CalibrationHistory, snap: dict[str, object]) -> bool:
     return (
         entry.offset_x_hmm,
@@ -343,12 +348,21 @@ async def apply_suggestion(
             margin_left=values_hmm.get("margin_left", base.margin_left),
             margin_top=values_hmm.get("margin_top", base.margin_top),
         )
+        correction = await _correction_entry(session, run)
+        # The version's change note names the run only (it travels into exports and the
+        # feedback issue); the internal log entry names the printer, tray and correction too.
         v = await ts.add_version_locked(
             session,
             key,
             geometry,
             actor=actor,
             change_note=f"Pitch and margins from the check print of run #{run.run_no}",
+            log_refs=ts.LogRefs(
+                printer_id=run.printer_id,
+                tray=run.tray,
+                history_id=correction.id if correction is not None else None,
+                run_id=run.id,
+            ),
         )
         await session.commit()
     return v

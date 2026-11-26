@@ -37,6 +37,7 @@ import { ReadingGuide } from "./guide/ReadingGuide";
 import { StillOff } from "./guide/StillOff";
 import { ReadingsHelper, type FittedFrom } from "./ReadingsHelper";
 import { HistoryPanel } from "./HistoryPanel";
+import { TypeLog } from "../archive/TypeLog";
 import { CALIBRATION_TABS, type CalibrationTab } from "./tabs";
 
 const calibrationApi = getRouteApi("/calibration");
@@ -400,6 +401,16 @@ function Workbench({ printer, tray, trayLabel, labelOf, lastSheetTray, lastCalib
           types={types.data ?? []}
           admin={admin}
         />
+        {type ? (
+          <TypeLog
+            key={`${type.key}-${printer.id}-${tray}`}
+            typeKey={type.key}
+            typeName={typeLabelWithKey(type)}
+            admin={admin}
+            fixed={{ printerId: printer.id, printerName: printer.name, tray, trayLabel }}
+            heading={t`Log of ${typeLabelWithKey(type)} for this printer and tray`}
+          />
+        ) : null}
       </TabPanel>
     </Tabs>
 

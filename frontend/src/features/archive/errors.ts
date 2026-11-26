@@ -32,6 +32,7 @@ function useFieldWords(): (field: string) => string {
       source_url: t`The source address`,
       notes: t`The notes text`,
       change_note: t`The note about the change`,
+      note: t`The note`,
     };
     return words[field] ?? field;
   };
@@ -136,6 +137,8 @@ export function useArchiveErrorText(): (error: unknown, fallback?: string) => st
           return t`A sheet type with this key already exists.`;
         case "prefix_taken":
           return t`Another type already uses this code prefix.`;
+        case "sheet_type_log_not_found":
+          return t`That log entry no longer exists.`;
         case "newer_version_in_use":
           return t`A sheet uses a newer version, so this one cannot be restored.`;
         case "not_unused": {

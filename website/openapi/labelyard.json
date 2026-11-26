@@ -2315,6 +2315,31 @@
         "title": "CellRead",
         "type": "object"
       },
+      "CheckReadingsRequest": {
+        "properties": {
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingIn"
+            },
+            "maxItems": 200,
+            "minItems": 3,
+            "title": "Readings",
+            "type": "array"
+          },
+          "run_id": {
+            "description": "The check print the readings were taken on.",
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "readings"
+        ],
+        "title": "CheckReadingsRequest",
+        "type": "object"
+      },
       "CheckSheetOpen": {
         "description": "A check sheet that still has a free pass (design 7.2).",
         "properties": {
@@ -3861,6 +3886,51 @@
         "title": "LayoutDefault",
         "type": "object"
       },
+      "LogCorrection": {
+        "description": "The calibration history entry in effect; ``null`` once retention dropped it.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "offset_x_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset X Mm"
+          },
+          "offset_y_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset Y Mm"
+          },
+          "seq": {
+            "description": "The entry's number on its printer and tray.",
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "offset_x_mm",
+          "offset_y_mm"
+        ],
+        "title": "LogCorrection",
+        "type": "object"
+      },
       "LogEntry": {
         "properties": {
           "level": {
@@ -3888,6 +3958,206 @@
           "message"
         ],
         "title": "LogEntry",
+        "type": "object"
+      },
+      "LogEntryPatch": {
+        "description": "Verdict and note of an entry; an omitted field is left as it is, `note: null` clears it.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "At most 2000 characters after cleaning; line breaks are kept.",
+            "title": "Note"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fits",
+                  "sheet_geometry",
+                  "feed_variance",
+                  "printer",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "title": "LogEntryPatch",
+        "type": "object"
+      },
+      "LogNoteCreate": {
+        "description": "A hand entry (kind `note`).",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "At most 2000 characters after cleaning; line breaks are kept.",
+            "title": "Note"
+          },
+          "printer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The printer the note is about.",
+            "title": "Printer Id"
+          },
+          "tray": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tray key; only with a printer.",
+            "title": "Tray"
+          },
+          "verdict": {
+            "default": "none",
+            "enum": [
+              "fits",
+              "sheet_geometry",
+              "feed_variance",
+              "printer",
+              "none"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "title": "LogNoteCreate",
+        "type": "object"
+      },
+      "LogPrinter": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "LogPrinter",
+        "type": "object"
+      },
+      "LogReading": {
+        "description": "One crossing of a check print: the ink's offset from the crossing on the real sheet.",
+        "properties": {
+          "across_mm": {
+            "description": "Ink offset to the right, mm.",
+            "title": "Across Mm",
+            "type": "number"
+          },
+          "col_gap": {
+            "description": "Vertical gap S1, S2, ... counted from 1.",
+            "title": "Col Gap",
+            "type": "integer"
+          },
+          "down_mm": {
+            "description": "Ink offset downwards, mm.",
+            "title": "Down Mm",
+            "type": "number"
+          },
+          "residual_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Distance from the fit of all readings of the entry, mm.",
+            "title": "Residual Mm"
+          },
+          "row_gap": {
+            "description": "Horizontal gap Z1, Z2, ... counted from 1.",
+            "title": "Row Gap",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col_gap",
+          "row_gap",
+          "across_mm",
+          "down_mm"
+        ],
+        "title": "LogReading",
+        "type": "object"
+      },
+      "LogRun": {
+        "description": "The calibration run the entry is about; ``null`` once the run is gone.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`calibration_page`, `check_page` or `probe_page`.",
+            "title": "Kind",
+            "type": "string"
+          },
+          "pass_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pass of a check sheet, else null.",
+            "title": "Pass No"
+          },
+          "run_no": {
+            "title": "Run No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "run_no",
+          "kind",
+          "pass_no"
+        ],
+        "title": "LogRun",
         "type": "object"
       },
       "LookupResult": {
@@ -8768,6 +9038,163 @@
           "page_sizes"
         ],
         "title": "SheetTypeFacets",
+        "type": "object"
+      },
+      "SheetTypeLogRead": {
+        "properties": {
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          },
+          "correction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogCorrection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`check_print` (readings of a check print entered), `verified` (marked as verified), `new_version`, `catalog_update` or `note` (a hand entry).",
+            "enum": [
+              "check_print",
+              "verified",
+              "new_version",
+              "catalog_update",
+              "note"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "printer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogPrinter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The printer, null for an entry without one or after the printer was deleted."
+          },
+          "readings": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LogReading"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The readings per crossing, if entered.",
+            "title": "Readings"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LogRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tray": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tray"
+          },
+          "tray_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tray's label on that printer, if known.",
+            "title": "Tray Label"
+          },
+          "type_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sheet type version the entry is about; null once the version is gone.",
+            "title": "Type Version"
+          },
+          "verdict": {
+            "enum": [
+              "fits",
+              "sheet_geometry",
+              "feed_variance",
+              "printer",
+              "none"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "type_version",
+          "printer",
+          "tray",
+          "tray_label",
+          "run",
+          "correction",
+          "readings",
+          "verdict",
+          "note",
+          "actor",
+          "created_at"
+        ],
+        "title": "SheetTypeLogRead",
         "type": "object"
       },
       "SheetTypeNotice": {
@@ -13982,6 +14409,73 @@
         ]
       }
     },
+    "/api/v1/printers/{printer_id}/calibration/{tray}/check-readings": {
+      "post": {
+        "description": "Write a `check_print` entry to the log of the run's sheet type: the readings, each with its\nresidual from their fit, the run and the correction the page was printed with. The tray's\ncorrection and its history are never changed; a check verifies the correction.",
+        "operationId": "record_check_readings_api_v1_printers__printer_id__calibration__tray__check_readings_post",
+        "parameters": [
+          {
+            "description": "Printer id (a page printer).",
+            "in": "path",
+            "name": "printer_id",
+            "required": true,
+            "schema": {
+              "description": "Printer id (a page printer).",
+              "format": "uuid",
+              "title": "Printer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Tray key.",
+            "in": "path",
+            "name": "tray",
+            "required": true,
+            "schema": {
+              "description": "Tray key.",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Tray",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckReadingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetTypeLogRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "`run_id` names a run of another printer or tray (`run_not_for_this_tray`) or a page that is no check print (`run_not_a_check_print`), the tray is unknown (`tray_unknown`), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Record the readings of a check print in the sheet-type log (the correction stays)",
+        "tags": [
+          "calibration"
+        ]
+      }
+    },
     "/api/v1/printers/{printer_id}/calibration/{tray}/check-sheets/open": {
       "get": {
         "description": "The newest check sheet with a free pass, for the print dialog's \"Print on the same sheet?\n(pass 2 of 3)\"; `null` when there is none (every pass printed, or no sheet started).\n`run_line_slots` are the slots pass 1 reserved in the layout it was printed with (0 once its\njob was cleaned up). Nothing is stored.",
@@ -17309,6 +17803,308 @@
           }
         ],
         "summary": "Whether and where the margin sheet code fits each page printer",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/{key}/log": {
+      "get": {
+        "description": "Every check print whose readings were entered (`check_print`), every \"Mark as verified\" (`verified`), new version (`new_version`) and catalog update (`catalog_update`), and the hand entries (`note`), each with its printer and tray, the calibration history entry in effect (`correction`), the run, the readings per crossing, a verdict and a note. The hub keeps the newest 500 entries per type. 50 per page (`limit` up to 100, `offset`); a `Link` header names the next page. A key restricted to some printers sees only the entries of those printers and the entries without a printer. Internal only: the log is never part of an export, the catalog or a feedback issue.",
+        "operationId": "list_sheet_type_log_api_v1_sheet_types__key__log_get",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only entries of this printer.",
+            "in": "query",
+            "name": "printer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries of this printer.",
+              "title": "Printer"
+            }
+          },
+          {
+            "description": "Only entries of this tray.",
+            "in": "query",
+            "name": "tray",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries of this tray.",
+              "title": "Tray"
+            }
+          },
+          {
+            "description": "Only entries of this kind.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "check_print",
+                    "verified",
+                    "new_version",
+                    "catalog_update",
+                    "note"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries of this kind.",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 1000000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SheetTypeLogRead"
+                  },
+                  "title": "Response List Sheet Type Log Api V1 Sheet Types  Key  Log Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type not found (`sheet_type_not_found`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "The log of a sheet type: checks, verdicts and changes, newest first",
+        "tags": [
+          "sheet-types"
+        ]
+      },
+      "post": {
+        "description": "A hand entry (kind `note`) on the type's current version, optionally naming a printer and tray, with a verdict (`fits`, `sheet_geometry`, `feed_variance`, `printer`, `none`) and a note of at most 2000 characters (cleaned, line breaks kept).",
+        "operationId": "add_sheet_type_log_note_api_v1_sheet_types__key__log_post",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogNoteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetTypeLogRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type or printer not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "The note is too long (`label_too_long`) or `tray` came without `printer_id` (`invalid_geometry`, `error_detail.field` is `tray`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Add a note to the log of a sheet type",
+        "tags": [
+          "sheet-types"
+        ]
+      }
+    },
+    "/api/v1/sheet-types/{key}/log/{entry_id}": {
+      "patch": {
+        "description": "Only `verdict` and `note` change; an omitted field stays, `note: null` clears it. Everything else of the entry (kind, printer, readings, time) is kept as written.",
+        "operationId": "patch_sheet_type_log_entry_api_v1_sheet_types__key__log__entry_id__patch",
+        "parameters": [
+          {
+            "description": "Type key, e.g. `avery-l4736`.",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "description": "Type key, e.g. `avery-l4736`.",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Log entry id.",
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "description": "Log entry id.",
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogEntryPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetTypeLogRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Sheet type or entry not found (`sheet_type_log_not_found`)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetApiErrorResponse"
+                }
+              }
+            },
+            "description": "The note is too long (`label_too_long`)."
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Set the verdict and note of a log entry",
         "tags": [
           "sheet-types"
         ]

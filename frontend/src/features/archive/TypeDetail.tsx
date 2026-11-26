@@ -28,6 +28,7 @@ import { FeedbackLinks } from "./FeedbackLinks";
 import { IdPlacementSection } from "./IdPlacementSection";
 import { ProbePrintDialog } from "./ProbePrintDialog";
 import { TypeForm } from "./TypeForm";
+import { TypeLog } from "./TypeLog";
 import { httpUrl, linkHost } from "./search";
 import { TypeSheetsList } from "./TypeSheetsList";
 import { TypeVersions } from "./TypeVersions";
@@ -309,6 +310,7 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
               {t`Sheets`}
               <span className="ml-1.5 text-small font-normal text-ink-2 tabular-nums">{type.sheets_total}</span>
             </Tab>
+            <Tab id="log" className={TAB}>{t`Log`}</Tab>
           </TabList>
           <TabPanel id="measurements" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
             <CatalogUpdatePanel type={type} admin={admin} />
@@ -338,6 +340,9 @@ export function TypeDetail({ typeKey, admin, onLeave }: { typeKey: string; admin
           <TabPanel id="sheets" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
             <UsageTiles type={type} />
             <TypeSheetsList typeKey={type.key} />
+          </TabPanel>
+          <TabPanel id="log" className="flex min-w-0 flex-col gap-6 rounded-r2 data-[focus-visible]:outline-3 data-[focus-visible]:outline-offset-2 data-[focus-visible]:outline-link">
+            <TypeLog typeKey={type.key} typeName={title} admin={admin} />
           </TabPanel>
         </Tabs>
         </>

@@ -168,3 +168,13 @@ Jedes Speichern bleibt erhalten. Der Reiter **Verlauf** listet die Korrekturen d
 **Diese Werte wiederherstellen** (nur für Admins) verwendet einen früheren Eintrag wieder. Die Rückfrage nennt die Werte und nimmt eine Notiz an. Wiederherstellen legt einen neuen Eintrag an; nichts wird überschrieben oder gelöscht.
 
 Unter den Korrekturen listet **Aus diesem Fach gedruckte Seiten** jede Kalibrier-, Kontroll- und Probeseite mit ihrer Laufnummer. Ein erneutes Senden behält die Nummer seines Laufs und sagt **(erneut gesendet)**; eine Seite, die nie beim Drucker ankam, ist mit **nicht gesendet** markiert. **Gedruckt aus** ist das Fach, das der Drucker meldet. Ist es nicht das gewünschte, warnt der Reiter oben: Eine Korrektur, die auf so einer Seite gemessen wurde, gehört zu dem Fach, aus dem die Seite wirklich kam. Manche Drucker melden das Fach nicht; die Spalte sagt das dann.
+
+## Das Protokoll des Bogentyps
+
+Jeder Bogentyp führt ein Protokoll darüber, was an ihm geprüft und entschieden wurde. Der Reiter **Protokoll** eines Typs im [Bogenarchiv](/de/using/sheets/) zeigt es, neueste Einträge zuerst, gefiltert nach Drucker und Art; **Verlauf** hier zeigt den Teil des Protokolls für den gewählten Bogentyp, Drucker und das Fach.
+
+- **Kontrollmesswerte.** Stammen die Messwerte von einem Kontrolldruck, schreibt **Kontrollmesswerte protokollieren** (nur Admins) sie ins Protokoll des Bogentyps, jeden mit seinem Abstand zur Berechnung, dazu den Druck und die Korrektur, mit der er gedruckt wurde. Die Korrektur ändert sich dabei nie: Ein Kontrolldruck prüft sie. **Berechnen** daneben zeigt nur das Ergebnis, und die laufende Berechnung schreibt nichts.
+- **Von selbst geschrieben.** „Als geprüft markieren“, jede neue Version (auch eine wiederhergestellte, aus einem Vorschlag übernommene oder importierte) und jede Katalog-Aktualisierung fügen einen Eintrag hinzu.
+- **Bewertung und Notiz.** Ein Admin schreibt mit **Notiz hinzufügen** eine Notiz und setzt mit **Bewertung und Notiz bearbeiten** an jedem Eintrag eine Bewertung: **Passt**, **Bogengeometrie** (die Maße des Typs stimmen nicht), **Einzugsschwankung** (der Papiereinzug weicht von Bogen zu Bogen ab) oder **Drucker**. Eine Notiz fasst bis zu 2000 Zeichen.
+
+Das Protokoll nennt deine Drucker und Fächer, deshalb bleibt es im Hub: Es ist nie Teil eines Exports, des Katalogs oder eines vorausgefüllten Feedback-Issues. Labelyard behält die neuesten 500 Einträge je Bogentyp. Andere Werkzeuge lesen es über die API (`GET /api/v1/sheet-types/{key}/log`); ein Schlüssel, der auf einige Drucker beschränkt ist, sieht nur deren Einträge und die Einträge ohne Drucker.

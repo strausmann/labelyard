@@ -828,6 +828,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/printers/{printer_id}/calibration/{tray}/check-readings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record the readings of a check print in the sheet-type log (the correction stays)
+         * @description Write a `check_print` entry to the log of the run's sheet type: the readings, each with its
+         *     residual from their fit, the run and the correction the page was printed with. The tray's
+         *     correction and its history are never changed; a check verifies the correction.
+         */
+        post: operations["record_check_readings_api_v1_printers__printer_id__calibration__tray__check_readings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/printers/{printer_id}/calibration/{tray}/check-sheets/open": {
         parameters: {
             query?: never;
@@ -1601,6 +1623,50 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/{key}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The log of a sheet type: checks, verdicts and changes, newest first
+         * @description Every check print whose readings were entered (`check_print`), every "Mark as verified" (`verified`), new version (`new_version`) and catalog update (`catalog_update`), and the hand entries (`note`), each with its printer and tray, the calibration history entry in effect (`correction`), the run, the readings per crossing, a verdict and a note. The hub keeps the newest 500 entries per type. 50 per page (`limit` up to 100, `offset`); a `Link` header names the next page. A key restricted to some printers sees only the entries of those printers and the entries without a printer. Internal only: the log is never part of an export, the catalog or a feedback issue.
+         */
+        get: operations["list_sheet_type_log_api_v1_sheet_types__key__log_get"];
+        put?: never;
+        /**
+         * Add a note to the log of a sheet type
+         * @description A hand entry (kind `note`) on the type's current version, optionally naming a printer and tray, with a verdict (`fits`, `sheet_geometry`, `feed_variance`, `printer`, `none`) and a note of at most 2000 characters (cleaned, line breaks kept).
+         */
+        post: operations["add_sheet_type_log_note_api_v1_sheet_types__key__log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sheet-types/{key}/log/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set the verdict and note of a log entry
+         * @description Only `verdict` and `note` change; an omitted field stays, `note: null` clears it. Everything else of the entry (kind, printer, readings, time) is kept as written.
+         */
+        patch: operations["patch_sheet_type_log_entry_api_v1_sheet_types__key__log__entry_id__patch"];
         trace?: never;
     };
     "/api/v1/sheet-types/{key}/unarchive": {
@@ -3016,6 +3082,17 @@ export interface components {
             /** Updated At */
             updated_at: string | null;
         };
+        /** CheckReadingsRequest */
+        CheckReadingsRequest: {
+            /** Readings */
+            readings: components["schemas"]["ReadingIn"][];
+            /**
+             * Run Id
+             * Format: uuid
+             * @description The check print the readings were taken on.
+             */
+            run_id: string;
+        };
         /**
          * CheckSheetOpen
          * @description A check sheet that still has a free pass (design 7.2).
@@ -3672,6 +3749,26 @@ export interface components {
             orientation?: components["schemas"]["LabelOrientation"] | null;
             preset?: components["schemas"]["QlLayoutPreset"] | null;
         };
+        /**
+         * LogCorrection
+         * @description The calibration history entry in effect; ``null`` once retention dropped it.
+         */
+        LogCorrection: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Offset X Mm */
+            offset_x_mm: number | null;
+            /** Offset Y Mm */
+            offset_y_mm: number | null;
+            /**
+             * Seq
+             * @description The entry's number on its printer and tray.
+             */
+            seq: number;
+        };
         /** LogEntry */
         LogEntry: {
             /** Level */
@@ -3685,6 +3782,110 @@ export interface components {
              * Format: date-time
              */
             ts: string;
+        };
+        /**
+         * LogEntryPatch
+         * @description Verdict and note of an entry; an omitted field is left as it is, `note: null` clears it.
+         */
+        LogEntryPatch: {
+            /**
+             * Note
+             * @description At most 2000 characters after cleaning; line breaks are kept.
+             */
+            note?: string | null;
+            /** Verdict */
+            verdict?: ("fits" | "sheet_geometry" | "feed_variance" | "printer" | "none") | null;
+        };
+        /**
+         * LogNoteCreate
+         * @description A hand entry (kind `note`).
+         */
+        LogNoteCreate: {
+            /**
+             * Note
+             * @description At most 2000 characters after cleaning; line breaks are kept.
+             */
+            note?: string | null;
+            /**
+             * Printer Id
+             * @description The printer the note is about.
+             */
+            printer_id?: string | null;
+            /**
+             * Tray
+             * @description Tray key; only with a printer.
+             */
+            tray?: string | null;
+            /**
+             * Verdict
+             * @default none
+             * @enum {string}
+             */
+            verdict: "fits" | "sheet_geometry" | "feed_variance" | "printer" | "none";
+        };
+        /** LogPrinter */
+        LogPrinter: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * LogReading
+         * @description One crossing of a check print: the ink's offset from the crossing on the real sheet.
+         */
+        LogReading: {
+            /**
+             * Across Mm
+             * @description Ink offset to the right, mm.
+             */
+            across_mm: number;
+            /**
+             * Col Gap
+             * @description Vertical gap S1, S2, ... counted from 1.
+             */
+            col_gap: number;
+            /**
+             * Down Mm
+             * @description Ink offset downwards, mm.
+             */
+            down_mm: number;
+            /**
+             * Residual Mm
+             * @description Distance from the fit of all readings of the entry, mm.
+             */
+            residual_mm?: number | null;
+            /**
+             * Row Gap
+             * @description Horizontal gap Z1, Z2, ... counted from 1.
+             */
+            row_gap: number;
+        };
+        /**
+         * LogRun
+         * @description The calibration run the entry is about; ``null`` once the run is gone.
+         */
+        LogRun: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description `calibration_page`, `check_page` or `probe_page`.
+             */
+            kind: string;
+            /**
+             * Pass No
+             * @description The pass of a check sheet, else null.
+             */
+            pass_no: number | null;
+            /** Run No */
+            run_no: number;
         };
         /**
          * LookupResult
@@ -5824,6 +6025,55 @@ export interface components {
              * @description Sorted case-insensitively.
              */
             vendors: components["schemas"]["FacetCount"][];
+        };
+        /** SheetTypeLogRead */
+        SheetTypeLogRead: {
+            /** Actor */
+            actor: string | null;
+            correction: components["schemas"]["LogCorrection"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description `check_print` (readings of a check print entered), `verified` (marked as verified), `new_version`, `catalog_update` or `note` (a hand entry).
+             * @enum {string}
+             */
+            kind: "check_print" | "verified" | "new_version" | "catalog_update" | "note";
+            /** Note */
+            note: string | null;
+            /** @description The printer, null for an entry without one or after the printer was deleted. */
+            printer: components["schemas"]["LogPrinter"] | null;
+            /**
+             * Readings
+             * @description The readings per crossing, if entered.
+             */
+            readings: components["schemas"]["LogReading"][] | null;
+            run: components["schemas"]["LogRun"] | null;
+            /** Tray */
+            tray: string | null;
+            /**
+             * Tray Label
+             * @description The tray's label on that printer, if known.
+             */
+            tray_label: string | null;
+            /**
+             * Type Version
+             * @description The sheet type version the entry is about; null once the version is gone.
+             */
+            type_version: number | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "fits" | "sheet_geometry" | "feed_variance" | "printer" | "none";
         };
         /**
          * SheetTypeNotice
@@ -8778,6 +9028,42 @@ export interface operations {
             };
         };
     };
+    record_check_readings_api_v1_printers__printer_id__calibration__tray__check_readings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Printer id (a page printer). */
+                printer_id: string;
+                /** @description Tray key. */
+                tray: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckReadingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetTypeLogRead"];
+                };
+            };
+            /** @description `run_id` names a run of another printer or tray (`run_not_for_this_tray`) or a page that is no check print (`run_not_a_check_print`), the tray is unknown (`tray_unknown`), the readings lie on one line (`readings_insufficient`), or a reading names a gap outside the sheet (`invalid_geometry`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_open_check_sheet_api_v1_printers__printer_id__calibration__tray__check_sheets_open_get: {
         parameters: {
             query: {
@@ -10675,6 +10961,148 @@ export interface operations {
                 };
             };
             /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    list_sheet_type_log_api_v1_sheet_types__key__log_get: {
+        parameters: {
+            query?: {
+                /** @description Only entries of this printer. */
+                printer?: string | null;
+                /** @description Only entries of this tray. */
+                tray?: string | null;
+                /** @description Only entries of this kind. */
+                kind?: ("check_print" | "verified" | "new_version" | "catalog_update" | "note") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetTypeLogRead"][];
+                };
+            };
+            /** @description Sheet type not found (`sheet_type_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    add_sheet_type_log_note_api_v1_sheet_types__key__log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogNoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetTypeLogRead"];
+                };
+            };
+            /** @description Sheet type or printer not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description The note is too long (`label_too_long`) or `tray` came without `printer_id` (`invalid_geometry`, `error_detail.field` is `tray`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_sheet_type_log_entry_api_v1_sheet_types__key__log__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Type key, e.g. `avery-l4736`. */
+                key: string;
+                /** @description Log entry id. */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogEntryPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetTypeLogRead"];
+                };
+            };
+            /** @description Sheet type or entry not found (`sheet_type_log_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetApiErrorResponse"];
+                };
+            };
+            /** @description The note is too long (`label_too_long`). */
             422: {
                 headers: {
                     [name: string]: unknown;

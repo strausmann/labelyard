@@ -37,6 +37,7 @@ from app.models.sheet import SheetType, SheetTypeVersion
 from app.repositories import sheet_types as repo
 from app.repositories.write_lock import write_transaction
 from app.sheets import backing_design_service as bds
+from app.sheets import type_log
 from app.sheets import type_service as ts
 from app.sheets.errors import (
     BackingDesignDiffersError,
@@ -255,6 +256,8 @@ class _Followers:
     types: list[SheetType] = field(default_factory=list)
     # ``shipped_design_states()``, read before the write lock was taken
     shipped: dict[str, set[str]] = field(default_factory=dict)
+    # who asked for the write: named in the sheet-type log entry of each updated type (7.6)
+    actor: str | None = None
 
 
 async def _follow_the_catalog(
@@ -394,14 +397,26 @@ async def _apply_entry(
     t.id_cell = doc.type.id_cell
     await _link_design(session, t, doc, "seed", followers=followers)
     geometry = geometry_from_doc(doc.version.geometry)
+    version_id = current.id
     if geometry_hash(geometry) != current.geometry_hash:
-        await ts.add_version_locked(
+        added = await ts.add_version_locked(
             session,
             t.key,
             geometry,
             actor=CATALOG_ACTOR,
             change_note=f"Catalog revision {meta.revision}",
+            log=False,  # the update is logged once below, with its version
         )
+        version_id = added.id
+    # The log names the person who updated, not the catalog: the version stays catalog-written.
+    await type_log.log_entry(
+        session,
+        type_id=t.id,
+        version_id=version_id,
+        kind="catalog_update",
+        note=f"Updated to catalog revision {meta.revision}",
+        actor=followers.actor,
+    )
     t.catalog_revision = meta.revision
     t.catalog_fields_hash = loader.fields_hash(doc.type)
     t.updated_at = datetime.now(UTC)
@@ -462,7 +477,7 @@ async def install(
         t.created_by = actor
         t.id_placement = doc.type.id_placement
         t.id_cell = doc.type.id_cell
-        followers = _Followers(shipped=shipped) if own else None
+        followers = _Followers(shipped=shipped, actor=actor) if own else None
         await _link_design(session, t, doc, "seed" if own else "imported", followers=followers)
         if own:
             t.catalog_key = key
@@ -485,7 +500,7 @@ async def apply_update(
     session: AsyncSession,
     key: str,
     *,
-    actor: str,  # noqa: ARG001 - the catalog writes the version; the caller is not logged
+    actor: str,
 ) -> CatalogWrite:
     """Bring an unedited installed type to the newer catalog revision (spec 6.1.3, D14).
 
@@ -508,7 +523,7 @@ async def apply_update(
         if is_locally_edited(t, current, design):
             raise TypeLocallyEditedError()
         doc = loader.load_entry(t.catalog_key)
-        followers = _Followers(shipped=shipped)
+        followers = _Followers(shipped=shipped, actor=actor)
         await _apply_entry(session, t, doc, meta, current, followers)
         await _still_unedited(session, [t, *followers.types])
         await session.commit()

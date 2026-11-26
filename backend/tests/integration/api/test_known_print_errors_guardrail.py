@@ -72,6 +72,9 @@ NOT_PRINTING = {
     ("POST", "/api/v1/printers/{printer_id}/calibration/{tray}/history/{entry_id}/restore"): (
         "writes a stored calibration, never prints or renders a label"
     ),
+    ("POST", "/api/v1/printers/{printer_id}/calibration/{tray}/check-readings"): (
+        "writes the readings of a check print to the sheet-type log, never prints or renders"
+    ),
 }
 
 SLUG = "tape-a"
