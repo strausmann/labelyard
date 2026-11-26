@@ -505,8 +505,37 @@ async def test_non_probe_payloads_validate_with_the_1_7_1_models(
         printer, "auto", "A4", HardwareMargins(top=4.2, left=4.2, bottom=4.2, right=4.2),
         datetime(2026, 11, 21, 12, 0, tzinfo=UTC), "1.8.0", "https://hub.example.invalid/p",
     )  # fmt: skip
+    # #240, #449: every pass of a check sheet, as the page route builds them (its pass
+    # count, the pass's crossings, the crossings reserved for later passes, pass 2's and 3's run
+    # line box), from the production helpers.
+    from app.calibration.check_sheet import check_passes
+
+    choice = runs.CheckSheetChoice("new", v.id, check_passes(G48.cols, G48.rows))
+    total = choice.passes_total
+    assert total >= 2
+    check = built[1].model_copy(
+        update={"detail": {**built[1].detail, "passes_total": choice.passes_total}}
+    )
+    sheet_id = uuid4()
+    passes: list[PagePayload] = []
+    for pass_no in range(1, total + 1):
+        pass_run = run.model_copy(update={"pass_no": pass_no, "check_sheet_id": sheet_id})
+        one = runs.stamp(
+            check, pass_run, crossings=choice.crossings(pass_no), reserved=choice.reserved(pass_no)
+        )
+        if pass_no > 1:
+            box = calibration_page.later_run_line_box(one, passes[0])
+            if box is not None:
+                one.detail["run_line_box"] = box
+        passes.append(one)
+    pass_raw = [p.model_dump(mode="json") for p in passes]
+    assert [r["detail"]["pass_no"] for r in pass_raw] == list(range(1, total + 1))
+    assert pass_raw[0]["detail"]["pass_crossings"] and pass_raw[0]["detail"]["reserved_crossings"]
+    assert all(r["detail"]["passes_total"] == total for r in pass_raw)
+    assert any("run_line_box" in r["detail"] for r in pass_raw[1:])
     written = [
         *stamped,
+        *pass_raw,
         _page_with(placement, mark),
         back.model_dump(mode="json"),
         test_page.model_dump(mode="json"),
