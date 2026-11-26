@@ -328,9 +328,44 @@ def _draw_grid(
             label([(left + 0.3, y - 0.3, "start"), (right - 0.3, y - 0.3, "end")], str(y))
 
 
-def _draw_cells(pen: VectorPen, g: Geometry, run: str | None = None) -> None:
+RUN_CELL_PT_STEPS: Final = (5.0, 4.5, 4.0, 3.5, 3.0)
+"""Sizes the run tries in cell 1 when no margin holds the header."""
+
+
+def _run_candidates(payload: PagePayload) -> list[str]:
+    """The run in cell 1, longest first: with date, without it, as ``#7 14:05``. Every form keeps
+    the run number and (for a printed page) the time."""
+    d = payload.detail
+    run_no, time = d.get("run_no"), d.get("time")
+    if not isinstance(run_no, int):
+        return [_run_text(payload), "No run"]
+    tail = f" · {time}" if time else ""
+    return [_run_text(payload), f"Run #{run_no}{tail}", f"#{run_no}{' ' + time if time else ''}"]
+
+
+def _draw_run_cell(
+    pen: VectorPen, cx: float, cy: float, room: float, lh: float, number: str, run: Sequence[str]
+) -> None:
+    """Cell 1 when it carries the run: the number above the run when both fit, else the run
+    alone. The first form and size that fit the cell's width win; never cut."""
+    number_line = CELL_PT * _PT_MM * _LEADING
+    for size in RUN_CELL_PT_STEPS:
+        run_line = size * _PT_MM * _LEADING
+        for text in run:
+            if text_width_mm(text, size) > room:
+                continue
+            if lh >= number_line + run_line + 1 and text_width_mm(number, CELL_PT) <= room:
+                pen.text(cx, cy - 0.1, number, size_pt=CELL_PT, anchor="middle")
+                pen.text(cx, cy - 0.1 + run_line, text, size_pt=size, anchor="middle")
+                return
+            if lh >= run_line + 0.5:
+                pen.text(cx, cy + run_line / 3, text, size_pt=size, anchor="middle")
+                return
+
+
+def _draw_cells(pen: VectorPen, g: Geometry, run: Sequence[str] | None = None) -> None:
     """Outlines, numbers and ``R<row> C<col>``; ``run`` (when no margin holds the header) goes
-    into cell 1 in place of its row and column."""
+    into cell 1 in place of its row and column (``_draw_run_cell``)."""
     lw, lh = g.label_w / 100, g.label_h / 100
     radius = (g.corner_radius or 0) / 100
     line = CELL_PT * _PT_MM * _LEADING
@@ -345,10 +380,11 @@ def _draw_cells(pen: VectorPen, g: Geometry, run: str | None = None) -> None:
             else:
                 pen.rect(x, y, lw, lh, width_mm=OUTLINE_MM)
             number, where = str(r * g.cols + c + 1), f"R{r + 1} C{c + 1}"
-            if run is not None and r == 0 and c == 0:
-                where = run
             cx, cy = x + lw / 2, y + lh / 2
             room = lw * (0.7 if g.shape == "round" else 0.9)
+            if run is not None and r == 0 and c == 0:
+                _draw_run_cell(pen, cx, cy, room, lh, number, run)
+                continue
             if lh >= 2 * line + 1 and text_width_mm(where, CELL_PT) <= room:
                 pen.text(cx, cy - 0.1, number, size_pt=CELL_PT, anchor="middle")
                 pen.text(cx, cy - 0.1 + line, where, size_pt=CELL_PT, anchor="middle")
@@ -436,7 +472,7 @@ def draw_probe_page(pen: VectorPen, payload: PagePayload) -> None:
     header = _header(payload, g, area)
     if d.get("grid"):
         _draw_grid(pen, payload.media, area, [h.box() for h in header])
-    _draw_cells(pen, g, run=None if header else _run_text(payload))
+    _draw_cells(pen, g, run=None if header else _run_candidates(payload))
     _draw_zones(pen, _rects(d.get("zones")))
     id_rect = d.get("id_rect")
     if isinstance(id_rect, Mapping):

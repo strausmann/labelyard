@@ -441,3 +441,31 @@ def test_every_catalog_probe_page_carries_its_run(hw: int, grid: bool) -> None:
         )  # fmt: skip
         texts = pi.texts(probe.render_probe_page(payload, compress=False))
         assert any("Run #123456" in t and "14:05" in t for t in texts), (key, hw, grid)
+
+
+@pytest.mark.parametrize(
+    "g",
+    [
+        # Codex on #450: no margin and cells too narrow for the full run text at 5 pt.
+        Geometry("A4", 21000, 29700, 2100, 1485, 10, 20, 2100, 1485, 0, 0, None, "rectangle"),
+        # The smallest cells the type rules allow (400 cells), no margin either.
+        Geometry("A4", 21000, 29700, 1050, 1485, 20, 20, 1050, 1485, 0, 0, None, "rectangle"),
+    ],
+)
+@pytest.mark.parametrize("run_no", [7, 123456])
+def test_the_run_survives_in_a_small_fallback_cell(g: Geometry, run_no: int) -> None:
+    from app.calibration.layout import printable_area
+    from app.page_render.transform import IDENTITY
+    from app.services.page_jobs import PagePayload
+
+    payload = PagePayload(
+        kind="probe_page", media="A4", tray="tray-1", render_dpi=600, job_name="Probe",
+        detail={
+            "type_key": "custom", "version": 1, "printer_name": "Office", "date": "2026-11-25",
+            "grid": False, "geometry": asdict(g), "zones": [], "id_rect": None,
+            "printable_area": asdict(printable_area(g, None, IDENTITY)), "run_no": run_no,
+            "time": "14:05",
+        },
+    )  # fmt: skip
+    texts = pi.texts(probe.render_probe_page(payload, compress=False))
+    assert any(f"#{run_no}" in t and "14:05" in t for t in texts), texts[:4]
