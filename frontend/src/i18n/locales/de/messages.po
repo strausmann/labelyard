@@ -3111,6 +3111,10 @@ msgstr "Zuletzt geändert"
 msgid "Last charged"
 msgstr "Zuletzt geladen"
 
+#: src/features/calibration/RunPicker.tsx
+msgid "Last check sheet"
+msgstr "Letzter Kontrollbogen"
+
 #: src/features/scan/GrocycodePage.tsx
 msgid "Last done"
 msgstr "Zuletzt erledigt"

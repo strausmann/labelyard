@@ -340,4 +340,25 @@ describe("guided readings", () => {
     expect(sent.version).toBe(1);
     expect(Math.max(...sent.readings.map((r: { row_gap: number }) => r.row_gap))).toBe(5);
   });
+
+  it("the passes of a check sheet stay choosable after its last pass closed it", async () => {
+    const lastPass = run({ id: "run-15", run_no: 15, kind: "check_page", created_at: "2026-11-21T15:30:00Z", check_sheet_id: SHEET_ID, pass_no: 3 });
+    const { calls } = await open({
+      [`GET ${BASE}/main/runs`]: [lastPass, ...RUNS],
+      // The sheet took its third pass and is closed: there is no open check sheet any more.
+      [`GET ${BASE}/main/check-sheets/open`]: () => new Response("null", { status: 200, headers: { "Content-Type": "application/json" } }),
+      [`POST ${BASE}/main/fit`]: FIT,
+    });
+    const picker = await screen.findByRole("button", { name: /Readings from print/ });
+    await waitFor(() => expect(picker).toHaveTextContent(/^#12/));
+    await userEvent.click(picker);
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toContain("Check sheet of run #13 — pass 3, run #15");
+    expect(options).toContain("Check sheet of run #13 — pass 1, run #13");
+    await userEvent.click(screen.getByRole("option", { name: "Check sheet of run #13 — pass 3, run #15" }));
+    await fillThreePlain();
+    await userEvent.click(await button("Fit"));
+    await waitFor(() => expect(only(calls, "POST", "/fit").length).toBeGreaterThan(0));
+    expect(body(only(calls, "POST", "/fit").at(-1)).run_id).toBe("run-15");
+  });
 });

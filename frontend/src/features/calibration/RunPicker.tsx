@@ -49,9 +49,16 @@ export function useRunChoices(printerId: string, tray: string, type: { key: stri
           run: r,
         };
       });
+    // The passes of the open check sheet, or, once its last pass closed it, of the newest check sheet in the run
+    // history: the readings of the last pass are entered after it printed (and closed the sheet).
     const open = sheet.data ?? null;
-    const first = open?.passes.find((p) => p.pass_no === 1)?.run_no ?? open?.passes[0]?.run_no;
-    const passes: RunChoice[] = (open?.passes ?? [])
+    const checkRuns = (runs.data ?? []).filter((r) => r.kind === "check_page" && r.type_key === type.key && r.check_sheet_id !== null && r.pass_no !== null);
+    const sheetId = open?.check_sheet_id ?? checkRuns[0]?.check_sheet_id ?? null;
+    const fromRuns = checkRuns.filter((r) => r.check_sheet_id === sheetId).map((r) => ({ pass_no: r.pass_no!, run_id: r.id, run_no: r.run_no }));
+    const listed = [...(open?.passes ?? []), ...fromRuns.filter((p) => !open?.passes.some((o) => o.run_id === p.run_id))];
+    const first = listed.find((p) => p.pass_no === 1)?.run_no ?? listed.reduce((min, p) => Math.min(min, p.run_no), Infinity);
+    const section = open ? t`Open check sheet` : t`Last check sheet`;
+    const passes: RunChoice[] = listed
       .slice()
       .sort((a, b) => a.pass_no - b.pass_no)
       .map((p) => {
@@ -64,7 +71,7 @@ export function useRunChoices(printerId: string, tray: string, type: { key: stri
           kind: "check_page" as const,
           version: r?.version ?? type.version,
           label: t`Check sheet of run #${first} — pass ${pass}, run #${runNo}`,
-          section: t`Open check sheet`,
+          section,
           run: r,
         };
       });
