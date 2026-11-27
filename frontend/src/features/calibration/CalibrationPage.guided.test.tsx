@@ -5,8 +5,9 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { components } from "../../api/schema.gen";
+import { typeLabelWithKey } from "../sheets/typeLabel";
 import { apiErrorBody, GEOMETRY_L4736, respond, SHEET_TYPE } from "../test-api";
-import { BASE, body, button, enter, enterAll, FIT, none, only, open, PRINT_SESSION, resetBetweenTests, stored, typeB } from "./CalibrationPage.kit";
+import { BASE, body, button, enter, enterAll, FIT, none, only, open, PRINT_SESSION, resetBetweenTests, secondPrinter, stored, typeB } from "./CalibrationPage.kit";
 
 vi.setConfig({ testTimeout: 20_000 });
 resetBetweenTests();
@@ -74,6 +75,9 @@ async function fillThreePlain() {
     [down("S1 · Z11"), "0,3"],
   ]);
 }
+
+const TYPE_NAME = typeLabelWithKey(SHEET_TYPE);
+const RUN_12_LINE = `Values from the readings of ${TYPE_NAME} v1, print #12.`;
 
 async function chooseRun(name: RegExp) {
   await userEvent.click(await screen.findByRole("button", { name: /Readings from print/ }));
@@ -219,7 +223,7 @@ describe("guided readings", () => {
     await chooseRun(/^#12 · calibration page/);
     await fillThreePlain();
     await userEvent.click(await button("Fit"));
-    expect(await screen.findByText("From the readings of print #12.")).toBeVisible();
+    expect(await screen.findByText(RUN_12_LINE)).toBeVisible();
     await userEvent.click(await button("Save for this printer and tray"));
     await screen.findByText("Saved. New prints use this correction.");
     const put = body(only(calls, "PUT")[0]);
@@ -399,7 +403,7 @@ describe("guided readings", () => {
       await chooseRun(/^#12 · calibration page/);
       await fillThreePlain();
       await userEvent.click(await button("Fit"));
-      await screen.findByText("From the readings of print #12.");
+      await screen.findByText(RUN_12_LINE);
       await userEvent.click(await button("Save for this printer and tray"));
       expect(await screen.findByText(sentence)).toBeVisible();
       view.unmount();
@@ -530,5 +534,120 @@ describe("guided readings", () => {
     // Counter-check: once the prints are there, the readings are tied to one and Fit works.
     await act(async () => release(new Response(JSON.stringify(RUNS), { status: 200, headers: { "Content-Type": "application/json" } })));
     await waitFor(() => expect(screen.getByRole("button", { name: "Fit" })).toBeEnabled());
+  });
+});
+
+describe("which type the kept fit belongs to (#220)", () => {
+  const fitted = (extra: Record<string, unknown> = {}) =>
+    withRuns({ "GET /api/v1/sheet-types": [SHEET_TYPE, typeB], [`POST ${BASE}/main/fit`]: FIT, ...extra });
+  async function fitOnRun12() {
+    await chooseRun(/^#12 · calibration page/);
+    await fillThreePlain();
+    await userEvent.click(await button("Fit"));
+    await screen.findByText(RUN_12_LINE);
+  }
+
+  it("line names the fitted type, version and print", async () => {
+    await open(fitted());
+    // Counter-test: before a fit the line does not claim readings.
+    expect(screen.queryByText(/^Values from the readings of/)).toBeNull();
+    await fitOnRun12();
+    expect(screen.getByText(RUN_12_LINE)).toBeVisible();
+    expect(screen.queryByText(/not the sheet type chosen above/)).toBeNull();
+    expect(screen.queryByText(/^Typed by hand/)).toBeNull();
+  });
+
+  it("line warns when the fitted type differs from the chosen one", async () => {
+    await open(fitted());
+    await fitOnRun12();
+    await userEvent.click(await screen.findByRole("button", { name: /Sheet type/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /OTHERTYPE/ }));
+    expect(await screen.findByText(`${RUN_12_LINE.slice(0, -1)}, not the sheet type chosen above.`)).toBeVisible();
+  });
+
+  it("hand-typed values show typed by hand", async () => {
+    await open(fitted());
+    expect(await screen.findByText(`Typed by hand, saved for ${TYPE_NAME} v1.`)).toBeVisible();
+    await fitOnRun12();
+    // Counter-test: a fit replaces the hand-typed line; typing over the fit brings it back.
+    expect(screen.queryByText(/^Typed by hand/)).toBeNull();
+    await userEvent.clear(screen.getByLabelText("Offset X (mm)"));
+    expect(await screen.findByText(`Typed by hand, saved for ${TYPE_NAME} v1.`)).toBeVisible();
+    expect(screen.queryByText(RUN_12_LINE)).toBeNull();
+  });
+
+  describe("the line follows the stored state (the draft key)", () => {
+    const TYPED = `Typed by hand, saved for ${TYPE_NAME} v1.`;
+
+    it("after Save the fit line is gone and the typed line shows", async () => {
+      let saved = false;
+      const savedRow = { ...stored, updated_at: "2026-11-27T10:00:00Z" };
+      await open(
+        fitted({
+          [`GET ${BASE}`]: () => respond(200, [saved ? savedRow : stored, none]),
+          [`PUT ${BASE}/main`]: () => {
+            saved = true;
+            return respond(200, savedRow);
+          },
+        }),
+      );
+      await fitOnRun12();
+      await userEvent.click(await button("Save for this printer and tray"));
+      await screen.findByText("Saved. New prints use this correction.");
+      expect(await screen.findByText(TYPED)).toBeVisible();
+      expect(screen.queryByText(RUN_12_LINE)).toBeNull();
+    });
+
+    it("after Reset the fit line is gone", async () => {
+      let reset = false;
+      await open(
+        fitted({
+          [`GET ${BASE}`]: () => respond(200, [reset ? { ...none, tray: "main" } : stored, none]),
+          [`DELETE ${BASE}/main`]: () => {
+            reset = true;
+            return new Response(null, { status: 204 });
+          },
+        }),
+      );
+      await fitOnRun12();
+      await userEvent.click(await button("Reset to no correction"));
+      await userEvent.click(await button("Yes, reset"));
+      await screen.findByText("Reset. This tray prints without correction.");
+      expect(await screen.findByText(TYPED)).toBeVisible();
+      expect(screen.queryByText(RUN_12_LINE)).toBeNull();
+    });
+
+    it("after switching the tray the fit line is gone", async () => {
+      const bypass = { [`GET ${BASE}/bypass/runs`]: [], [`GET ${BASE}/bypass/check-sheets/open`]: () => new Response("null", { status: 200, headers: { "Content-Type": "application/json" } }), [`GET ${BASE}/bypass/page/layout`]: { page_codes: 4, run_line_slots: 0, passes_total: 1, margin_text: { top: "full", bottom: "full" } } };
+      await open(fitted(bypass));
+      await fitOnRun12();
+      await userEvent.click(await screen.findByRole("button", { name: /Tray$/ }));
+      await userEvent.click(await screen.findByRole("option", { name: "Bypass" }));
+      expect(await screen.findByText(TYPED)).toBeVisible();
+      expect(screen.queryByText(RUN_12_LINE)).toBeNull();
+    });
+
+    it("after switching the printer the fit line is gone", async () => {
+      const second = `/api/v1/printers/${secondPrinter.id}/calibration`;
+      await open(
+        fitted({
+          [`GET ${second}/main/runs`]: [],
+          [`GET ${second}/main/check-sheets/open`]: () => new Response("null", { status: 200, headers: { "Content-Type": "application/json" } }),
+          [`GET ${second}/main/page/layout`]: { page_codes: 4, run_line_slots: 0, passes_total: 1, margin_text: { top: "full", bottom: "full" } },
+        }),
+      );
+      await fitOnRun12();
+      await userEvent.click(await screen.findByRole("button", { name: /Printer$/ }));
+      await userEvent.click(await screen.findByRole("option", { name: "Second laser" }));
+      expect(await screen.findByText(TYPED)).toBeVisible();
+      expect(screen.queryByText(RUN_12_LINE)).toBeNull();
+    });
+
+    it("keeps the fit line while nothing was stored (counter-test)", async () => {
+      await open(fitted());
+      await fitOnRun12();
+      expect(screen.getByText(RUN_12_LINE)).toBeVisible();
+      expect(screen.queryByText(TYPED)).toBeNull();
+    });
   });
 });

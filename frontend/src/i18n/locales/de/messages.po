@@ -2617,10 +2617,6 @@ msgstr "aus dem Katalog"
 msgid "From the left edge of one label to the left edge of the next."
 msgstr "Von der linken Kante eines Etiketts bis zur linken Kante des nächsten."
 
-#: src/features/calibration/CalibrationPage.tsx
-msgid "From the readings of print #{fitRun}."
-msgstr "Aus den Messwerten von Druck #{fitRun}."
-
 #: src/features/archive/PreprintZonesEditor.tsx
 msgid "From the sheet's top-left corner, in mm."
 msgstr "Von der linken oberen Ecke des Bogens, in mm."
@@ -8162,6 +8158,10 @@ msgstr "Typ"
 msgid "Typed by hand, no readings."
 msgstr "Von Hand eingegeben, ohne Messwerte."
 
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Typed by hand, saved for {typeName} v{version}."
+msgstr "Von Hand eingegeben, gespeichert für {typeName} v{version}."
+
 #: src/features/sheets/SheetDetail.tsx
 msgid "Un-mark cells"
 msgstr "Markierung aufheben"
@@ -8325,6 +8325,22 @@ msgstr "Aufgebraucht"
 #: src/features/settings/PrinterForm.tsx
 msgid "Usually public."
 msgstr "Meist public."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}, not the sheet type chosen above."
+msgstr "Werte aus den Messwerten von {typeName} v{version}, nicht der oben gewählte Bogentyp."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}, print #{run}, not the sheet type chosen above."
+msgstr "Werte aus den Messwerten von {typeName} v{version}, Druck #{run}, nicht der oben gewählte Bogentyp."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}, print #{run}."
+msgstr "Werte aus den Messwerten von {typeName} v{version}, Druck #{run}."
+
+#: src/features/calibration/CalibrationPage.tsx
+msgid "Values from the readings of {typeName} v{version}."
+msgstr "Werte aus den Messwerten von {typeName} v{version}."
 
 #: src/features/archive/ArchivePage.tsx
 #: src/features/archive/CatalogTab.tsx
