@@ -99,6 +99,7 @@ path = [
   "docs/screenshots/*.png",
   "docs/designs/1.8.0/png/*.png",
   "docs/superpowers/specs/assets/*.png",
+  "docs/designs/433/*.png",
   "website/src/assets/screens/*.webp",
   "website/src/assets/spoolman/*.png",
   "backend/tests/fixtures/ql_layout/*.png",
