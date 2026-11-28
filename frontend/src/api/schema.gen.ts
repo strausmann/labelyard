@@ -1840,7 +1840,7 @@ export interface components {
         BatchRequest: {
             /**
              * Half Cut Override
-             * @description Override half_cut for all items in this batch. If the printer backend does not support half_cut (e.g. QL-Series), the value is forced to False and a warning is logged.
+             * @description Override half_cut for all items in this batch. Omitted: the printer's 'Half cut by default' setting (cut_defaults.half_cut) decides. If the printer backend does not support half_cut (e.g. QL-Series), the value is forced to False and a warning is logged.
              */
             half_cut_override?: boolean | null;
             /** Items */

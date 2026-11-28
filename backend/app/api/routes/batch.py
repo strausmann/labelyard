@@ -161,12 +161,13 @@ async def create_batch(
             },
         ) from err
 
-    # 6. Dispatch (half_cut: override takes precedence over backend capability)
+    # 6. Dispatch. half_cut: the override, else the printer's "Half cut by default"
+    # (cut_defaults.half_cut); never on a backend without a half cutter.
     backend_supports_half_cut: bool = getattr(backend, "half_cut_supported", False)
     if body.half_cut_override is not None:
         use_half_cut = body.half_cut_override and backend_supports_half_cut
     else:
-        use_half_cut = backend_supports_half_cut
+        use_half_cut = bool(printer.cut_defaults_half_cut) and backend_supports_half_cut
 
     # Every item with a lookup is one integration call; the request's token pays for the first.
     # 429 here, before the printer is asked and before any lookup.
