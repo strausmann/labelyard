@@ -12,6 +12,7 @@ asyncio.to_thread and rewrap its exceptions as our PrinterError subtypes (#395: 
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Any
 
 from PIL import Image
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 from app.models.tape import TapeSpec
 from app.printer_backends.exceptions import PrinterError, TapeMismatchError, refused_before_sending
 from app.printer_backends.ptouch_raw import (  # noqa: F401 — patched by tests, shared with callers
+    _PTOUCH_MODELS_WITHOUT_HALF_CUT,
     _PTOUCH_PRINTER_CLASSES,
     _PTOUCH_TAPE_CLASSES,
     _ptouch_errors,
@@ -44,6 +46,8 @@ from app.printer_backends.tape_confirmation import (
     label_length_mm,
 )
 from app.services.status_block import StatusBlock
+
+_logger = logging.getLogger(__name__)
 
 
 class PTouchBackend:
@@ -70,6 +74,9 @@ class PTouchBackend:
         self.host = host
         self._port = port
         self._model_id = model_id
+        # A model with a full cutter only (PT-D600) never gets a half cut: the batch route reads
+        # this, and print_image/print_images cut fully when a caller asks for a half cut anyway.
+        self.half_cut_supported = model_id not in _PTOUCH_MODELS_WITHOUT_HALF_CUT
         # The stored SNMP community (#296): the preflight asks with it, like discovery does.
         self._community = community
         # #389: the status read right before the last send (``None``: none was read for it).
@@ -159,6 +166,16 @@ class PTouchBackend:
         status = self.last_send_status
         return frozenset(status.error_flags) if status is not None else frozenset()
 
+    def _half_cut_or_full(self, half_cut: bool) -> bool:
+        """*half_cut*, or ``False`` on a model with a full cutter only (logged once per print)."""
+        if half_cut and not self.half_cut_supported:
+            _logger.warning(
+                "%s has no half cutter: cutting fully instead of the half cut asked for",
+                self._model_id,
+            )
+            return False
+        return half_cut
+
     def roll_at_send(self) -> dict[str, object] | None:
         """The tape the last send was checked against (#389), for the job record."""
         return roll_record(self.last_send_status)
@@ -180,6 +197,7 @@ class PTouchBackend:
         tape with *tape_spec*. ``last_page=False`` is ptouch-py ``feed=False`` (~5mm feed, not
         the ~22.5mm pre-roll between batch items).
         """
+        half_cut = self._half_cut_or_full(half_cut)
         self.last_send_status = None
         (length,) = self.check_label_lengths([image], tape_spec)  # R26-2, before any SNMP
         if detect_confirmation:
@@ -258,9 +276,11 @@ class PTouchBackend:
         half_cut: bool = True,
     ) -> None:
         """Batch-print via ptouch ``print_multi`` — atomic: one SNMP preflight at the start, a
-        tape mismatch raises before anything is sent, 5mm half-cut between labels."""
+        tape mismatch raises before anything is sent, a 5mm half cut between labels (a full cut
+        on a model without a half cutter)."""
         if not images:
             raise ValueError("print_images requires at least one image")
+        half_cut = self._half_cut_or_full(half_cut)
         self.last_send_status = None
         lengths = self.check_label_lengths(images, tape_spec)  # R26-2: the whole batch or none
         try:

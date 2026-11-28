@@ -45,6 +45,7 @@ If the Brother Raster Command Reference PDF is redistributed in this repository 
 | Grocy | Bernd Bestel | Descriptive only — "integrates with Grocy" |
 | Spoolman | Donkie | Descriptive only — "integrates with Spoolman" |
 | Docker | Docker, Inc. | Descriptive only — "ships as a Docker container" |
+| Raspberry Pi | Raspberry Pi Ltd | Descriptive only — "runs on a Raspberry Pi" (the USB network bridge) |
 | GitHub | Microsoft / GitHub, Inc. | Descriptive only — "hosted on GitHub" |
 | Cloudflare, Pangolin, Traefik, Caddy, nginx | Respective owners | Descriptive only — "compatible with …" |
 

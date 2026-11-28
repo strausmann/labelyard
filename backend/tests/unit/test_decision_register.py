@@ -11,7 +11,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 DECISIONS = REPO / "docs" / "decisions"
 REGISTER = DECISIONS / "register.md"
-LABEL_RE = re.compile(r"\bD\d+\b")
+# Not after a hyphen: "PT-D600" is a printer model, not decision D600.
+LABEL_RE = re.compile(r"(?<![\w-])D\d+\b")
 ROW_RE = re.compile(r"^\|\s*(D\d+)\s*\|(.*)\|\s*$")
 LINK_RE = re.compile(r"\]\(([^)]+\.md)\)")
 
@@ -108,6 +109,12 @@ def test_adr_index_status_equals_header_status() -> None:
         if header != shown:
             mismatches.append(f"{number}: index {shown} vs header {header}")
     assert not mismatches, f"README index and ADR header disagree: {mismatches}"
+
+
+def test_a_printer_model_is_no_decision_label() -> None:
+    # A range written with an en dash, as in the ADR index, still counts both ends.
+    line = 'model_id = "PT-D600"  # D6, see D13\u2013D19; colour #D1A2B3'
+    assert LABEL_RE.findall(line) == ["D6", "D13", "D19"]
 
 
 def test_every_code_label_is_registered() -> None:

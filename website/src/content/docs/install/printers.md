@@ -5,7 +5,7 @@ sidebar:
   label: Printers and hardware
 ---
 
-Labelyard reaches every printer over the network. USB-only printers are not supported. You add printers in the web UI under **Settings > Printers**, at runtime and without a restart; there are no printer variables.
+Labelyard reaches every printer over the network. A P-touch with USB only reaches it through a small network bridge, see [USB printers through a bridge](#usb-printers-through-a-bridge). You add printers in the web UI under **Settings > Printers**, at runtime and without a restart; there are no printer variables.
 
 ## Tape printers
 
@@ -31,6 +31,38 @@ If SNMP does not answer, open the printer's own web page and enable SNMPv1/v2c w
 ### Status discovery
 
 The hub reads the state and the tape of a tape printer over SNMP only when **Status discovery** is on for that printer. In the printer form under **Settings > Printers**, switch it on and enter the **SNMP community** (`public` unless you changed it on the printer). The hub stores the community and never shows it again: the field stays empty, and a note says that one is stored. Leave the field empty to keep it, or type a new one to replace it. If you change the host or the port, enter the community again; the hub does not send a stored community to another address. Printing works without discovery; the overview then shows the printer as not monitored.
+
+## USB printers through a bridge
+
+A P-touch that has USB only, such as the PT-D600, is plugged into a small Linux computer next to it, for example a Raspberry Pi. The bridge on it offers the printer on TCP port 9100 and answers the hub's SNMP questions with the printer's own status, so the hub treats it like a network printer, status discovery and the label counter included. The bridge is a single Python script without dependencies, in [`examples/usb-bridge/`](https://github.com/strausmann/labelyard/tree/main/examples/usb-bridge) of the repository. Tested with the PT-D600; other P-touch models with USB will likely work. Tested one? Please tell us with a [printer compatibility report](https://github.com/strausmann/labelyard/issues/new?template=printer-compatibility.yml).
+
+The computer needs Linux with Python 3.10 or later; Raspberry Pi OS has both, and its kernel module `usblp` makes the printer `/dev/usb/lp0`.
+
+1. Plug the printer in, switch it on and check that it is there:
+
+   ```bash
+   ls -l /dev/usb/lp0
+   ```
+
+2. Copy `ptouch_bridge.py` and `ptouch-bridge.service` onto the computer and start the bridge. It runs without root: the printer belongs to the group `lp`, and the service only gets the right to use port 161.
+
+   ```bash
+   sudo install -m 755 ptouch_bridge.py /usr/local/bin/ptouch-bridge
+   sudo install -m 644 ptouch-bridge.service /etc/systemd/system/
+   sudo systemctl daemon-reload && sudo systemctl enable --now ptouch-bridge
+   ```
+
+3. Add the printer under **Settings > Printers** like a network printer: the computer's address as the host, port `9100`, model `PT-D600`, **Status discovery** on with the community `public`. The checks above work the same way; the SNMP answer names the model the bridge found on USB.
+4. Make a test print.
+
+The bridge's settings are in the service file: `PTB_DEVICE` (the printer device), `PTB_COMMUNITY` (the SNMP community), `PTB_NET_IF` (the network interface whose address the bridge reports) and `PTB_LABEL_COUNTER`. The label counter counts the labels the printer reports as printed. With `auto` the bridge offers it once the printer has reported its first label, so the test print counts as printed and every later job is confirmed by the counter; `on` offers it at once, `off` never. `journalctl -u ptouch-bridge -f` shows every job with its pages and what the printer reports.
+
+Good to know:
+
+- The bridge has no sign-in: anyone who reaches port 9100 can print. Let only the hub's host reach ports 9100 and 161, for example with a firewall on the bridge.
+- The PT-D600 has a full cutter only. The hub cuts its labels fully, also when a half cut is asked for.
+- The PT-D600 does not notice when a tape cassette runs out: labels printed on an empty cassette count as printed.
+- One connection at a time. The hub's queue sends one job after the other anyway.
 
 ## Page printers
 
