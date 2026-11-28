@@ -31,7 +31,14 @@ _PTOUCH_PRINTER_CLASSES: dict[str, type] = {
     "PT-P900W": ptouch.PTP900W,
     "PT-P910BT": ptouch.PTP910BT,
     "PT-P950NW": ptouch.PTP950NW,
+    # USB only, reached through a network bridge (examples/usb-bridge/). ptouch has no class of
+    # its own for it: it has the PT-P750W's print head (128 pins, 180 dpi) and raster commands.
+    "PT-D600": ptouch.PTP750W,
 }
+
+# Models of _PTOUCH_PRINTER_CLASSES with a full cutter only. A half cut sent to them switches
+# the auto cut off, so the backend cuts fully instead (``PTouchBackend.half_cut_supported``).
+_PTOUCH_MODELS_WITHOUT_HALF_CUT: frozenset[str] = frozenset({"PT-D600"})
 
 _PTOUCH_TAPE_CLASSES: dict[int, type] = {
     4: ptouch.Tape3_5mm,  # 3.5mm tape — closest match for "4mm" lookups

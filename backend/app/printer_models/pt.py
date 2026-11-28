@@ -239,6 +239,20 @@ class PTP750WDriver:
         )
 
 
+class PTD600Driver(PTP750WDriver):
+    """Driver for the Brother PT-D600: the PT-P750W driver under its own model id.
+
+    The PT-D600 has the same print head (128 pins, 180 dpi), raster commands and TZe tapes as
+    the PT-P750W, but a full cutter only and no network: it reaches the hub through a USB
+    network bridge (``examples/usb-bridge/``), which reports it as ``MDL:PT-D600``. The backend
+    prints it with the PT-P750W's ``ptouch`` class and never sends it a half cut.
+    """
+
+    model_id = "PT-D600"
+    pjl_signatures: ClassVar[list[str]] = ["PT-D600"]
+    snmp_model_oid_value_substr = "PT-D600"
+
+
 class _PTPQueuePrinter:
     """Private _PrinterLike adapter — produced by PTP750WDriver.make_queue_printer."""
 
@@ -353,3 +367,4 @@ class _PTPQueuePrinter:
 # cast: PTP750WDriver satisfies PrinterModel structurally at runtime;
 # mypy cannot verify Protocol conformance for class-level attributes.
 ModelRegistry.register(cast("type[PrinterModel]", PTP750WDriver))
+ModelRegistry.register(cast("type[PrinterModel]", PTD600Driver))

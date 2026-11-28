@@ -255,6 +255,7 @@ The printer protocols follow the [Brother PT-E550W/P750W/P710BT Raster Command R
 | Device | Kind | Tested |
 |---|---|---|
 | Brother PT-P750W | Tape printer (TZe) | Printing and status on the device |
+| Brother PT-D600 | Tape printer (TZe), USB only, through the [USB network bridge](https://labelyard.app/install/printers/#usb-printers-through-a-bridge) | Printing, status, cart batches, high resolution and confirmed completion on the device |
 | Brother QL-820NWB | Label printer (DK rolls) | Printing, status and confirmed completion on the device |
 | HP LaserJet CP1525N | Page printer (IPP) | Status over IPP, sheet printing onto a started L4736REV sheet and the calibration check print on the device |
 
